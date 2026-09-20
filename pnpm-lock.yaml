@@ -23,6 +23,9 @@ importers:
 
   apps/sync:
     dependencies:
+      '@crdt/db':
+        specifier: workspace:*
+        version: link:../../packages/db
       '@crdt/shared':
         specifier: workspace:*
         version: link:../../packages/shared

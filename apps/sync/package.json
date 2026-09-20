@@ -9,6 +9,7 @@
     "start": "tsx src/index.ts"
   },
   "dependencies": {
+    "@crdt/db": "workspace:*",
     "@crdt/shared": "workspace:*",
     "lib0": "0.2.117",
     "ws": "8.21.3",
