@@ -67,7 +67,11 @@ describe('durability', () => {
     writer.provider.destroy()
     await first.server.close()
 
-    const second = await startServer(store)
+    // A fresh store instance, not the one `first` used, so nothing about this pass can
+    // be credited to in-memory bookkeeping carried across the "restart" — only what a
+    // brand-new process reading from Postgres would have. Same reasoning the snapshot
+    // test below already applies.
+    const second = await startServer(new DocumentStore(prisma, { snapshotEvery: 100 }))
     const reader = await connect(second.server, 'bob')
 
     expect(reader.doc.getText('t').toString()).toBe('survives restart')

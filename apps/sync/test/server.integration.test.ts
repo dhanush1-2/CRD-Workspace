@@ -194,4 +194,25 @@ describe('sync server', () => {
       await shortEvictServer.close()
     }
   })
+
+  it('does not drop the client handshake when document loading is slow', async () => {
+    // ws does not queue frames for a listener that is not yet attached. Any real
+    // async work before ws.on('message') is wired silently loses the client's
+    // first frame and the handshake hangs forever. pause()/resume() guards this.
+    const slowServer = await createSyncServer({
+      port: 0,
+      jwtSecret: SECRET,
+      loadDocument: async () => {
+        await new Promise((r) => setTimeout(r, 50))
+        return null
+      },
+    })
+
+    try {
+      const { provider } = await connect('doc_slow', 'slow', 'editor', slowServer)
+      provider.destroy()
+    } finally {
+      await slowServer.close()
+    }
+  }, 3000)
 })

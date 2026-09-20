@@ -43,5 +43,12 @@ for (const signal of ['SIGTERM', 'SIGINT'] as const) {
       .then(() => server.close())
       .then(() => prisma.$disconnect())
       .then(() => process.exit(0))
+      .catch((error: unknown) => {
+        // A throw anywhere in this chain would otherwise leave the process hanging
+        // instead of exiting — the opposite of a clean shutdown. Log and force exit
+        // non-zero so an orchestrator (or a human) notices instead of waiting forever.
+        log('error', 'shutdown failed', { error: String(error) })
+        process.exit(1)
+      })
   })
 }
