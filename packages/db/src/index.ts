@@ -1,17 +1,27 @@
 import { PrismaClient } from '@prisma/client'
 import { PrismaPg } from '@prisma/adapter-pg'
 
-try {
-  process.loadEnvFile(new URL('../../../.env', import.meta.url))
-} catch {
-  // No .env file present (e.g. production); rely on process.env being set already.
-}
-
 const globalForPrisma = globalThis as unknown as { prisma?: PrismaClient }
 
-const adapter = new PrismaPg({ connectionString: process.env.DATABASE_URL })
+function createPrismaClient(): PrismaClient {
+  // .env is absent in production, where DATABASE_URL comes from the host.
+  try {
+    process.loadEnvFile(new URL('../../../.env', import.meta.url))
+  } catch {
+    // intentional: fall through to the check below, which is the real guard
+  }
 
-export const prisma = globalForPrisma.prisma ?? new PrismaClient({ adapter })
+  const connectionString = process.env.DATABASE_URL
+  if (!connectionString) {
+    throw new Error(
+      'DATABASE_URL is not set. Set it in the environment, or create a repo-root .env from .env.example.',
+    )
+  }
+
+  return new PrismaClient({ adapter: new PrismaPg({ connectionString }) })
+}
+
+export const prisma = globalForPrisma.prisma ?? createPrismaClient()
 
 if (process.env.NODE_ENV !== 'production') globalForPrisma.prisma = prisma
 
