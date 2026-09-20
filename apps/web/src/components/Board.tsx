@@ -2,11 +2,15 @@
 
 import { useState } from 'react'
 import type * as Y from 'yjs'
+import type { WebsocketProvider } from 'y-websocket'
 import { addCard, addColumn, moveCard, removeCard } from '@crdt/shared/board'
 import { useBoard } from '@/hooks/use-board'
+import { setCardFocus, usePresence } from '@/hooks/use-presence'
+import { CardPresence } from '@/components/Presence'
 
 interface BoardProps {
   doc: Y.Doc
+  provider: WebsocketProvider | null
   readOnly?: boolean
 }
 
@@ -14,9 +18,10 @@ interface DragPayload {
   cardId: string
 }
 
-export function Board({ doc, readOnly = false }: BoardProps) {
+export function Board({ doc, provider, readOnly = false }: BoardProps) {
   const { columns, cardsByColumn } = useBoard(doc)
   const [dragOver, setDragOver] = useState<string | null>(null)
+  const presence = usePresence(provider)
 
   function handleDrop(event: React.DragEvent, columnId: string, beforeCardId?: string) {
     event.preventDefault()
@@ -74,6 +79,11 @@ export function Board({ doc, readOnly = false }: BoardProps) {
                 event.stopPropagation()
                 handleDrop(event, column.id, card.id)
               }}
+              onFocus={() => setCardFocus(provider, card.id)}
+              onBlur={() => setCardFocus(provider, null)}
+              onMouseEnter={() => setCardFocus(provider, card.id)}
+              onMouseLeave={() => setCardFocus(provider, null)}
+              tabIndex={0}
               style={{
                 background: 'white',
                 border: '1px solid #e4e4e7',
@@ -93,6 +103,7 @@ export function Board({ doc, readOnly = false }: BoardProps) {
                   ×
                 </button>
               )}
+              <CardPresence users={presence} cardId={card.id} />
             </article>
           ))}
 
