@@ -14,5 +14,8 @@
     "vitest": "5.0.1",
     "tsx": "4.23.14",
     "@types/node": "24.0.0"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": ["@prisma/engines", "prisma"]
   }
 }

@@ -1,0 +1,83 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum Role {
+  owner
+  editor
+  viewer
+}
+
+enum DocumentType {
+  doc
+  board
+}
+
+model User {
+  id           String            @id @default(cuid())
+  email        String            @unique
+  name         String
+  passwordHash String
+  createdAt    DateTime          @default(now())
+  memberships  WorkspaceMember[]
+}
+
+model Workspace {
+  id        String            @id @default(cuid())
+  name      String
+  ownerId   String
+  createdAt DateTime          @default(now())
+  members   WorkspaceMember[]
+  documents Document[]
+}
+
+model WorkspaceMember {
+  id          String    @id @default(cuid())
+  workspaceId String
+  userId      String
+  role        Role
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([workspaceId, userId])
+  @@index([userId])
+}
+
+model Document {
+  id          String             @id @default(cuid())
+  workspaceId String
+  type        DocumentType
+  title       String
+  createdAt   DateTime           @default(now())
+  workspace   Workspace          @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  updates     DocumentUpdate[]
+  snapshots   DocumentSnapshot[]
+
+  @@index([workspaceId])
+}
+
+model DocumentUpdate {
+  id         BigInt   @id @default(autoincrement())
+  documentId String
+  update     Bytes
+  clientId   String
+  createdAt  DateTime @default(now())
+  document   Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+
+  @@index([documentId, id])
+}
+
+model DocumentSnapshot {
+  id              BigInt   @id @default(autoincrement())
+  documentId      String
+  state           Bytes
+  throughUpdateId BigInt
+  snapshotAt      DateTime @default(now())
+  document        Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+
+  @@index([documentId, id])
+}

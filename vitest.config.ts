@@ -4,6 +4,7 @@ export default defineConfig({
   test: {
     projects: [
       { test: { name: 'shared', root: './packages/shared', environment: 'node' } },
+      { test: { name: 'db', root: './packages/db', environment: 'node' } },
     ],
   },
 })
