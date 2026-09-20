@@ -74,4 +74,11 @@ describe('between', () => {
   it('rejects a key containing a character outside the alphabet', () => {
     expect(() => between('!!', null)).toThrow(FractionalIndexError)
   })
+
+  it('rejects a bound ending in the lowest digit', () => {
+    // between() never generates such a key, so this can only arrive from outside
+    // the module. Rejecting loudly beats silently returning an out-of-range key.
+    expect(() => between('M0', null)).toThrow(FractionalIndexError)
+    expect(() => between(null, 'M0')).toThrow(FractionalIndexError)
+  })
 })

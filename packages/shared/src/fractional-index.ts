@@ -24,6 +24,11 @@ function assertValid(key: string | null, label: string): void {
       throw new FractionalIndexError(`${label} contains an invalid character: ${char}`)
     }
   }
+  if (key.endsWith(DIGITS[0]!)) {
+    throw new FractionalIndexError(
+      `${label} ends in the lowest digit, which has no room below it: ${key}`,
+    )
+  }
 }
 
 /** The digit at position `i`, or `fallback` when the key does not reach that far. */
