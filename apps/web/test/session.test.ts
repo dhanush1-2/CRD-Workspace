@@ -26,6 +26,30 @@ describe('password hashing', () => {
   it('returns false rather than throwing on a malformed stored value', async () => {
     await expect(verifyPassword('x', 'garbage')).resolves.toBe(false)
   })
+
+  it('returns false for a wrong scheme', async () => {
+    const stored = await hashPassword('correct horse battery staple')
+    const [, saltHex, hashHex] = stored.split('$')
+    await expect(
+      verifyPassword('correct horse battery staple', `bcrypt$${saltHex}$${hashHex}`),
+    ).resolves.toBe(false)
+  })
+
+  it('returns false for a non-hex salt with an otherwise valid hash', async () => {
+    const stored = await hashPassword('correct horse battery staple')
+    const [, , hashHex] = stored.split('$')
+    await expect(
+      verifyPassword('correct horse battery staple', `scrypt$not-hex-at-all-!!$${hashHex}`),
+    ).resolves.toBe(false)
+  })
+
+  it('returns false for a non-hex hash with an otherwise valid salt, for both the right and wrong password', async () => {
+    const stored = await hashPassword('correct horse battery staple')
+    const [, saltHex] = stored.split('$')
+    const corrupted = `scrypt$${saltHex}$not-hex-at-all-!!`
+    await expect(verifyPassword('correct horse battery staple', corrupted)).resolves.toBe(false)
+    await expect(verifyPassword('totally wrong password', corrupted)).resolves.toBe(false)
+  })
 })
 
 describe('session token', () => {
