@@ -21,9 +21,10 @@ export function useCollaborativeDoc(documentId: string) {
       documentId,
       syncUrl: SYNC_URL,
       fetchToken: () => fetchToken(documentId),
-      // Deliberately left on in the browser: cross-tab sync is a real feature for
-      // users. Tests pass disableBc through createDocSession directly.
-      disableBc: false,
+      // Cross-tab sync is a genuine feature for users, so it stays on by default.
+      // Automated browser tests append ?nobc=1 to force every tab through the server,
+      // otherwise a broken WebSocket still looks like working collaboration.
+      disableBc: new URLSearchParams(window.location.search).has('nobc'),
     })
     const unsubscribe = created.onStatus(setStatus)
     setSession(created)
