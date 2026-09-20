@@ -224,4 +224,40 @@ describe('DocumentRoom', () => {
     applyAwarenessFrame(b.sent[1]!, mirror, 'test')
     expect(mirror.getStates().get(clientDoc.clientID)).toBeUndefined()
   })
+
+  it('pushes existing awareness state to a newly-added connection, unprompted', () => {
+    const room = new DocumentRoom('doc_1', { onPersist: () => {} })
+    const a = fakeConnection('a')
+    room.add(a.conn)
+
+    // A's real client-side awareness, announcing presence — the same shape a
+    // real editor client sends. This is applied before B ever connects, and
+    // B never sends (and a real y-websocket client never would send, over an
+    // actual WebSocket) a query-awareness frame asking for it.
+    const clientDoc = new Y.Doc()
+    const clientAwareness = new Awareness(clientDoc)
+    clientAwareness.setLocalState({ user: { name: 'Alice' } })
+    room.handleFrame(a.conn, encodeAwareness(clientAwareness, [clientDoc.clientID]))
+
+    const b = fakeConnection('b')
+    room.add(b.conn)
+
+    // B must receive A's existing state immediately on being added — not
+    // after any subsequent awareness update from either side.
+    expect(b.sent).toHaveLength(1)
+    expect(peekFrame(b.sent[0]!)).toBe('awareness')
+
+    const mirror = new Awareness(new Y.Doc())
+    applyAwarenessFrame(b.sent[0]!, mirror, 'test')
+    expect(mirror.getStates().get(clientDoc.clientID)).toEqual({ user: { name: 'Alice' } })
+  })
+
+  it('sends nothing to a new connection when the room has no awareness state yet', () => {
+    const room = new DocumentRoom('doc_1', { onPersist: () => {} })
+    const a = fakeConnection('a')
+
+    room.add(a.conn)
+
+    expect(a.sent).toHaveLength(0)
+  })
 })

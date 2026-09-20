@@ -79,6 +79,14 @@ export class DocumentRoom {
   add(conn: Connection): void {
     this.connections.add(conn)
     this.awarenessClients.set(conn, new Set())
+
+    // A real y-websocket client sends messageQueryAwareness only over
+    // BroadcastChannel, never over the actual WebSocket connection — so
+    // waiting for a query to answer would mean a newly-joined client never
+    // learns who else is present until someone's awareness next changes.
+    // Push the current state proactively instead.
+    const clients = [...this.awareness.getStates().keys()]
+    if (clients.length > 0) conn.send(encodeAwareness(this.awareness, clients))
   }
 
   remove(conn: Connection): void {
