@@ -7,7 +7,8 @@
   "scripts": {
     "test": "vitest run",
     "test:watch": "vitest",
-    "typecheck": "pnpm -r exec tsc --noEmit"
+    "typecheck": "pnpm -r exec tsc --noEmit",
+    "postinstall": "pnpm --filter @crdt/db run generate"
   },
   "devDependencies": {
     "typescript": "7.0.2",

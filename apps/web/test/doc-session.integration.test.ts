@@ -70,23 +70,63 @@ describe('createDocSession', () => {
   })
 
   it('fetches a fresh token on every reconnect', async () => {
-    let fetches = 0
+    // Distinguishable tokens (not just a call count) so the assertion can check the
+    // *value* actually carried in `provider.params`, not merely that fetchToken ran
+    // twice — `provider.connect()` reads `params` synchronously, while the refresh
+    // that repopulates it is async, so only checking the call count would pass even
+    // if the stale first token were the one still in `params`.
+    const issued: string[] = []
     const session = createDocSession({
       documentId: 'doc_3',
       syncUrl: `ws://127.0.0.1:${server.port}`,
       disableBc: true,
       WebSocketImpl: WebSocket as unknown as typeof globalThis.WebSocket,
       fetchToken: async () => {
-        fetches += 1
-        return tokenFor('doc_3', 'a')()
+        const token = await tokenFor('doc_3', `a${issued.length}`)()
+        issued.push(token)
+        return token
       },
     })
 
-    await eventually(() => fetches === 1)
+    await eventually(() => issued.length === 1)
+    const firstToken = issued[0]
     session.provider.disconnect()
     session.provider.connect()
-    await eventually(() => fetches >= 2)
+    await eventually(() => issued.length >= 2)
+    const secondToken = issued[issued.length - 1]
+    expect(secondToken).not.toBe(firstToken)
+    await eventually(() => session.provider.params.token === secondToken)
 
     session.destroy()
+  })
+
+  it('recovers from a failed initial token fetch', async () => {
+    let attempts = 0
+    const flaky = createDocSession({
+      documentId: 'doc_4',
+      syncUrl: `ws://127.0.0.1:${server.port}`,
+      disableBc: true,
+      WebSocketImpl: WebSocket as unknown as typeof globalThis.WebSocket,
+      tokenRetryDelayMs: 50,
+      fetchToken: async () => {
+        attempts += 1
+        if (attempts === 1) throw new Error('token service unavailable')
+        return tokenFor('doc_4', 'a')()
+      },
+    })
+    const steady = createDocSession({
+      documentId: 'doc_4',
+      syncUrl: `ws://127.0.0.1:${server.port}`,
+      disableBc: true,
+      WebSocketImpl: WebSocket as unknown as typeof globalThis.WebSocket,
+      fetchToken: tokenFor('doc_4', 'b'),
+    })
+
+    flaky.doc.getText('t').insert(0, 'recovered')
+    await eventually(() => steady.doc.getText('t').toString() === 'recovered', 5000)
+    expect(attempts).toBeGreaterThanOrEqual(2)
+
+    flaky.destroy()
+    steady.destroy()
   })
 })
