@@ -5,6 +5,7 @@ import type * as Y from 'yjs'
 import { verifyDocToken } from '@crdt/shared/doc-token'
 import { DocumentRoom, type Connection } from './room.js'
 import { encodeSyncStep1 } from './protocol.js'
+import { Metrics } from './metrics.js'
 
 export interface SyncServerOptions {
   port: number
@@ -14,11 +15,13 @@ export interface SyncServerOptions {
   loadDocument?(documentId: string): Promise<Uint8Array | null>
   onDocumentPersisted?(documentId: string, doc: Y.Doc): void | Promise<void>
   onReject?(documentId: string, reason: string): void
+  metrics?: Metrics
 }
 
 export interface SyncServer {
   readonly port: number
   readonly roomCount: number
+  readonly metrics: Metrics
   close(): Promise<void>
 }
 
@@ -28,11 +31,20 @@ export async function createSyncServer(options: SyncServerOptions): Promise<Sync
   const idleEvictMs = options.idleEvictMs ?? 30_000
   const rooms = new Map<string, DocumentRoom>()
   const evictTimers = new Map<string, NodeJS.Timeout>()
+  const metrics = options.metrics ?? new Metrics()
+  let connectionCount = 0
 
   const http: Server = createServer((req, res) => {
     if (req.url === '/healthz') {
       res.writeHead(200, { 'content-type': 'text/plain' })
       res.end('ok')
+      return
+    }
+    if (req.url === '/metrics') {
+      metrics.set('sync_connections_active', connectionCount)
+      metrics.set('sync_documents_open', rooms.size)
+      res.writeHead(200, { 'content-type': 'text/plain; version=0.0.4' })
+      res.end(metrics.render())
       return
     }
     res.writeHead(404)
@@ -50,6 +62,7 @@ export async function createSyncServer(options: SyncServerOptions): Promise<Sync
     // during construction — by the time it runs, `room` has already been assigned.
     const room: DocumentRoom = new DocumentRoom(documentId, {
       onPersist: (update, clientId) => {
+        metrics.inc('sync_updates_received_total', { role: 'writer' })
         options.onPersist?.(documentId, update, clientId)
         void Promise.resolve(options.onDocumentPersisted?.(documentId, room.doc)).catch(
           (error: unknown) => {
@@ -59,12 +72,17 @@ export async function createSyncServer(options: SyncServerOptions): Promise<Sync
           },
         )
       },
-      onReject: (reason) => options.onReject?.(documentId, reason),
+      onReject: (reason) => {
+        metrics.inc('sync_updates_rejected_total', { reason })
+        options.onReject?.(documentId, reason)
+      },
     })
     rooms.set(documentId, room)
 
     if (options.loadDocument) {
+      const started = performance.now()
       const state = await options.loadDocument(documentId)
+      metrics.observe('sync_document_load_duration_seconds', (performance.now() - started) / 1000)
       if (state) room.loadState(state)
     }
     return room
@@ -149,6 +167,18 @@ export async function createSyncServer(options: SyncServerOptions): Promise<Sync
       }
 
       room.add(conn)
+      connectionCount += 1
+      // A socket error is typically followed by its own 'close' event once the
+      // connection tears down, so both handlers below can fire for the same
+      // connection. Decrementing in both unconditionally would double-count;
+      // this flag makes the decrement happen exactly once regardless of which
+      // event(s) fire.
+      let countedConnection = true
+      const uncountConnection = (): void => {
+        if (!countedConnection) return
+        countedConnection = false
+        connectionCount -= 1
+      }
 
       ws.on('message', (data: Buffer) => {
         room.handleFrame(conn, new Uint8Array(data.buffer, data.byteOffset, data.byteLength))
@@ -156,11 +186,13 @@ export async function createSyncServer(options: SyncServerOptions): Promise<Sync
 
       ws.on('close', () => {
         room.remove(conn)
+        uncountConnection()
         if (room.size === 0) scheduleEvict(documentId)
       })
 
       ws.on('error', () => {
         room.remove(conn)
+        uncountConnection()
         if (room.size === 0) scheduleEvict(documentId)
       })
 
@@ -184,6 +216,7 @@ export async function createSyncServer(options: SyncServerOptions): Promise<Sync
   return {
     port,
     get roomCount() { return rooms.size },
+    metrics,
     async close() {
       for (const timer of evictTimers.values()) clearTimeout(timer)
       evictTimers.clear()
