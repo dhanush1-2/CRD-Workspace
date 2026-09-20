@@ -51,4 +51,13 @@ describe('guard', () => {
       expect(decision.reason).toBe('malformed_frame')
     }
   })
+
+  it('denies a frame kind outside the known union instead of allowing it', () => {
+    // The compile-time exhaustiveness check cannot fire at runtime; this pins
+    // that an unexpected kind is denied rather than falling through to allow.
+    for (const role of ['owner', 'editor', 'viewer'] as Role[]) {
+      const decision = guard(role, 'future-mutation-frame' as FrameKind)
+      expect(decision.allow, role).toBe(false)
+    }
+  })
 })
