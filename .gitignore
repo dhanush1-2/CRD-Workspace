@@ -3,3 +3,7 @@ node_modules/
 .next/
 dist/
 *.tsbuildinfo
+.superpowers/
+.claude/worktrees/
+test-results/
+playwright-report/
