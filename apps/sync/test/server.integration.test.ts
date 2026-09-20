@@ -120,6 +120,22 @@ describe('sync server', () => {
     expect((await closed).code).toBe(4403)
   })
 
+  it('closes a malformed request with a permanent code and keeps serving other documents', async () => {
+    const closed = new Promise<{ code: number }>((resolve) => {
+      // A raw ws client, not y-websocket: we need a document-id segment with an invalid
+      // percent-escape (%zz is not two hex digits), which decodeURIComponent rejects.
+      const ws = new WebSocket(`ws://127.0.0.1:${server.port}/%zz`)
+      ws.once('close', (code) => resolve({ code }))
+      ws.once('error', () => {}) // a raw socket error alongside the close is not the point of this test
+    })
+
+    expect((await closed).code).toBe(4400)
+
+    // The server must still be able to serve a normal document after a malformed request.
+    const a = await connect('doc_after_malformed', 'alice')
+    a.provider.destroy()
+  })
+
   it('never lets a viewer edit reach another client', async () => {
     const editor = await connect('doc_v', 'editor-user', 'editor')
     const viewer = await connect('doc_v', 'viewer-user', 'viewer')
@@ -127,7 +143,10 @@ describe('sync server', () => {
     viewer.doc.getText('t').insert(0, 'VIEWER WROTE THIS')
     editor.doc.getText('t').insert(0, 'editor wrote this')
 
-    await eventually(() => editor.doc.getText('t').toString().includes('editor wrote this'))
+    // Prove the relay is actually live in the direction that matters: the editor's
+    // legitimate write must reach the viewer. Checking editor.doc here would pass
+    // even with the relay completely dead, since it contains its own local insert.
+    await eventually(() => viewer.doc.getText('t').toString().includes('editor wrote this'))
     await new Promise((r) => setTimeout(r, 300))
 
     expect(editor.doc.getText('t').toString()).not.toContain('VIEWER')
