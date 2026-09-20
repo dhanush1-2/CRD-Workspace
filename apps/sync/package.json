@@ -4,6 +4,11 @@
   "private": true,
   "type": "module",
   "engines": { "node": ">=24.0.0" },
+  "exports": {
+    "./server": "./src/server.ts",
+    "./store": "./src/store.ts",
+    "./update-queue": "./src/update-queue.ts"
+  },
   "scripts": {
     "dev": "tsx watch src/index.ts",
     "start": "tsx src/index.ts"
