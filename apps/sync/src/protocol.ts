@@ -109,7 +109,12 @@ export function handleSyncFrame(
   decoding.readVarUint(decoder) // consume MESSAGE_SYNC
   encoding.writeVarUint(encoder, MESSAGE_SYNC)
 
-  syncProtocol.readSyncMessage(decoder, encoder, doc, origin)
+  syncProtocol.readSyncMessage(decoder, encoder, doc, origin, (error) => {
+    // y-protocols' default handler swallows update-application errors with a
+    // console.error. The design requires a malformed frame to close that one
+    // connection, so surface it to the caller's try/catch instead.
+    throw error
+  })
 
   return encoding.length(encoder) > 1 ? encoding.toUint8Array(encoder) : null
 }

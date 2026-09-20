@@ -1,7 +1,18 @@
 import { describe, it, expect, vi } from 'vitest'
 import * as Y from 'yjs'
+import * as encoding from 'lib0/encoding'
+import * as syncProtocol from 'y-protocols/sync'
+import { Awareness } from 'y-protocols/awareness'
 import { DocumentRoom, LOAD_ORIGIN, type Connection } from '../src/room.js'
-import { encodeSyncStep1, encodeUpdate, handleSyncFrame, peekFrame } from '../src/protocol.js'
+import {
+  MESSAGE_SYNC,
+  applyAwarenessFrame,
+  encodeAwareness,
+  encodeSyncStep1,
+  encodeUpdate,
+  handleSyncFrame,
+  peekFrame,
+} from '../src/protocol.js'
 import type { Role } from '@crdt/shared/types'
 
 function fakeConnection(id: string, role: Role = 'editor') {
@@ -129,5 +140,88 @@ describe('DocumentRoom', () => {
 
     expect(() => room.handleFrame(a.conn, new Uint8Array([200, 200, 200]))).not.toThrow()
     expect(room.size).toBe(1)
+  })
+
+  it('closes the connection with 4500 on a malformed sync-step1 payload, without killing the room', () => {
+    const room = new DocumentRoom('doc_1', { onPersist: () => {} })
+    const a = fakeConnection('a')
+    const b = fakeConnection('b')
+    room.add(a.conn)
+    room.add(b.conn)
+
+    // Valid header, but a length prefix for the state-vector payload far larger
+    // than the bytes that actually follow. peekFrame classifies this as
+    // 'sync-step1' (a well-formed header), so the guard allows it through, and
+    // lib0's readVarUint8Array throws RangeError('Invalid typed array length')
+    // deep inside readSyncStep1 when it tries to slice past the buffer's end.
+    const encoder = encoding.createEncoder()
+    encoding.writeVarUint(encoder, MESSAGE_SYNC)
+    encoding.writeVarUint(encoder, syncProtocol.messageYjsSyncStep1)
+    encoding.writeVarUint(encoder, 9999)
+    const malformed = encoding.toUint8Array(encoder)
+
+    expect(() => room.handleFrame(a.conn, malformed)).not.toThrow()
+    expect(a.closed).toEqual([{ code: 4500, reason: 'frame handling failed' }])
+
+    // One bad frame kills one connection, not the room: b is still tracked,
+    // and the room still processes new frames correctly afterwards.
+    expect(room.size).toBe(2)
+    const source = new Y.Doc()
+    source.getText('t').insert(0, 'still alive')
+    room.handleFrame(b.conn, encodeUpdate(Y.encodeStateAsUpdate(source)))
+    expect(room.doc.getText('t').toString()).toBe('still alive')
+  })
+
+  it('closes the connection with 4500 on a malformed update payload (protocol.ts errorHandler fix)', () => {
+    const room = new DocumentRoom('doc_1', { onPersist: () => {} })
+    const a = fakeConnection('a')
+    room.add(a.conn)
+
+    // Same shape of corruption as above, but for the messageYjsUpdate branch,
+    // which is routed through readSyncStep2/readUpdate. Those functions used to
+    // swallow the error with console.error and never rethrow; handleSyncFrame
+    // now passes an errorHandler that rethrows, so this must also close 4500.
+    const encoder = encoding.createEncoder()
+    encoding.writeVarUint(encoder, MESSAGE_SYNC)
+    encoding.writeVarUint(encoder, syncProtocol.messageYjsUpdate)
+    encoding.writeVarUint(encoder, 9999)
+    const malformed = encoding.toUint8Array(encoder)
+
+    expect(() => room.handleFrame(a.conn, malformed)).not.toThrow()
+    expect(a.closed).toEqual([{ code: 4500, reason: 'frame handling failed' }])
+  })
+
+  it('relays a real awareness update to peers and clears it for them when the sender disconnects', () => {
+    const room = new DocumentRoom('doc_1', { onPersist: () => {} })
+    const a = fakeConnection('a')
+    const b = fakeConnection('b')
+    room.add(a.conn)
+    room.add(b.conn)
+
+    // Connection A's own client-side awareness, announcing cursor state — this
+    // is the shape of frame a real editor client sends.
+    const clientDoc = new Y.Doc()
+    const clientAwareness = new Awareness(clientDoc)
+    clientAwareness.setLocalState({ cursor: { x: 1, y: 2 } })
+    const frame = encodeAwareness(clientAwareness, [clientDoc.clientID])
+
+    room.handleFrame(a.conn, frame)
+
+    expect(b.sent).toHaveLength(1)
+    expect(peekFrame(b.sent[0]!)).toBe('awareness')
+
+    // Decode what B actually received by applying it to a fresh mirror
+    // Awareness instance, using the same protocol helper the real client uses.
+    const mirror = new Awareness(new Y.Doc())
+    applyAwarenessFrame(b.sent[0]!, mirror, 'test')
+    expect(mirror.getStates().get(clientDoc.clientID)).toEqual({ cursor: { x: 1, y: 2 } })
+
+    room.remove(a.conn)
+
+    expect(b.sent).toHaveLength(2)
+    expect(peekFrame(b.sent[1]!)).toBe('awareness')
+
+    applyAwarenessFrame(b.sent[1]!, mirror, 'test')
+    expect(mirror.getStates().get(clientDoc.clientID)).toBeUndefined()
   })
 })
