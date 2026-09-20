@@ -1,6 +1,7 @@
 import { createServer, type IncomingMessage, type Server } from 'node:http'
 import { randomUUID } from 'node:crypto'
 import { WebSocketServer, type WebSocket } from 'ws'
+import type * as Y from 'yjs'
 import { verifyDocToken } from '@crdt/shared/doc-token'
 import { DocumentRoom, type Connection } from './room.js'
 import { encodeSyncStep1 } from './protocol.js'
@@ -11,6 +12,7 @@ export interface SyncServerOptions {
   idleEvictMs?: number
   onPersist?(documentId: string, update: Uint8Array, clientId: string): void
   loadDocument?(documentId: string): Promise<Uint8Array | null>
+  onDocumentPersisted?(documentId: string, doc: Y.Doc): void | Promise<void>
   onReject?(documentId: string, reason: string): void
 }
 
@@ -43,8 +45,20 @@ export async function createSyncServer(options: SyncServerOptions): Promise<Sync
     const existing = rooms.get(documentId)
     if (existing) return existing
 
-    const room = new DocumentRoom(documentId, {
-      onPersist: (update, clientId) => options.onPersist?.(documentId, update, clientId),
+    // `room` is referenced inside its own constructor's `onPersist` callback below. That
+    // is safe because `onPersist` only fires on a later `doc.on('update')` event, never
+    // during construction — by the time it runs, `room` has already been assigned.
+    const room: DocumentRoom = new DocumentRoom(documentId, {
+      onPersist: (update, clientId) => {
+        options.onPersist?.(documentId, update, clientId)
+        void Promise.resolve(options.onDocumentPersisted?.(documentId, room.doc)).catch(
+          (error: unknown) => {
+            console.error(
+              JSON.stringify({ level: 'error', msg: 'snapshot failed', documentId, error: String(error) }),
+            )
+          },
+        )
+      },
       onReject: (reason) => options.onReject?.(documentId, reason),
     })
     rooms.set(documentId, room)
@@ -74,11 +88,31 @@ export async function createSyncServer(options: SyncServerOptions): Promise<Sync
 
   http.on('upgrade', (req, socket, head) => {
     wss.handleUpgrade(req, socket, head, (ws) => {
+      // Pause the socket immediately. `onConnection` now awaits real I/O (token
+      // verification, and — once a document is loaded from storage — a database round
+      // trip) before it attaches the `message` listener below. Node's `ws` starts
+      // parsing incoming frames as soon as the upgrade completes, and an emitted
+      // 'message' event with no listener is simply lost, not queued. A fast loopback
+      // client that sends its sync-step1 frame the instant it opens can otherwise race
+      // ahead of that listener and have its first frame silently dropped, hanging the
+      // handshake forever. Pausing here and resuming right after the listener is
+      // attached closes that window.
+      ws.pause()
       void onConnection(ws, req)
     })
   })
 
   async function onConnection(ws: WebSocket, req: IncomingMessage): Promise<void> {
+    // The socket arrives paused (see the 'upgrade' handler). Every early-rejection path
+    // below closes the connection without ever reaching the `ws.resume()` call further
+    // down, which would otherwise leave the socket paused forever — unable to read the
+    // client's close-frame acknowledgement, so the close handshake stalls until ws's own
+    // 30s close timeout forces it. Resuming before closing lets it complete immediately.
+    const closeEarly = (code: number, reason: string): void => {
+      ws.resume()
+      ws.close(code, reason)
+    }
+
     try {
       const url = new URL(req.url ?? '/', 'http://localhost')
       // decodeURIComponent throws URIError on a malformed percent-escape (e.g. a lone
@@ -87,17 +121,17 @@ export async function createSyncServer(options: SyncServerOptions): Promise<Sync
       const documentId = decodeURIComponent(url.pathname.slice(1))
       const token = url.searchParams.get('token')
 
-      if (!documentId) return void ws.close(4401, 'missing document id')
-      if (!token) return void ws.close(4401, 'missing token')
+      if (!documentId) return void closeEarly(4401, 'missing document id')
+      if (!token) return void closeEarly(4401, 'missing token')
 
       let claims
       try {
         claims = await verifyDocToken(token, options.jwtSecret)
       } catch {
-        return void ws.close(4401, 'invalid token')
+        return void closeEarly(4401, 'invalid token')
       }
 
-      if (claims.docId !== documentId) return void ws.close(4403, 'token document mismatch')
+      if (claims.docId !== documentId) return void closeEarly(4403, 'token document mismatch')
 
       const room = await roomFor(documentId)
       const evictTimer = evictTimers.get(documentId)
@@ -130,12 +164,16 @@ export async function createSyncServer(options: SyncServerOptions): Promise<Sync
         if (room.size === 0) scheduleEvict(documentId)
       })
 
+      // Safe to let frames flow now that the listener above is attached — see the
+      // `ws.pause()` comment in the 'upgrade' handler for why this matters.
+      ws.resume()
+
       // The server opens the sync handshake by advertising its own state vector.
       conn.send(encodeSyncStep1(room.doc))
     } catch {
       // Any parse failure before we can identify the document. Permanent range,
       // so the client stops retrying a request that cannot succeed.
-      ws.close(4400, 'malformed request')
+      closeEarly(4400, 'malformed request')
     }
   }
 
