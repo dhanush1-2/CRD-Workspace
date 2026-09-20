@@ -1,0 +1,140 @@
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
+import { UpdateQueue, type PendingUpdate, type UpdateSink } from '../src/update-queue.js'
+
+function recordingSink() {
+  const calls: Array<{ documentId: string; rows: PendingUpdate[] }> = []
+  const sink: UpdateSink = {
+    append: async (documentId, rows) => { calls.push({ documentId, rows }) },
+  }
+  return { sink, calls }
+}
+
+function failingSink(failures: number) {
+  let attempts = 0
+  const calls: Array<{ documentId: string; rows: PendingUpdate[] }> = []
+  const sink: UpdateSink = {
+    append: async (documentId, rows) => {
+      attempts += 1
+      if (attempts <= failures) throw new Error('postgres is down')
+      calls.push({ documentId, rows })
+    },
+  }
+  return { sink, calls, attempts: () => attempts }
+}
+
+const update = (n: number): PendingUpdate => ({
+  update: new Uint8Array([n]),
+  clientId: `c${n}`,
+})
+
+beforeEach(() => { vi.useFakeTimers() })
+afterEach(() => { vi.useRealTimers() })
+
+describe('UpdateQueue', () => {
+  it('does not write immediately on enqueue', async () => {
+    const { sink, calls } = recordingSink()
+    const queue = new UpdateQueue(sink, { flushIntervalMs: 500, maxBatch: 64 })
+
+    queue.enqueue('doc_1', update(1))
+
+    expect(calls).toHaveLength(0)
+    expect(queue.depth).toBe(1)
+  })
+
+  it('flushes after the interval elapses', async () => {
+    const { sink, calls } = recordingSink()
+    const queue = new UpdateQueue(sink, { flushIntervalMs: 500, maxBatch: 64 })
+
+    queue.enqueue('doc_1', update(1))
+    await vi.advanceTimersByTimeAsync(500)
+
+    expect(calls).toHaveLength(1)
+    expect(calls[0]!.rows).toHaveLength(1)
+    expect(queue.depth).toBe(0)
+  })
+
+  it('flushes immediately once the batch size is reached, without waiting', async () => {
+    const { sink, calls } = recordingSink()
+    const queue = new UpdateQueue(sink, { flushIntervalMs: 500, maxBatch: 3 })
+
+    queue.enqueue('doc_1', update(1))
+    queue.enqueue('doc_1', update(2))
+    queue.enqueue('doc_1', update(3))
+    await vi.advanceTimersByTimeAsync(0)
+
+    expect(calls).toHaveLength(1)
+    expect(calls[0]!.rows).toHaveLength(3)
+  })
+
+  it('preserves enqueue order within a document', async () => {
+    const { sink, calls } = recordingSink()
+    const queue = new UpdateQueue(sink, { flushIntervalMs: 500, maxBatch: 64 })
+
+    for (let n = 1; n <= 5; n += 1) queue.enqueue('doc_1', update(n))
+    await vi.advanceTimersByTimeAsync(500)
+
+    expect(calls[0]!.rows.map((r) => r.update[0])).toEqual([1, 2, 3, 4, 5])
+  })
+
+  it('keeps documents in separate batches', async () => {
+    const { sink, calls } = recordingSink()
+    const queue = new UpdateQueue(sink, { flushIntervalMs: 500, maxBatch: 64 })
+
+    queue.enqueue('doc_a', update(1))
+    queue.enqueue('doc_b', update(2))
+    await vi.advanceTimersByTimeAsync(500)
+
+    expect(calls).toHaveLength(2)
+    expect(calls.map((c) => c.documentId).sort()).toEqual(['doc_a', 'doc_b'])
+  })
+
+  it('retains the batch and retries when the sink fails', async () => {
+    const { sink, calls } = failingSink(2)
+    const onError = vi.fn()
+    const queue = new UpdateQueue(sink, {
+      flushIntervalMs: 500,
+      maxBatch: 64,
+      retryBaseMs: 100,
+      onError,
+    })
+
+    queue.enqueue('doc_1', update(1))
+    queue.enqueue('doc_1', update(2))
+
+    await vi.advanceTimersByTimeAsync(500)
+    expect(calls).toHaveLength(0)
+    expect(queue.depth).toBe(2)
+    expect(onError).toHaveBeenCalled()
+
+    await vi.advanceTimersByTimeAsync(100)   // first retry, fails
+    await vi.advanceTimersByTimeAsync(200)   // second retry, succeeds
+
+    expect(calls).toHaveLength(1)
+    expect(calls[0]!.rows.map((r) => r.update[0])).toEqual([1, 2])
+    expect(queue.depth).toBe(0)
+  })
+
+  it('does not lose updates enqueued during a failed flush', async () => {
+    const { sink, calls } = failingSink(1)
+    const queue = new UpdateQueue(sink, { flushIntervalMs: 500, maxBatch: 64, retryBaseMs: 100 })
+
+    queue.enqueue('doc_1', update(1))
+    await vi.advanceTimersByTimeAsync(500)   // fails, row 1 goes back
+
+    queue.enqueue('doc_1', update(2))
+    await vi.advanceTimersByTimeAsync(100)   // retry succeeds
+
+    expect(calls[0]!.rows.map((r) => r.update[0])).toEqual([1, 2])
+  })
+
+  it('flushes everything on close', async () => {
+    const { sink, calls } = recordingSink()
+    const queue = new UpdateQueue(sink, { flushIntervalMs: 500, maxBatch: 64 })
+
+    queue.enqueue('doc_1', update(1))
+    await queue.close()
+
+    expect(calls).toHaveLength(1)
+    expect(queue.depth).toBe(0)
+  })
+})
