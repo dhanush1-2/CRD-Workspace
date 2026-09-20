@@ -3,6 +3,7 @@
   "version": "0.0.0",
   "private": true,
   "type": "module",
+  "engines": { "node": ">=24.0.0" },
   "exports": {
     "./fractional-index": "./src/fractional-index.ts",
     "./board": "./src/board.ts",
