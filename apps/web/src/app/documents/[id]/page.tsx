@@ -1,5 +1,6 @@
 import { notFound, redirect } from 'next/navigation'
 import { requireUser, requireDocumentRole, HttpError } from '@/lib/auth-guard'
+import { colorFor } from '@/lib/color'
 import { DocumentClient } from './DocumentClient'
 
 export default async function DocumentPage({ params }: { params: Promise<{ id: string }> }) {
@@ -14,7 +15,14 @@ export default async function DocumentPage({ params }: { params: Promise<{ id: s
 
   try {
     const { role, type } = await requireDocumentRole(user.id, id, 'viewer')
-    return <DocumentClient documentId={id} type={type} readOnly={role === 'viewer'} />
+    return (
+      <DocumentClient
+        documentId={id}
+        type={type}
+        readOnly={role === 'viewer'}
+        user={{ name: user.name, color: colorFor(user.id) }}
+      />
+    )
   } catch (error) {
     if (error instanceof HttpError && error.status === 404) notFound()
     throw error
