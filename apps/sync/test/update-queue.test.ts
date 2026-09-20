@@ -137,4 +137,53 @@ describe('UpdateQueue', () => {
     expect(calls).toHaveLength(1)
     expect(queue.depth).toBe(0)
   })
+
+  it('puts a failed batch back ahead of updates that arrived during the write', async () => {
+    // The merge order is only observable when something lands while append is
+    // pending. Without that, a reversed merge produces the same array and the
+    // test cannot fail — see "does not lose updates enqueued during a failed
+    // flush" above, which enqueues only after the failure has already resolved.
+    let releaseAppend: (() => void) | undefined
+    const calls: Array<{ documentId: string; rows: PendingUpdate[] }> = []
+    let attempts = 0
+
+    const sink: UpdateSink = {
+      append: async (documentId, rows) => {
+        attempts += 1
+        if (attempts === 1) {
+          await new Promise<void>((resolve) => { releaseAppend = resolve })
+          throw new Error('postgres is down')
+        }
+        calls.push({ documentId, rows })
+      },
+    }
+
+    const queue = new UpdateQueue(sink, { flushIntervalMs: 500, maxBatch: 64, retryBaseMs: 100 })
+
+    queue.enqueue('doc_1', update(1))
+    const flushing = queue.flush()
+    await vi.advanceTimersByTimeAsync(0)   // let append start and block
+
+    queue.enqueue('doc_1', update(2))      // lands while the first write is pending
+    releaseAppend?.()                      // now let the first write fail
+    await flushing
+
+    await queue.flush()                    // drive the retry directly
+
+    expect(calls).toHaveLength(1)
+    expect(calls[0]!.rows.map((r) => r.update[0])).toEqual([1, 2])
+  })
+
+  it('depth still reports pending rows while a write is hanging', async () => {
+    const sink: UpdateSink = {
+      append: () => new Promise<void>(() => {}), // never resolves
+    }
+    const queue = new UpdateQueue(sink, { flushIntervalMs: 500, maxBatch: 64 })
+
+    queue.enqueue('doc_1', update(1))
+    queue.enqueue('doc_1', update(2))
+    await vi.advanceTimersByTimeAsync(500)   // flush fires, append hangs forever
+
+    expect(queue.depth).toBe(2)
+  })
 })

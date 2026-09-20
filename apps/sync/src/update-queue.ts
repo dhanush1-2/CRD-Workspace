@@ -34,6 +34,7 @@ export class UpdateQueue {
   private chain: Promise<void> = Promise.resolve()
   private attempt = 0
   private closed = false
+  private inFlight = 0
 
   constructor(
     private readonly sink: UpdateSink,
@@ -46,7 +47,7 @@ export class UpdateQueue {
   }
 
   get depth(): number {
-    let total = 0
+    let total = this.inFlight
     for (const rows of this.buffers.values()) total += rows.length
     return total
   }
@@ -97,6 +98,7 @@ export class UpdateQueue {
 
       const [documentId, rows] = entry.value
       this.buffers.delete(documentId)
+      this.inFlight = rows.length
 
       try {
         await this.sink.append(documentId, rows)
@@ -118,6 +120,10 @@ export class UpdateQueue {
           this.schedule(delay)
         }
         return
+      } finally {
+        // Cleared after the catch has restored rows to the buffer, so depth
+        // never momentarily reports zero while data is still unpersisted.
+        this.inFlight = 0
       }
     }
   }
