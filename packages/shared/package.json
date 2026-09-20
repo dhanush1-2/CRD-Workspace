@@ -1,0 +1,16 @@
+{
+  "name": "@crdt/shared",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./fractional-index": "./src/fractional-index.ts",
+    "./board": "./src/board.ts",
+    "./doc-token": "./src/doc-token.ts",
+    "./types": "./src/types.ts"
+  },
+  "dependencies": {
+    "yjs": "13.6.32",
+    "jose": "6.2.12"
+  }
+}
