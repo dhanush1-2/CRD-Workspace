@@ -33,7 +33,8 @@ export async function POST(
     const { id: workspaceId } = await params
     await requireWorkspaceRole(user.id, workspaceId, 'editor')
 
-    const parsed = Body.safeParse(await request.json())
+    const body = await request.json().catch(() => null)
+    const parsed = Body.safeParse(body)
     if (!parsed.success) return Response.json({ error: 'invalid body' }, { status: 400 })
 
     const document = await prisma.document.create({

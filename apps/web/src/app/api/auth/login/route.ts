@@ -14,7 +14,8 @@ const DUMMY_HASH = `scrypt$${'a'.repeat(32)}$${'b'.repeat(128)}`
 
 export async function POST(request: Request): Promise<Response> {
   try {
-    const parsed = Body.safeParse(await request.json())
+    const body = await request.json().catch(() => null)
+    const parsed = Body.safeParse(body)
     if (!parsed.success) return Response.json({ error: 'invalid body' }, { status: 400 })
 
     const user = await prisma.user.findUnique({ where: { email: parsed.data.email } })

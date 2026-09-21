@@ -12,7 +12,8 @@ const Body = z.object({
 
 export async function POST(request: Request): Promise<Response> {
   try {
-    const parsed = Body.safeParse(await request.json())
+    const body = await request.json().catch(() => null)
+    const parsed = Body.safeParse(body)
     if (!parsed.success) return Response.json({ error: 'invalid body' }, { status: 400 })
 
     const { email, password, name } = parsed.data

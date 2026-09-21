@@ -56,6 +56,20 @@ describe('auth routes', () => {
     expect(response.status).toBe(400)
   })
 
+  it('returns 400, not 500, for a genuinely malformed JSON body', async () => {
+    // Not a wrong-shaped valid JSON body (that's the test above) — this is JSON that
+    // fails to parse at all, which request.json() throws SyntaxError for. toResponse
+    // doesn't recognize a bare SyntaxError as an HttpError, so without a guard this
+    // fell through to a generic 500 with a logged stack trace.
+    const malformed = new Request('http://localhost/api', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: '{not valid json',
+    })
+    const response = await signup(malformed)
+    expect(response.status).toBe(400)
+  })
+
   it('logs in with the right password', async () => {
     const response = await login(post({ email: EMAIL, password: 'hunter2hunter2' }))
     expect(response.status).toBe(200)

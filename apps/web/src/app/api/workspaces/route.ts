@@ -22,7 +22,8 @@ const CreateBody = z.object({ name: z.string().min(1).max(120) })
 export async function POST(request: Request): Promise<Response> {
   try {
     const user = await requireUser()
-    const parsed = CreateBody.safeParse(await request.json())
+    const body = await request.json().catch(() => null)
+    const parsed = CreateBody.safeParse(body)
     if (!parsed.success) return Response.json({ error: 'invalid body' }, { status: 400 })
 
     const workspace = await prisma.workspace.create({
