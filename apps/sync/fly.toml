@@ -1,0 +1,29 @@
+app = "crdt-sync"
+primary_region = "ord"
+
+[build]
+  dockerfile = "Dockerfile"
+
+[env]
+  SYNC_PORT = "1234"
+
+[http_service]
+  internal_port = 1234
+  force_https = true
+  # Documents live in the memory of ONE process. Scaling this past a single machine
+  # splits a document across instances that cannot see each other, and the failure is
+  # silent: users on different machines simply stop seeing each other's edits.
+  # Raising these requires the Redis pub/sub fan-out described in the design doc.
+  auto_stop_machines = false
+  auto_start_machines = true
+  min_machines_running = 1
+
+  [[http_service.checks]]
+    interval = "15s"
+    timeout = "3s"
+    method = "GET"
+    path = "/healthz"
+
+[[vm]]
+  size = "shared-cpu-1x"
+  memory = "512mb"

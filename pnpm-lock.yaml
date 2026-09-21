@@ -7,6 +7,16 @@ settings:
 importers:
 
   .:
+    dependencies:
+      '@crdt/db':
+        specifier: workspace:*
+        version: link:packages/db
+      '@crdt/shared':
+        specifier: workspace:*
+        version: link:packages/shared
+      yjs:
+        specifier: 13.6.32
+        version: 13.6.32
     devDependencies:
       '@types/node':
         specifier: 24.0.0

@@ -1,0 +1,28 @@
+app = "crdt-web"
+primary_region = "ord"
+
+[build]
+  dockerfile = "Dockerfile"
+
+[env]
+  PORT = "3000"
+
+[http_service]
+  internal_port = 3000
+  force_https = true
+  # The web app is stateless — every request is authenticated by a signed session
+  # cookie and reads/writes go straight to Postgres — so it can scale out freely,
+  # unlike apps/sync/fly.toml, which pins a single machine for document state.
+  auto_stop_machines = true
+  auto_start_machines = true
+  min_machines_running = 0
+
+  [[http_service.checks]]
+    interval = "15s"
+    timeout = "3s"
+    method = "GET"
+    path = "/"
+
+[[vm]]
+  size = "shared-cpu-1x"
+  memory = "512mb"

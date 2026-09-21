@@ -10,6 +10,11 @@
     "typecheck": "pnpm -r exec tsc --noEmit",
     "postinstall": "pnpm --filter @crdt/db run generate"
   },
+  "dependencies": {
+    "@crdt/db": "workspace:*",
+    "@crdt/shared": "workspace:*",
+    "yjs": "13.6.32"
+  },
   "devDependencies": {
     "typescript": "7.0.2",
     "vitest": "5.0.1",
