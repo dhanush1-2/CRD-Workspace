@@ -72,13 +72,22 @@ describe('sync server', () => {
   it('isolates different documents', async () => {
     const a = await connect('doc_a', 'alice')
     const b = await connect('doc_b', 'bob')
+    // A third client on A's own document, so the relay's liveness is proven
+    // positively before checking the cross-document negative below — see the
+    // 'never lets a viewer edit reach another client' test's comment for why this
+    // ordering matters. Without it, this test would pass identically even if the
+    // whole broadcast path were dead: a fixed wait followed by an absence check on a
+    // never-live channel looks exactly like a working one.
+    const aPeer = await connect('doc_a', 'alice-peer')
 
     a.doc.getText('t').insert(0, 'only-in-a')
+    await eventually(() => aPeer.doc.getText('t').toString() === 'only-in-a')
     await new Promise((r) => setTimeout(r, 300))
 
     expect(b.doc.getText('t').toString()).toBe('')
 
     a.provider.destroy()
+    aPeer.provider.destroy()
     b.provider.destroy()
   })
 
