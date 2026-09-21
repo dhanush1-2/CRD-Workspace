@@ -92,3 +92,34 @@ test('a network failure during sign-up shows an error instead of hanging', async
 
   await cleanupUser(NEW_EMAIL)
 })
+
+test('the dashboard lists the workspaces you belong to and can create another', async ({
+  page,
+}) => {
+  const label = `${LABEL}-dash`
+  const { owner, workspace } = await seedWorkspace(label)
+
+  await page.goto('/login')
+  await page.getByLabel('Email').fill(owner.email)
+  await page.getByLabel('Password').fill(E2E_PASSWORD)
+  await page.getByTestId('submit').click()
+
+  await expect(page).toHaveURL('/')
+  await expect(page.getByTestId('current-user')).toHaveText('Owner')
+  await expect(page.getByTestId(`workspace-${workspace.id}`)).toContainText(label)
+
+  await page.getByTestId('workspace-name').fill(`${label}-second`)
+  await page.getByTestId('create-workspace').click()
+  await expect(page.getByText(`${label}-second`)).toBeVisible()
+
+  await page.getByTestId('sign-out').click()
+  await expect(page).toHaveURL('/login')
+
+  await cleanup(label)
+  await cleanup(`${label}-second`)
+})
+
+test('signing out, then visiting the dashboard, sends you back to sign-in', async ({ page }) => {
+  await page.goto('/')
+  await expect(page).toHaveURL(/\/login/)
+})
