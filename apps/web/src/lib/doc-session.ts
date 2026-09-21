@@ -1,7 +1,7 @@
 import * as Y from 'yjs'
 import { WebsocketProvider } from 'y-websocket'
 
-export type DocStatus = 'connecting' | 'connected' | 'disconnected'
+export type DocStatus = 'connecting' | 'connected' | 'disconnected' | 'fatal'
 
 export interface DocSessionOptions {
   documentId: string
@@ -19,6 +19,18 @@ export interface DocSessionOptions {
    * connect or a post-fatal-close reconnect. Defaults to 1000ms; tests may shorten it.
    */
   tokenRetryDelayMs?: number
+  /**
+   * Base delay for the exponential backoff applied between reconnect attempts after a
+   * fatal (4400-4499) close. Defaults to 1000ms; tests may shorten it.
+   */
+  fatalBackoffBaseMs?: number
+  /** Ceiling on the fatal-close backoff delay. Defaults to 30000ms. */
+  fatalMaxDelayMs?: number
+  /**
+   * Number of reconnect attempts to make after a fatal close before giving up and
+   * reporting the 'fatal' status. Defaults to 5.
+   */
+  fatalMaxAttempts?: number
 }
 
 export interface DocSession {
@@ -41,6 +53,17 @@ export function createDocSession(options: DocSessionOptions): DocSession {
   let destroyed = false
   let retryTimer: ReturnType<typeof setTimeout> | null = null
   const retryDelayMs = options.tokenRetryDelayMs ?? 1000
+
+  // Tracks reconnect attempts made after a fatal close, so a server that keeps closing
+  // fatally forever (a secret mismatch, clock skew past the token TTL, a rotated secret)
+  // cannot turn into an unbackoffed hot loop hammering the token endpoint. Resets to 0
+  // once a connection actually succeeds, so a later, unrelated fatal close gets its own
+  // full run of attempts rather than inheriting an old count.
+  let fatalAttempt = 0
+  let fatalTimer: ReturnType<typeof setTimeout> | null = null
+  const fatalBackoffBaseMs = options.fatalBackoffBaseMs ?? 1000
+  const fatalMaxDelayMs = options.fatalMaxDelayMs ?? 30_000
+  const fatalMaxAttempts = options.fatalMaxAttempts ?? 5
 
   /**
    * Doc tokens are short-lived on purpose, so a reconnect after a long offline
@@ -84,8 +107,24 @@ export function createDocSession(options: DocSessionOptions): DocSession {
   }
 
   const statusListeners = new Set<(status: DocStatus) => void>()
-  provider.on('status', ({ status }: { status: DocStatus }) => {
+
+  function emitStatus(status: DocStatus): void {
     for (const listener of statusListeners) listener(status)
+  }
+
+  provider.on('status', ({ status }: { status: DocStatus }) => {
+    emitStatus(status)
+  })
+
+  // y-websocket's 'status: connected' fires as soon as the raw WebSocket transport
+  // opens — which happens even on a connection the server is about to close fatally,
+  // since the close frame arrives slightly later over the same open socket. `sync`
+  // only fires once a real sync-step exchange has completed, so it is the right
+  // signal that the session has genuinely recovered: any earlier run of fatal-close
+  // attempts is irrelevant now, and a future fatal close should get its own full
+  // backoff run rather than inheriting today's count.
+  provider.on('sync', (isSynced: boolean) => {
+    if (isSynced) fatalAttempt = 0
   })
 
   // A non-fatal close: y-websocket retries on its own schedule, so just make sure the
@@ -95,9 +134,26 @@ export function createDocSession(options: DocSessionOptions): DocSession {
   })
 
   // A fatal close (4400-4499): y-websocket has given up and will not retry on its own.
-  // Re-acquire a token and reconnect explicitly, or the session is dead forever.
+  // Re-acquire a token and reconnect explicitly, or the session is dead forever. Left
+  // unbackoffed, a server that keeps closing fatally (a secret mismatch between two
+  // deployed processes, clock skew past the token TTL) turns this into a tight loop
+  // against the app's own token-minting endpoint. Back off exponentially and give up
+  // after a bounded number of attempts, reporting 'fatal' instead of looping silently.
   provider.on('closed', () => {
-    void connectWithToken()
+    if (destroyed) return
+
+    fatalAttempt += 1
+    if (fatalAttempt > fatalMaxAttempts) {
+      emitStatus('fatal')
+      return
+    }
+
+    const delay = Math.min(fatalBackoffBaseMs * 2 ** (fatalAttempt - 1), fatalMaxDelayMs)
+    fatalTimer = setTimeout(() => {
+      fatalTimer = null
+      void connectWithToken()
+    }, delay)
+    fatalTimer.unref?.()
   })
 
   void connectWithToken()
@@ -114,6 +170,10 @@ export function createDocSession(options: DocSessionOptions): DocSession {
       if (retryTimer) {
         clearTimeout(retryTimer)
         retryTimer = null
+      }
+      if (fatalTimer) {
+        clearTimeout(fatalTimer)
+        fatalTimer = null
       }
       statusListeners.clear()
       provider.destroy()

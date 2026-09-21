@@ -129,4 +129,49 @@ describe('createDocSession', () => {
     flaky.destroy()
     steady.destroy()
   })
+
+  it('bounds reconnect attempts after a terminal close and reports a fatal status', async () => {
+    // A server that will fatally reject every connection, no matter how fresh the
+    // token, mirrors a real SYNC_JWT_SECRET mismatch between deployed processes: the
+    // fetched token is genuinely valid, just not for *this* server, so every attempt
+    // ends in a 4401 close that y-websocket never retries on its own.
+    const mismatchedSecret = 'a-totally-different-secret-value!!'
+    const badServer = await createSyncServer({ port: 0, jwtSecret: mismatchedSecret })
+    let fetchCount = 0
+
+    try {
+      const session = createDocSession({
+        documentId: 'doc_fatal',
+        syncUrl: `ws://127.0.0.1:${badServer.port}`,
+        disableBc: true,
+        WebSocketImpl: WebSocket as unknown as typeof globalThis.WebSocket,
+        tokenRetryDelayMs: 5,
+        fatalBackoffBaseMs: 5,
+        fatalMaxDelayMs: 20,
+        fatalMaxAttempts: 4,
+        fetchToken: async () => {
+          fetchCount += 1
+          return tokenFor('doc_fatal', 'x')()
+        },
+      })
+
+      const statuses: string[] = []
+      session.onStatus((status) => statuses.push(status))
+
+      await eventually(() => statuses.includes('fatal'), 3000)
+
+      const countAtFatal = fetchCount
+      // Give the old, unbackoffed code plenty of time to prove it would have kept
+      // going — this window alone was enough to produce thousands of requests before
+      // the fix.
+      await new Promise((r) => setTimeout(r, 200))
+
+      expect(fetchCount).toBe(countAtFatal)
+      expect(fetchCount).toBeLessThan(20)
+
+      session.destroy()
+    } finally {
+      await badServer.close()
+    }
+  }, 5000)
 })
