@@ -55,12 +55,17 @@ export function MembersPanel({
       const body = (await response.json().catch(() => null)) as { error?: string } | null
       // 404 here means "no user with that email" — the route looks the invitee up
       // before touching the workspace. Rendering its literal 'not found' would read
-      // as a missing page, so it gets translated. 400 is the last-owner guard, whose
-      // own message is already clear enough to show as-is.
+      // as a missing page, so it gets translated. 403 means canManage (fixed at
+      // server-render time, and this panel stays mounted across router.refresh())
+      // no longer matches reality — the caller was demoted in another session
+      // since the page loaded. 400 is the last-owner guard, whose own message is
+      // already clear enough to show as-is.
       setError(
         response.status === 404
           ? `No account is registered to ${email}. They need to sign up first.`
-          : (body?.error ?? 'Could not update that member'),
+          : response.status === 403
+            ? 'Your role in this workspace changed. Reload the page.'
+            : (body?.error ?? 'Could not update that member'),
       )
       setPending(false)
       return

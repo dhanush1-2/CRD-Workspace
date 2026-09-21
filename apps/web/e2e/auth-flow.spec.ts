@@ -15,7 +15,7 @@ test.afterAll(async () => {
   await cleanup(LABEL)
 })
 
-test('an unauthenticated visitor is sent to the sign-in page and can sign in', async ({ page }) => {
+test('a visitor can sign in from the login page and lands on the dashboard', async ({ page }) => {
   const { owner } = await seedWorkspace(LABEL)
 
   await page.goto('/login')
@@ -25,6 +25,26 @@ test('an unauthenticated visitor is sent to the sign-in page and can sign in', a
 
   // Signing in lands on the dashboard, not back on the form.
   await expect(page).toHaveURL('/')
+})
+
+test('a protocol-relative next param cannot redirect off-origin after sign-in', async ({
+  page,
+}) => {
+  const label = `${LABEL}-redirect`
+  const { owner } = await seedWorkspace(label)
+
+  // '//evil.example' starts with '/', so a naive check would let it through and
+  // the browser would resolve it off-origin after a real, successful sign-in.
+  // safeNext runs server-side on the login page itself, so this should already
+  // land on '/' well before the form is ever submitted.
+  await page.goto('/login?next=//evil.example')
+  await page.getByLabel('Email').fill(owner.email)
+  await page.getByLabel('Password').fill(E2E_PASSWORD)
+  await page.getByTestId('submit').click()
+
+  await expect(page).toHaveURL('/')
+
+  await cleanup(label)
 })
 
 test('a wrong password shows an error and stays on the form', async ({ page }) => {
@@ -126,7 +146,7 @@ test('the dashboard lists the workspaces you belong to and can create another', 
   await cleanup(`${label}-second`)
 })
 
-test('signing out, then visiting the dashboard, sends you back to sign-in', async ({ page }) => {
+test('an unauthenticated visit to the dashboard sends you back to sign-in', async ({ page }) => {
   await page.goto('/')
   await expect(page).toHaveURL(/\/login/)
 })
@@ -169,6 +189,30 @@ test('a workspace you are not a member of is not found, not forbidden', async ({
   // 404, never 403: a 403 would confirm the id exists to somebody with no access
   // to it, which is the rule requireWorkspaceRole already enforces on the API.
   const response = await page.goto(`/workspaces/${other.workspace.id}`)
+  expect(response?.status()).toBe(404)
+
+  await cleanup(mine)
+  await cleanup(theirs)
+})
+
+test('a document in a workspace you are not a member of is not found, not forbidden', async ({
+  page,
+}) => {
+  const mine = `${LABEL}-docmine`
+  const theirs = `${LABEL}-doctheirs`
+  const { owner } = await seedWorkspace(mine)
+  const other = await seedWorkspace(theirs)
+  const otherDocument = await createDocument(other.workspace.id, 'doc')
+
+  await page.goto('/login')
+  await page.getByLabel('Email').fill(owner.email)
+  await page.getByLabel('Password').fill(E2E_PASSWORD)
+  await page.getByTestId('submit').click()
+  await expect(page).toHaveURL('/')
+
+  // 404, never 403: a 403 would confirm the id exists to somebody with no access
+  // to it, which is the rule requireDocumentRole already enforces on the API.
+  const response = await page.goto(`/documents/${otherDocument.id}`)
   expect(response?.status()).toBe(404)
 
   await cleanup(mine)

@@ -40,4 +40,18 @@ describe('safeNext', () => {
   it('rejects a scheme that is not http, such as javascript:', () => {
     expect(safeNext('javascript:alert(1)')).toBe('/')
   })
+
+  it('rejects a tab-smuggled protocol-relative URL', () => {
+    // The URL parser strips tabs before resolving, so '/\t/evil.example' becomes
+    // '//evil.example' and lands off-origin while passing every prefix check.
+    expect(safeNext('/\t/evil.example')).toBe('/')
+  })
+
+  it('rejects a newline-smuggled protocol-relative URL', () => {
+    expect(safeNext('/\n/evil.example')).toBe('/')
+  })
+
+  it('rejects a carriage-return-smuggled protocol-relative URL', () => {
+    expect(safeNext('/\r/evil.example')).toBe('/')
+  })
 })

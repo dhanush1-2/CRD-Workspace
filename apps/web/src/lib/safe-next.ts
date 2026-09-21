@@ -13,6 +13,10 @@
  */
 export function safeNext(next: string | null | undefined, fallback = '/'): string {
   if (!next) return fallback
+  // Tab, LF and CR are stripped by the URL parser before it resolves, so
+  // '/\t/evil.com' becomes '//evil.com' and lands off-origin while passing
+  // every prefix check below. Reject all control characters up front.
+  if (/[\x00-\x1f]/.test(next)) return fallback
   if (!next.startsWith('/')) return fallback
   if (next.startsWith('//') || next.startsWith('/\\')) return fallback
   return next
