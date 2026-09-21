@@ -15,10 +15,20 @@ Once deployed, the board lives at `https://crdt-web.fly.dev/documents/<id>` (see
 [Deployment](#deployment) for how to stand this up and seed a demo board with the
 walkthrough cards already in it).
 
-There is currently no sign-in *form* — see [What I deliberately did not
-build](#what-i-deliberately-did-not-build) — so exercising the demo today means
-either using the seeded demo credentials against the API directly, or running it
-locally where the Playwright fixtures set a session cookie for you.
+### Using the app
+
+1. Start Postgres, the sync server, and the web app (above).
+2. Open <http://localhost:3000>. You will be sent to the sign-in page.
+3. Choose **Create one** to sign up. Passwords must be at least 12 characters.
+   Signing up gives you a workspace of your own.
+4. From the dashboard, open your workspace, create a document or a board, and
+   open it.
+5. To collaborate, invite a teammate from the workspace's **Members** panel.
+   They must have signed up first — invitations are by email address of an
+   existing account, and there is no invitation email.
+
+Roles are `owner`, `editor`, and `viewer`. A viewer's edits are rejected at the
+sync server, not just hidden in the UI.
 
 ## Why Yjs rather than a hand-written CRDT
 
@@ -131,12 +141,6 @@ even fail loudly, it just quietly breaks collaboration for whoever ends up on th
 
 ## What I deliberately did not build
 
-- **A sign-in form.** The auth *API* (signup, login, logout, session cookies,
-  scrypt password hashing) is fully built and tested (`apps/web/src/app/api/auth/`),
-  and the Playwright fixtures exercise it by setting the session cookie directly.
-  The actual HTML form in front of it is maybe 40 lines and nothing else depends on
-  it, so it wasn't worth the time against the two engineering claims above. Add it
-  before pointing anyone who isn't you at the deployed app.
 - **Update-log pruning.** `DocumentUpdate` rows are never deleted. At demo scale the
   table stays small, and keeping every row for free preserves the option of a
   version-history feature later. If a document's log ever grows large enough to
