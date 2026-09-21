@@ -174,6 +174,86 @@ describe('UpdateQueue', () => {
     expect(calls[0]!.rows.map((r) => r.update[0])).toEqual([1, 2])
   })
 
+  it('does not let one poisoned document block others in the same drain pass', async () => {
+    const calls: Array<{ documentId: string; rows: PendingUpdate[] }> = []
+    const sink: UpdateSink = {
+      append: async (documentId, rows) => {
+        if (documentId === 'doc_poison') throw new Error('always fails')
+        calls.push({ documentId, rows })
+      },
+    }
+    const onError = vi.fn()
+    const queue = new UpdateQueue(sink, {
+      flushIntervalMs: 500,
+      maxBatch: 64,
+      retryBaseMs: 100,
+      onError,
+    })
+
+    // The poisoned document is enqueued first, so the old code (which `return`ed on
+    // the first failure instead of continuing) would abandon everything after it.
+    queue.enqueue('doc_poison', update(1))
+    queue.enqueue('doc_healthy_a', update(2))
+    queue.enqueue('doc_healthy_b', update(3))
+
+    await queue.flush()
+
+    expect(calls.map((c) => c.documentId).sort()).toEqual(['doc_healthy_a', 'doc_healthy_b'])
+    expect(queue.depth).toBe(1)
+    expect(onError).toHaveBeenCalledTimes(1)
+  })
+
+  it('does not spin forever within one pass on a document that always fails', async () => {
+    let attempts = 0
+    const sink: UpdateSink = {
+      append: async () => {
+        attempts += 1
+        throw new Error('always fails')
+      },
+    }
+    const queue = new UpdateQueue(sink, { flushIntervalMs: 500, maxBatch: 64, retryBaseMs: 100 })
+
+    queue.enqueue('doc_poison', update(1))
+    await queue.flush()
+
+    // Exactly one attempt this pass — proves drain() didn't cycle back around and
+    // retry the same still-failing document again before returning control.
+    expect(attempts).toBe(1)
+    expect(queue.depth).toBe(1)
+  })
+
+  it('close() warns when depth remains non-zero after the final drain attempt', async () => {
+    const sink: UpdateSink = {
+      append: async () => { throw new Error('postgres is down') },
+    }
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    const queue = new UpdateQueue(sink, { flushIntervalMs: 500, maxBatch: 64, retryBaseMs: 100 })
+
+    queue.enqueue('doc_1', update(1))
+    await queue.close()
+
+    expect(queue.depth).toBeGreaterThan(0)
+    expect(warnSpy).toHaveBeenCalled()
+    const logged = warnSpy.mock.calls.map((args) => args.join(' ')).join('\n')
+    expect(logged).toContain('depth')
+
+    warnSpy.mockRestore()
+  })
+
+  it('does not warn on close() when everything drained cleanly', async () => {
+    const { sink } = recordingSink()
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    const queue = new UpdateQueue(sink, { flushIntervalMs: 500, maxBatch: 64 })
+
+    queue.enqueue('doc_1', update(1))
+    await queue.close()
+
+    expect(queue.depth).toBe(0)
+    expect(warnSpy).not.toHaveBeenCalled()
+
+    warnSpy.mockRestore()
+  })
+
   it('depth still reports pending rows while a write is hanging', async () => {
     const sink: UpdateSink = {
       append: () => new Promise<void>(() => {}), // never resolves

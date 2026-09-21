@@ -32,7 +32,9 @@ export class UpdateQueue {
 
   private timer: ReturnType<typeof setTimeout> | null = null
   private chain: Promise<void> = Promise.resolve()
-  private attempt = 0
+  /** Retry attempt count per document, so one poisoned document's backoff doesn't
+   *  reset or inflate every other document's. */
+  private readonly retryAttempts = new Map<string, number>()
   private closed = false
   private inFlight = 0
 
@@ -72,6 +74,21 @@ export class UpdateQueue {
     this.closed = true
     this.clearTimer()
     await this.flush()
+
+    // A SIGTERM drain is supposed to be the last chance to make everything durable.
+    // If anything is still buffered after that one attempt (a document whose sink
+    // write keeps failing), say so loudly rather than exiting as if nothing were
+    // lost — this is the durability alarm, and a silent success here is exactly the
+    // failure mode that let it stay silently wrong.
+    if (this.depth > 0) {
+      console.warn(
+        JSON.stringify({
+          level: 'warn',
+          msg: 'update queue could not fully drain before shutdown; updates remain unpersisted',
+          depth: this.depth,
+        }),
+      )
+    }
   }
 
   private schedule(delayMs: number): void {
@@ -92,34 +109,51 @@ export class UpdateQueue {
   }
 
   private async drain(): Promise<void> {
+    // A document that fails goes back into `buffers` (moved to the end, since Map
+    // re-insertion on an existing key changes iteration order) so any other document
+    // still gets its turn. Without tracking what this pass has already tried, that
+    // same re-insertion would let a permanently-failing document cycle back around
+    // and spin forever within a single drain() call once it's the only thing left.
+    // Once a document has failed once this pass, leave it for the next scheduled
+    // retry instead of hammering it again immediately.
+    const failedThisPass = new Set<string>()
+
     while (this.buffers.size > 0) {
       const entry = this.buffers.entries().next()
       if (entry.done) return
 
       const [documentId, rows] = entry.value
+      if (failedThisPass.has(documentId)) break
+
       this.buffers.delete(documentId)
       this.inFlight = rows.length
 
       try {
         await this.sink.append(documentId, rows)
-        this.attempt = 0
+        this.retryAttempts.delete(documentId)
       } catch (error) {
         // Put the batch back at the front so ordering within the document survives,
         // ahead of anything enqueued while the write was in flight.
         const arrived = this.buffers.get(documentId) ?? []
         this.buffers.set(documentId, [...rows, ...arrived])
+        failedThisPass.add(documentId)
 
-        this.attempt += 1
-        this.options.onError?.(error, this.attempt)
+        const attempt = (this.retryAttempts.get(documentId) ?? 0) + 1
+        this.retryAttempts.set(documentId, attempt)
+        this.options.onError?.(error, attempt)
 
         if (!this.closed) {
           const delay = Math.min(
-            this.retryBaseMs * 2 ** (this.attempt - 1),
+            this.retryBaseMs * 2 ** (attempt - 1),
             this.maxRetryDelayMs,
           )
           this.schedule(delay)
         }
-        return
+        // Don't let one poisoned document abandon the rest of this pass — a failed
+        // write here used to `return` immediately, silently skipping every other
+        // document still buffered, which is exactly what let a SIGTERM drain report
+        // success while dropping other documents' updates.
+        continue
       } finally {
         // Cleared after the catch has restored rows to the buffer, so depth
         // never momentarily reports zero while data is still unpersisted.
