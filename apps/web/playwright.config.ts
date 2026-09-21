@@ -18,4 +18,18 @@ export default defineConfig({
   use: { baseURL: 'http://localhost:3000' },
   // One worker: these tests share a Postgres database and a sync server.
   workers: 1,
+  // Start the Next dev server if one is not already listening. Without this every
+  // run required a separately-started server, and a forgotten one turned every
+  // assertion into an ECONNREFUSED. reuseExistingServer keeps a developer's own
+  // `pnpm dev` in charge when they have one running.
+  //
+  // This starts the web server only. collaboration.spec.ts additionally needs the
+  // sync server (`pnpm --filter @crdt/sync dev`) running on port 1234; that is
+  // unchanged from before and still started by hand.
+  webServer: {
+    command: 'pnpm run dev',
+    url: 'http://localhost:3000',
+    reuseExistingServer: true,
+    timeout: 120_000,
+  },
 })
