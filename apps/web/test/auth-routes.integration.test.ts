@@ -31,7 +31,7 @@ const post = (body: unknown) =>
   })
 
 describe('auth routes', () => {
-  it('creates a user, a personal workspace, and a session cookie', async () => {
+  it('creates a user, a personal workspace, and a session cookie, all correctly linked', async () => {
     const response = await signup(post({ email: EMAIL, password: 'hunter2hunter2', name: 'Route' }))
 
     expect(response.status).toBe(201)
@@ -43,7 +43,21 @@ describe('auth routes', () => {
     })
     expect(user).not.toBeNull()
     expect(user!.passwordHash).not.toContain('hunter2')
+    expect(user!.memberships).toHaveLength(1)
     expect(user!.memberships[0]?.role).toBe('owner')
+
+    // The workspace and its owner membership are created via a single nested Prisma
+    // write (matching the sibling POST /api/workspaces route), rather than as two
+    // separate sequential writes — proving they're correctly linked to each other
+    // and to the user is the regression check for that atomicity, since a partial
+    // failure between them would either leave no workspace at all or a membership
+    // pointing at the wrong workspace.
+    const workspace = await prisma.workspace.findUnique({
+      where: { id: user!.memberships[0]!.workspaceId },
+    })
+    expect(workspace).not.toBeNull()
+    expect(workspace!.ownerId).toBe(user!.id)
+    expect(workspace!.name).toBe("Route's workspace")
   })
 
   it('rejects a duplicate email', async () => {

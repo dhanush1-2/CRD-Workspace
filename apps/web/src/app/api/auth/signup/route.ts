@@ -27,11 +27,17 @@ export async function POST(request: Request): Promise<Response> {
     })
 
     // Everyone starts with a workspace they own, so signup lands somewhere usable.
-    const workspace = await prisma.workspace.create({
-      data: { name: `${name}'s workspace`, ownerId: user.id },
-    })
-    await prisma.workspaceMember.create({
-      data: { workspaceId: workspace.id, userId: user.id, role: 'owner' },
+    // Nested like the sibling POST /api/workspaces route already does it: Prisma's
+    // nested writes are implicitly transactional, so the workspace and its owner
+    // membership are created atomically. (The user itself is still a separate,
+    // earlier write — Workspace.ownerId is a plain string field, not a relation, so
+    // there's no nested-create path from User down to it.)
+    await prisma.workspace.create({
+      data: {
+        name: `${name}'s workspace`,
+        ownerId: user.id,
+        members: { create: { userId: user.id, role: 'owner' } },
+      },
     })
 
     const token = await signSession(user.id, env.sessionSecret)
