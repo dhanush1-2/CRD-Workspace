@@ -1,4 +1,4 @@
-import { notFound, redirect } from 'next/navigation'
+import { notFound } from 'next/navigation'
 import { requireUser, requireDocumentRole, HttpError } from '@/lib/auth-guard'
 import { colorFor } from '@/lib/color'
 import { DocumentClient } from './DocumentClient'
@@ -10,7 +10,17 @@ export default async function DocumentPage({ params }: { params: Promise<{ id: s
   try {
     user = await requireUser()
   } catch {
-    redirect('/login')
+    // There is no /login route in this build — that's a documented, deliberate cut,
+    // not a missing page. Redirecting there produced a bare 404 with no explanation,
+    // so render an inline message instead.
+    return (
+      <main style={{ padding: 24 }}>
+        <p>
+          Sign in required. This build has no sign-in page; authenticate via the API
+          directly (see README).
+        </p>
+      </main>
+    )
   }
 
   try {
