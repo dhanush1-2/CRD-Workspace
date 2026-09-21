@@ -100,9 +100,17 @@ export class DocumentRoom {
     this.awarenessClients.delete(conn)
   }
 
-  /** Apply state read from storage. Does not trigger persistence or broadcast to peers. */
+  /**
+   * Apply state read from storage. Never triggers persistence (the `LOAD_ORIGIN` origin
+   * is what the update observer checks to skip that). Under the normal path, `roomFor`
+   * awaits this before any connection can attach, so `this.connections` is empty here.
+   * But as defense in depth against some future path attaching a connection before the
+   * load resolves, broadcast the loaded state to whoever is already attached — otherwise
+   * that connection would be stuck on an empty doc forever, since a load never repeats.
+   */
   loadState(update: Uint8Array): void {
     Y.applyUpdate(this.doc, update, LOAD_ORIGIN)
+    if (this.connections.size > 0) this.broadcast(encodeUpdate(update))
   }
 
   handleFrame(conn: Connection, data: Uint8Array): void {

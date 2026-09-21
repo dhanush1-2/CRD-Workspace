@@ -30,6 +30,10 @@ const MAX_FRAME_BYTES = 1024 * 1024
 export async function createSyncServer(options: SyncServerOptions): Promise<SyncServer> {
   const idleEvictMs = options.idleEvictMs ?? 30_000
   const rooms = new Map<string, DocumentRoom>()
+  // A load in progress for a document not yet in `rooms`. A second caller that arrives
+  // mid-load must await this same promise instead of registering its own room and
+  // reading an empty doc — see the long comment in `roomFor` for why.
+  const pendingLoads = new Map<string, Promise<DocumentRoom>>()
   const evictTimers = new Map<string, NodeJS.Timeout>()
   const metrics = options.metrics ?? new Metrics()
   let connectionCount = 0
@@ -57,35 +61,69 @@ export async function createSyncServer(options: SyncServerOptions): Promise<Sync
     const existing = rooms.get(documentId)
     if (existing) return existing
 
-    // `room` is referenced inside its own constructor's `onPersist` callback below. That
-    // is safe because `onPersist` only fires on a later `doc.on('update')` event, never
-    // during construction — by the time it runs, `room` has already been assigned.
-    const room: DocumentRoom = new DocumentRoom(documentId, {
-      onPersist: (update, clientId) => {
-        metrics.inc('sync_updates_received_total', { role: 'writer' })
-        options.onPersist?.(documentId, update, clientId)
-        void Promise.resolve(options.onDocumentPersisted?.(documentId, room.doc)).catch(
-          (error: unknown) => {
-            console.error(
-              JSON.stringify({ level: 'error', msg: 'snapshot failed', documentId, error: String(error) }),
-            )
-          },
-        )
-      },
-      onReject: (reason) => {
-        metrics.inc('sync_updates_rejected_total', { reason })
-        options.onReject?.(documentId, reason)
-      },
-    })
-    rooms.set(documentId, room)
+    // A load for this document is already in flight — await the same promise rather
+    // than registering a second `DocumentRoom` and reading it before its `loadState`
+    // has run. That race is exactly what let a second connection join against an
+    // empty `Y.Doc` and never learn the load had completed (LOAD_ORIGIN updates are
+    // deliberately not broadcast, so it never self-corrected).
+    const inFlight = pendingLoads.get(documentId)
+    if (inFlight) return inFlight
 
-    if (options.loadDocument) {
-      const started = performance.now()
-      const state = await options.loadDocument(documentId)
-      metrics.observe('sync_document_load_duration_seconds', (performance.now() - started) / 1000)
-      if (state) room.loadState(state)
-    }
-    return room
+    const load = (async (): Promise<DocumentRoom> => {
+      // `room` is referenced inside its own constructor's `onPersist` callback below.
+      // That is safe because `onPersist` only fires on a later `doc.on('update')`
+      // event, never during construction — by the time it runs, `room` has already
+      // been assigned.
+      const room: DocumentRoom = new DocumentRoom(documentId, {
+        onPersist: (update, clientId) => {
+          metrics.inc('sync_updates_received_total', { role: 'writer' })
+          options.onPersist?.(documentId, update, clientId)
+          void Promise.resolve(options.onDocumentPersisted?.(documentId, room.doc)).catch(
+            (error: unknown) => {
+              console.error(
+                JSON.stringify({ level: 'error', msg: 'snapshot failed', documentId, error: String(error) }),
+              )
+            },
+          )
+        },
+        onReject: (reason) => {
+          metrics.inc('sync_updates_rejected_total', { reason })
+          options.onReject?.(documentId, reason)
+        },
+      })
+
+      try {
+        if (options.loadDocument) {
+          const started = performance.now()
+          const state = await options.loadDocument(documentId)
+          metrics.observe('sync_document_load_duration_seconds', (performance.now() - started) / 1000)
+          // `loadState` broadcasts to any connection already attached (belt and
+          // braces — see its own comment), which is only possible if some path
+          // other than this one attached a connection before the load resolved.
+          if (state) room.loadState(state)
+        }
+      } catch (error) {
+        // The load failed: this document never becomes visible in `rooms`, and the
+        // in-flight entry is cleared so the *next* connection attempt retries the
+        // load fresh, rather than every future caller replaying today's rejection
+        // forever (a cached rejected promise never becomes true later). Destroy the
+        // half-built room so its Y.Doc/Awareness don't leak.
+        pendingLoads.delete(documentId)
+        room.destroy()
+        throw error
+      }
+
+      // Only now, with the room fully loaded, does it become visible to new callers
+      // via the real `rooms` map. Every caller that arrived while this was in flight
+      // resolved from the same `load` promise, so nobody could have observed the room
+      // pre-load.
+      rooms.set(documentId, room)
+      pendingLoads.delete(documentId)
+      return room
+    })()
+
+    pendingLoads.set(documentId, load)
+    return load
   }
 
   function scheduleEvict(documentId: string): void {

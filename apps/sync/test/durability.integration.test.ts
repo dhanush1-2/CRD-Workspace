@@ -109,6 +109,49 @@ describe('durability', () => {
     await second.server.close()
   })
 
+  it('gives a second client the loaded content instead of leaving it permanently blank', async () => {
+    // Reproduces the race the final review found manually: `roomFor` used to register
+    // the new DocumentRoom in `rooms` *before* awaiting `loadDocument`, so a second
+    // connection landing during that window joined an empty Y.Doc and never learned the
+    // load had completed (LOAD_ORIGIN updates are deliberately never broadcast to
+    // peers, since that's what stops a load from re-triggering persistence). Seed real
+    // content via a real DocumentStore write so `loadDocument` genuinely has state to
+    // load, then inject an artificial delay so the load is still in flight when the
+    // second client's connection lands.
+    const store = new DocumentStore(prisma, { snapshotEvery: 100 })
+    const seed = new Y.Doc()
+    seed.getText('t').insert(0, 'seeded before cold load')
+    await store.append(documentId, [{ update: Y.encodeStateAsUpdate(seed), clientId: 'seed' }])
+
+    const server = await createSyncServer({
+      port: 0,
+      jwtSecret: SECRET,
+      loadDocument: async (id) => {
+        await new Promise((r) => setTimeout(r, 300))
+        return store.load(id)
+      },
+    })
+
+    try {
+      const aPromise = connect(server, 'alice')
+      // Land bob's connection about a sixth of the way into alice's 300ms load, so his
+      // is a genuine mid-load arrival rather than a lucky race that happens to land
+      // after the load already resolved.
+      await new Promise((r) => setTimeout(r, 50))
+      const bPromise = connect(server, 'bob')
+
+      const [a, b] = await Promise.all([aPromise, bPromise])
+
+      expect(a.doc.getText('t').toString()).toBe('seeded before cold load')
+      expect(b.doc.getText('t').toString()).toBe('seeded before cold load')
+
+      a.provider.destroy()
+      b.provider.destroy()
+    } finally {
+      await server.close()
+    }
+  }, 5000)
+
   it('does not persist a viewer edit', async () => {
     const store = new DocumentStore(prisma, { snapshotEvery: 100 })
     const { server, queue } = await startServer(store)
