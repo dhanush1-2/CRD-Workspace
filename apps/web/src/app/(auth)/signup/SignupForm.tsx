@@ -42,13 +42,21 @@ export function SignupForm({ next }: { next: string }) {
 
     if (!response.ok) {
       const body = (await response.json().catch(() => null)) as { error?: string } | null
-      // 409 is the one case worth rewording: 'email already registered' is the
-      // API's wording for a machine, and a person needs to know what to do next.
-      setError(
-        response.status === 409
-          ? 'That email is already registered — sign in instead.'
-          : (body?.error ?? 'Sign up failed'),
-      )
+      let message: string
+      if (response.status === 409) {
+        // 'email already registered' is the API's wording for a machine, and a
+        // person needs to know what to do next.
+        message = 'That email is already registered — sign in instead.'
+      } else if (response.status === 400) {
+        // The API validates the body with zod and returns a single generic
+        // 'invalid body' for any failure. Password length is the only 400 a real
+        // user can reach here: name is required and maxLength-capped, and email
+        // is required and type="email", so the browser blocks those before submit.
+        message = 'Password must be at least 12 characters.'
+      } else {
+        message = body?.error ?? 'Sign up failed'
+      }
+      setError(message)
       setPending(false)
       return
     }

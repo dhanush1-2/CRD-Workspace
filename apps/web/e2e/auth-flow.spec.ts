@@ -71,7 +71,7 @@ test('a password under 12 characters is refused', async ({ page }) => {
   await page.getByLabel('Password').fill('short')
   await page.getByTestId('submit').click()
 
-  await expect(page.getByTestId('auth-error')).toBeVisible()
+  await expect(page.getByTestId('auth-error')).toHaveText('Password must be at least 12 characters.')
   await expect(page).toHaveURL('/signup')
 })
 
