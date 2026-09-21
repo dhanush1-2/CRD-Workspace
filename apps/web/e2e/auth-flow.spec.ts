@@ -1,5 +1,12 @@
 import { test, expect } from '@playwright/test'
-import { cleanup, cleanupUser, seedWorkspace, createDocument, E2E_PASSWORD } from './fixtures.js'
+import {
+  cleanup,
+  cleanupUser,
+  seedWorkspace,
+  createDocument,
+  addMember,
+  E2E_PASSWORD,
+} from './fixtures.js'
 
 const LABEL = 'e2e-auth'
 const NEW_EMAIL = 'e2e-auth-signup@e2e.test'
@@ -166,4 +173,55 @@ test('a workspace you are not a member of is not found, not forbidden', async ({
 
   await cleanup(mine)
   await cleanup(theirs)
+})
+
+test('an owner sees the member list and can invite an existing user', async ({ page }) => {
+  const label = `${LABEL}-members`
+  const { owner, workspace } = await seedWorkspace(label)
+  const invitee = await addMember(workspace.id, `${label}-pre`, 'viewer')
+  // Someone who exists but is not yet in this workspace.
+  const outsider = await seedWorkspace(`${label}-outsider`)
+
+  await page.goto('/login')
+  await page.getByLabel('Email').fill(owner.email)
+  await page.getByLabel('Password').fill(E2E_PASSWORD)
+  await page.getByTestId('submit').click()
+  // Wait for sign-in to land before navigating away: page.goto right after click()
+  // can outrun the login form's own async fetch-then-cookie-set, hitting the
+  // workspace page unauthenticated and bouncing back to /login.
+  await expect(page).toHaveURL('/')
+  await page.goto(`/workspaces/${workspace.id}`)
+
+  await expect(page.getByTestId(`member-${invitee.id}`)).toContainText('viewer')
+
+  await page.getByTestId('member-email').fill(outsider.owner.email)
+  await page.getByTestId('member-role').selectOption('editor')
+  await page.getByTestId('add-member').click()
+
+  await expect(page.getByTestId(`member-${outsider.owner.id}`)).toContainText('editor')
+
+  await cleanup(label)
+  await cleanup(`${label}-outsider`)
+})
+
+test('inviting an email with no account explains the problem', async ({ page }) => {
+  const label = `${LABEL}-noaccount`
+  const { owner, workspace } = await seedWorkspace(label)
+
+  await page.goto('/login')
+  await page.getByLabel('Email').fill(owner.email)
+  await page.getByLabel('Password').fill(E2E_PASSWORD)
+  await page.getByTestId('submit').click()
+  // See the sibling test above: wait for sign-in to land before navigating away.
+  await expect(page).toHaveURL('/')
+  await page.goto(`/workspaces/${workspace.id}`)
+
+  await page.getByTestId('member-email').fill('nobody-at-all@e2e.test')
+  await page.getByTestId('add-member').click()
+
+  // The API returns a bare 404 here. Shown raw it reads as "page not found",
+  // which is the wrong story entirely — the panel has to translate it.
+  await expect(page.getByTestId('member-error')).toContainText('No account')
+
+  await cleanup(label)
 })

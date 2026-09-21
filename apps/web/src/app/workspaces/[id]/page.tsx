@@ -7,6 +7,7 @@ import { HttpError, requireWorkspaceRole } from '@/lib/auth-guard'
 import { AppShell } from '@/components/AppShell'
 import { Panel } from '@/components/ui/Panel'
 import { CreateDocumentForm } from './CreateDocumentForm'
+import { MembersPanel } from './MembersPanel'
 import styles from './workspace.module.css'
 import ui from '@/components/ui/ui.module.css'
 
@@ -35,6 +36,10 @@ export default async function WorkspacePage({ params }: { params: Promise<{ id: 
       documents: {
         select: { id: true, title: true, type: true },
         orderBy: { createdAt: 'asc' },
+      },
+      members: {
+        select: { role: true, user: { select: { id: true, name: true, email: true } } },
+        orderBy: { user: { name: 'asc' } },
       },
     },
   })
@@ -71,6 +76,19 @@ export default async function WorkspacePage({ params }: { params: Promise<{ id: 
             <CreateDocumentForm workspaceId={id} />
           </Panel>
         )}
+
+        <Panel title="Members">
+          <MembersPanel
+            workspaceId={id}
+            members={workspace.members.map((member) => ({
+              id: member.user.id,
+              name: member.user.name,
+              email: member.user.email,
+              role: member.role,
+            }))}
+            canManage={role === 'owner'}
+          />
+        </Panel>
       </div>
     </AppShell>
   )
