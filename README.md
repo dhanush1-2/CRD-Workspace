@@ -277,21 +277,22 @@ with `DATABASE_URL` pointed at the production database (for example via
 `fly postgres connect` or by running the script from `fly ssh console` with the
 app's own environment).
 
-**One thing whoever runs this should know going in:** `packages/db/prisma.config.ts`
-unconditionally calls `process.loadEnvFile()` on a repo-root `.env` and then
-resolves `DATABASE_URL` through it — unlike `packages/db/src/index.ts`, which wraps
-the same call in a `try/catch`. There is no `.env` file in either Docker image or in
-production (`DATABASE_URL` arrives as a real host/Fly-secret environment variable),
-so both Dockerfiles work around this at build time only, for the `prisma generate`
-step, with an empty placeholder `.env` file and a throwaway `DATABASE_URL` value
-that is never baked into the image's persistent environment (see the comments in
-`apps/sync/Dockerfile` and `apps/web/Dockerfile`). The `fly ssh console ... prisma
-migrate deploy` command above will hit the same `loadEnvFile` call in production —
-it will need a `.env` file to exist on the running machine (even an empty one) for
-that specific command to get past config loading, since production also has no
-`.env`. This is a pre-existing gap in `packages/db`, not something introduced by
-the deploy tooling; whoever runs the migration should be ready to `touch .env` on
-the machine first if it fails with an `ENOENT` on `.env`.
+**One thing worth knowing about the `prisma generate` and `prisma migrate deploy`
+steps above:** `packages/db/prisma.config.ts` still resolves `DATABASE_URL` eagerly
+as part of loading its config, even for commands like `generate` that never open a
+connection — so the variable has to be *set* (to a real value for `migrate deploy`,
+to any placeholder for `generate`) before either command runs; an entirely unset
+`DATABASE_URL` fails config loading before Prisma gets anywhere near a connection
+attempt. Both Dockerfiles handle this at build time with a throwaway `DATABASE_URL`
+that is never baked into the image's persistent environment (see the comments next
+to the `prisma generate` steps in `apps/sync/Dockerfile` and `apps/web/Dockerfile`).
+The `fly ssh console ... prisma migrate deploy` command above runs against the
+app's real environment, where `DATABASE_URL` is already set via the Fly Postgres
+attachment, so no placeholder is needed there. (An earlier version of
+`prisma.config.ts` also crashed on a missing `.env` file before it even got to the
+`DATABASE_URL` check, independent of this — that was fixed to match the same
+`try/catch` guard `packages/db/src/index.ts` already had, so it no longer matters
+whether a `.env` file exists on the machine running any of these commands.)
 
 ## Local Docker verification
 

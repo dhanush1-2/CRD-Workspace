@@ -15,14 +15,11 @@ RUN pnpm install --frozen-lockfile --filter @crdt/sync... --ignore-scripts
 COPY packages packages
 COPY apps/sync apps/sync
 COPY tsconfig.base.json ./
-# packages/db/prisma.config.ts unconditionally calls process.loadEnvFile on the
-# repo-root .env (unlike src/index.ts, which wraps the same call in a try/catch)
-# and then resolves DATABASE_URL through it eagerly, even for `generate`, which
-# never opens a connection. There is no .env in this image or in production —
-# DATABASE_URL arrives via the host/Fly secrets at runtime — so an empty file
-# satisfies the read, and a placeholder value (used only for this build step,
-# not baked into the image's persistent ENV) satisfies the resolution.
-RUN touch .env
+# packages/db/prisma.config.ts resolves DATABASE_URL eagerly, even for
+# `generate`, which never opens a connection. There is no .env in this image
+# or in production — DATABASE_URL arrives via the host/Fly secrets at
+# runtime — so a placeholder value (used only for this build step, never
+# baked into the image's persistent ENV) satisfies that resolution.
 RUN DATABASE_URL="postgresql://build:build@localhost:5432/build" \
     pnpm --filter @crdt/db exec prisma generate
 
