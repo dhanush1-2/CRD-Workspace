@@ -1,40 +1,46 @@
-import { notFound } from 'next/navigation'
-import { requireUser, requireDocumentRole, HttpError } from '@/lib/auth-guard'
+import { notFound, redirect } from 'next/navigation'
+import { prisma } from '@crdt/db'
+import type { Role } from '@crdt/shared/types'
+import { requireDocumentRole, HttpError } from '@/lib/auth-guard'
+import { getCurrentUser } from '@/lib/current-user'
 import { colorFor } from '@/lib/color'
 import { DocumentClient } from './DocumentClient'
 
 export default async function DocumentPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
 
-  let user
-  try {
-    user = await requireUser()
-  } catch {
-    // There is no /login route in this build — that's a documented, deliberate cut,
-    // not a missing page. Redirecting there produced a bare 404 with no explanation,
-    // so render an inline message instead.
-    return (
-      <main style={{ padding: 24 }}>
-        <p>
-          Sign in required. This build has no sign-in page; authenticate via the API
-          directly (see README).
-        </p>
-      </main>
-    )
-  }
+  const user = await getCurrentUser()
+  // There is a sign-in page now, so send them to it with the destination attached
+  // rather than rendering a dead end. Outside any try/catch: redirect() throws.
+  if (!user) redirect(`/login?next=${encodeURIComponent(`/documents/${id}`)}`)
 
+  // Declared with an explicit type: `let role, type` would be implicitly `any`
+  // under this repo's strict compiler settings.
+  let access: { role: Role; workspaceId: string; type: 'doc' | 'board' }
   try {
-    const { role, type } = await requireDocumentRole(user.id, id, 'viewer')
-    return (
-      <DocumentClient
-        documentId={id}
-        type={type}
-        readOnly={role === 'viewer'}
-        user={{ name: user.name, color: colorFor(user.id) }}
-      />
-    )
+    access = await requireDocumentRole(user.id, id, 'viewer')
   } catch (error) {
     if (error instanceof HttpError && error.status === 404) notFound()
     throw error
   }
+  const { role, type } = access
+
+  // Display data only, and only after the role check has passed.
+  const document = await prisma.document.findUnique({
+    where: { id },
+    select: { title: true, workspace: { select: { id: true, name: true } } },
+  })
+  if (!document) notFound()
+
+  return (
+    <DocumentClient
+      documentId={id}
+      type={type}
+      role={role}
+      readOnly={role === 'viewer'}
+      title={document.title}
+      workspace={document.workspace}
+      user={{ name: user.name, color: colorFor(user.id) }}
+    />
+  )
 }

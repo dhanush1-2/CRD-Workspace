@@ -225,3 +225,25 @@ test('inviting an email with no account explains the problem', async ({ page }) 
 
   await cleanup(label)
 })
+
+test('an unauthenticated visit to a document returns to it after signing in', async ({ page }) => {
+  const label = `${LABEL}-doc`
+  const { owner, workspace } = await seedWorkspace(label)
+  const document = await createDocument(workspace.id, 'board')
+
+  await page.goto(`/documents/${document.id}`)
+  // Not a bare 404, and not a dead-end message — the login page, carrying the
+  // destination so signing in lands back on the document that was asked for.
+  await expect(page).toHaveURL(`/login?next=${encodeURIComponent(`/documents/${document.id}`)}`)
+
+  await page.getByLabel('Email').fill(owner.email)
+  await page.getByLabel('Password').fill(E2E_PASSWORD)
+  await page.getByTestId('submit').click()
+
+  await expect(page).toHaveURL(`/documents/${document.id}`)
+  await expect(page.getByTestId('document-title')).toHaveText('e2e board')
+  await expect(page.getByTestId('workspace-link')).toHaveText(label)
+  await expect(page.getByTestId('role')).toHaveText('owner')
+
+  await cleanup(label)
+})
