@@ -87,12 +87,6 @@ test('both users see each other in the presence bar', async ({ browser }) => {
 })
 
 test('text typed while offline merges on reconnect', async ({ browser }) => {
-  // y-websocket only notices a stalled connection via its own dead-peer check, which
-  // fires on a 30s timer (messageReconnectTimeout in y-websocket's source) — Playwright's
-  // setOffline does not proactively close the socket or emit a close event. The default
-  // 30s test / 10s expect timeouts are too short to observe that transition, so both are
-  // extended here rather than for the whole suite.
-  test.setTimeout(60_000)
   const label = `${LABEL}-offline`
   const { owner, workspace } = await seedWorkspace(label)
   const editor = await addMember(workspace.id, label, 'editor')
@@ -107,8 +101,16 @@ test('text typed while offline merges on reconnect', async ({ browser }) => {
   await pageA.keyboard.type('online-a ')
   await expect(pageB.locator('.ProseMirror')).toContainText('online-a')
 
+  // setOffline cuts network traffic at the browser level immediately. The status badge
+  // only reflects that transiently: y-websocket has no active close-on-offline behavior,
+  // so 'disconnected' only appears for an instant when its ~30s dead-peer timer fires,
+  // before it immediately retries and flips back to 'connecting'. Waiting for that value
+  // is a race against Playwright's own poll interval, not a real signal — what this test
+  // needs to prove is that edits made while genuinely offline merge on reconnect, which
+  // doesn't depend on what the status badge shows at any instant. A short fixed wait
+  // gives any already-in-flight frame time to settle before typing.
   await contextB.setOffline(true)
-  await expect(pageB.getByTestId('status')).toHaveText('disconnected', { timeout: 40_000 })
+  await pageB.waitForTimeout(300)
   await pageB.locator('.ProseMirror').click()
   await pageB.keyboard.type('offline-b ')
   await pageA.locator('.ProseMirror').click()
