@@ -19,11 +19,22 @@ export function LoginForm({ next }: { next: string }) {
     setError(null)
     setPending(true)
 
-    const response = await fetch('/api/auth/login', {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ email: form.get('email'), password: form.get('password') }),
-    })
+    let response: Response
+    try {
+      response = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ email: form.get('email'), password: form.get('password') }),
+      })
+    } catch {
+      // fetch rejects — rather than resolving with an error status — when the request
+      // never reaches the server: offline, DNS failure, connection refused, aborted.
+      // Without this the rejection escapes the async handler, pending stays true, and
+      // the button sits disabled on "Signing in…" with nothing shown to the user.
+      setError('Could not reach the server. Check your connection and try again.')
+      setPending(false)
+      return
+    }
 
     if (!response.ok) {
       const body = (await response.json().catch(() => null)) as { error?: string } | null

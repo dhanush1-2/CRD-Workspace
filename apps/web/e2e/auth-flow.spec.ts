@@ -31,3 +31,21 @@ test('a wrong password shows an error and stays on the form', async ({ page }) =
   await expect(page).toHaveURL('/login')
   await cleanup(`${LABEL}-bad`)
 })
+
+test('a network failure during sign-in shows an error instead of hanging', async ({ page }) => {
+  const label = `${LABEL}-offline`
+  const { owner } = await seedWorkspace(label)
+
+  await page.goto('/login')
+  await page.route('**/api/auth/login', (route) => route.abort())
+
+  await page.getByLabel('Email').fill(owner.email)
+  await page.getByLabel('Password').fill(E2E_PASSWORD)
+  await page.getByTestId('submit').click()
+
+  await expect(page.getByTestId('auth-error')).toContainText('Could not reach the server')
+  // The button must return to its idle state — the bug this covers left it disabled forever.
+  await expect(page.getByTestId('submit')).toBeEnabled()
+
+  await cleanup(label)
+})
