@@ -8,3 +8,10 @@ dist/
 test-results/
 playwright-report/
 docker-compose.override.yml
+
+# Written by `next dev` itself on every run (node_modules/next/dist/server/lib/
+# generate-agent-files.js). Ignored rather than committed: committing
+# apps/web/CLAUDE.md would silently add an auto-loaded agent-instruction file
+# to this repository.
+apps/web/AGENTS.md
+apps/web/CLAUDE.md

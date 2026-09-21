@@ -48,3 +48,19 @@ export async function cleanup(label: string) {
   await prisma.workspace.deleteMany({ where: { name: label } })
   await prisma.user.deleteMany({ where: { email: { contains: `${label}-` } } })
 }
+
+/**
+ * Remove a user created through the signup UI, and the personal workspace signup
+ * creates for them.
+ *
+ * cleanup(label) cannot do this: it finds workspaces by name, and signup names
+ * the workspace after the person ("Ada's workspace"), not after the test label.
+ * Workspace.ownerId is a plain string column rather than a relation, so deleting
+ * the user does not cascade to it either — it has to go first, explicitly.
+ */
+export async function cleanupUser(email: string) {
+  const user = await prisma.user.findUnique({ where: { email }, select: { id: true } })
+  if (!user) return
+  await prisma.workspace.deleteMany({ where: { ownerId: user.id } })
+  await prisma.user.delete({ where: { id: user.id } })
+}
