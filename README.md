@@ -17,7 +17,7 @@ walkthrough cards already in it).
 
 ### Using the app
 
-1. Start Postgres, the sync server, and the web app (above).
+1. Start Postgres, the sync server, and the web app — see [Development](#development) below.
 2. Open <http://localhost:3000>. You will be sent to the sign-in page.
 3. Choose **Create one** to sign up. Passwords must be at least 12 characters.
    Signing up gives you a workspace of your own.
