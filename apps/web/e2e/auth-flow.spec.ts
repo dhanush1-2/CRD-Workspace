@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test'
-import { cleanup, cleanupUser, seedWorkspace, E2E_PASSWORD } from './fixtures.js'
+import { cleanup, cleanupUser, seedWorkspace, createDocument, E2E_PASSWORD } from './fixtures.js'
 
 const LABEL = 'e2e-auth'
 const NEW_EMAIL = 'e2e-auth-signup@e2e.test'
@@ -122,4 +122,48 @@ test('the dashboard lists the workspaces you belong to and can create another', 
 test('signing out, then visiting the dashboard, sends you back to sign-in', async ({ page }) => {
   await page.goto('/')
   await expect(page).toHaveURL(/\/login/)
+})
+
+test('a workspace page lists its documents and can create a board', async ({ page }) => {
+  const label = `${LABEL}-ws`
+  const { owner, workspace } = await seedWorkspace(label)
+  const existing = await createDocument(workspace.id, 'doc')
+
+  await page.goto('/login')
+  await page.getByLabel('Email').fill(owner.email)
+  await page.getByLabel('Password').fill(E2E_PASSWORD)
+  await page.getByTestId('submit').click()
+  await expect(page).toHaveURL('/')
+
+  await page.getByTestId(`workspace-${workspace.id}`).click()
+  await expect(page).toHaveURL(`/workspaces/${workspace.id}`)
+  await expect(page.getByTestId(`document-${existing.id}`)).toContainText('e2e doc')
+
+  await page.getByTestId('document-title').fill('Launch board')
+  await page.getByTestId('document-type').selectOption('board')
+  await page.getByTestId('create-document').click()
+  await expect(page.getByText('Launch board')).toBeVisible()
+
+  await cleanup(label)
+})
+
+test('a workspace you are not a member of is not found, not forbidden', async ({ page }) => {
+  const mine = `${LABEL}-mine`
+  const theirs = `${LABEL}-theirs`
+  const { owner } = await seedWorkspace(mine)
+  const other = await seedWorkspace(theirs)
+
+  await page.goto('/login')
+  await page.getByLabel('Email').fill(owner.email)
+  await page.getByLabel('Password').fill(E2E_PASSWORD)
+  await page.getByTestId('submit').click()
+  await expect(page).toHaveURL('/')
+
+  // 404, never 403: a 403 would confirm the id exists to somebody with no access
+  // to it, which is the rule requireWorkspaceRole already enforces on the API.
+  const response = await page.goto(`/workspaces/${other.workspace.id}`)
+  expect(response?.status()).toBe(404)
+
+  await cleanup(mine)
+  await cleanup(theirs)
 })
