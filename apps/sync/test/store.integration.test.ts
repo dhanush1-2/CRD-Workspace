@@ -113,6 +113,19 @@ describe('DocumentStore', () => {
     expect(restored.getText('t').toString()).toBe('before after')
   })
 
+  it('drops updates for a document that no longer exists instead of retrying forever', async () => {
+    // Reproduces what happens on every Playwright suite run via the e2e fixtures'
+    // cleanup: a document is deleted while a flush batch for it is still queued, so
+    // the batch's append hits a real foreign-key violation (Postgres P2003) that can
+    // never succeed no matter how many times it's retried.
+    const store = new DocumentStore(prisma)
+    await prisma.document.delete({ where: { id: documentId } })
+
+    await expect(
+      store.append(documentId, [{ update: updateFrom('orphaned'), clientId: 'c1' }]),
+    ).resolves.toBeUndefined()
+  })
+
   it('tolerates re-applying updates a snapshot already contains', async () => {
     // Yjs updates are idempotent, which is why throughUpdateId can be conservative
     // without being wrong. This test pins that property so nobody "fixes" the

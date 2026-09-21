@@ -1,5 +1,5 @@
 import * as Y from 'yjs'
-import type { PrismaClient } from '@crdt/db'
+import { Prisma, type PrismaClient } from '@crdt/db'
 import type { PendingUpdate, UpdateSink } from './update-queue.js'
 
 export interface DocumentStoreOptions {
@@ -55,14 +55,36 @@ export class DocumentStore implements UpdateSink {
   async append(documentId: string, rows: PendingUpdate[]): Promise<void> {
     if (rows.length === 0) return
 
-    const created = await this.prisma.documentUpdate.createManyAndReturn({
-      data: rows.map((row) => ({
-        documentId,
-        update: Buffer.from(row.update),
-        clientId: row.clientId,
-      })),
-      select: { id: true },
-    })
+    let created: Array<{ id: bigint }>
+    try {
+      created = await this.prisma.documentUpdate.createManyAndReturn({
+        data: rows.map((row) => ({
+          documentId,
+          update: Buffer.from(row.update),
+          clientId: row.clientId,
+        })),
+        select: { id: true },
+      })
+    } catch (error) {
+      // A foreign-key violation here means the document was deleted while this batch
+      // was still queued — this happens on every Playwright suite run, via the e2e
+      // fixtures' cleanup. It can never succeed no matter how many times it's
+      // retried, unlike a transient connection drop, so retrying it forever would
+      // permanently pin sync_queue_depth (the durability alarm) at a nonzero value.
+      // Treat "the document is already gone" as a successful no-op from the queue's
+      // perspective: there is nothing left to persist it for.
+      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2003') {
+        console.error(
+          JSON.stringify({
+            level: 'error',
+            msg: 'dropping updates for a document that no longer exists',
+            documentId,
+          }),
+        )
+        return
+      }
+      throw error
+    }
 
     let highest = this.lastUpdateId.get(documentId) ?? 0n
     for (const row of created) if (row.id > highest) highest = row.id
