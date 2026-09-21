@@ -1,11 +1,37 @@
 import { z } from 'zod'
 import { prisma } from '@crdt/db'
+import type { Role } from '@crdt/shared/types'
 import { requireUser, requireWorkspaceRole, toResponse, HttpError } from '@/lib/auth-guard'
 
 const Body = z.object({
   email: z.string().email(),
   role: z.enum(['owner', 'editor', 'viewer']),
 })
+
+/**
+ * True if changing `targetUserId`'s role to `nextRole` would leave the workspace with
+ * zero owners — i.e. the target is currently the workspace's last remaining owner and
+ * `nextRole` is not `owner`. Narrow, partial fix for a workspace being left permanently
+ * ownerless: it only blocks this specific self-lockout path. There is deliberately no
+ * member-removal route and no confirmation-flag mechanism here — both are tracked
+ * separately and out of scope for this change.
+ */
+export async function wouldLeaveWorkspaceOwnerless(
+  workspaceId: string,
+  targetUserId: string,
+  nextRole: Role,
+): Promise<boolean> {
+  if (nextRole === 'owner') return false
+
+  const current = await prisma.workspaceMember.findUnique({
+    where: { workspaceId_userId: { workspaceId, userId: targetUserId } },
+    select: { role: true },
+  })
+  if (current?.role !== 'owner') return false
+
+  const ownerCount = await prisma.workspaceMember.count({ where: { workspaceId, role: 'owner' } })
+  return ownerCount <= 1
+}
 
 export async function POST(
   request: Request,
@@ -24,6 +50,13 @@ export async function POST(
       select: { id: true },
     })
     if (!invitee) throw new HttpError(404, 'not found')
+
+    if (await wouldLeaveWorkspaceOwnerless(workspaceId, invitee.id, parsed.data.role)) {
+      return Response.json(
+        { error: 'workspace must have at least one owner' },
+        { status: 400 },
+      )
+    }
 
     const member = await prisma.workspaceMember.upsert({
       where: { workspaceId_userId: { workspaceId, userId: invitee.id } },
