@@ -67,13 +67,13 @@ the hosting setup.
 
 1. Start Postgres, the sync server, and the web app — see [Development](#development) below.
 2. Open <http://localhost:3000>. You will be sent to the sign-in page.
-3. Choose **Create one** to sign up. Passwords must be at least 12 characters.
-   Signing up gives you a workspace of your own.
+3. Choose **Continue with GitHub** or **Continue with Google**. Your first
+   sign-in creates your account and a workspace of your own.
 4. From the dashboard, open your workspace, create a document or a board, and
    open it.
-5. To collaborate, invite a teammate from the workspace's **Members** panel.
-   They must have signed up first — invitations are by email address of an
-   existing account, and there is no invitation email.
+5. To collaborate, invite a teammate by email from the workspace's **Members**
+   panel. They must have signed in once first — invitations go to the email
+   address of an existing account, and there is no invitation email.
 
 Roles are `owner`, `editor`, and `viewer`. A viewer's edits are rejected at the
 sync server, not just hidden in the UI.
@@ -230,6 +230,14 @@ even fail loudly, it just quietly breaks collaboration for whoever ends up on th
 
 ## What I deliberately did not build
 
+- **Email/password sign-in.** Sign-in is GitHub or Google only. An earlier version
+  had a password form, but a password account's email is never verified, and
+  invitations go by email address — so on the public internet anyone could
+  register a colleague's address first and receive the invitations meant for
+  them. Provider sign-in delivers already-verified emails, which removes that
+  whole class of problem instead of patching around it. The hardened password
+  code (scrypt, constant-time comparison, and a dummy hash that equalizes login
+  timing) is in the git history.
 - **Update-log pruning.** `DocumentUpdate` rows are never deleted. At demo scale the
   table stays small, and keeping every row for free preserves the option of a
   version-history feature later. If a document's log ever grows large enough to
@@ -271,6 +279,35 @@ adapter is not optional here.
 ```bash
 pnpm install
 ```
+
+### Signing in locally
+
+Sign-in is GitHub or Google only, so local development needs its own OAuth app.
+A GitHub OAuth app allows exactly one callback URL, so create a development app
+separate from the production one:
+
+- **GitHub** → Settings → Developer settings → OAuth Apps → New OAuth App.
+  Homepage URL `http://localhost:3000`; redirect URI
+  `http://localhost:3000/api/auth/oauth/github/callback`. Leave wildcard matching
+  and device flow off. Generate a client secret.
+- **Google** (optional) → an OAuth client of type *Web application* with the
+  authorized redirect URI `http://localhost:3000/api/auth/oauth/google/callback`.
+  One Google client can list both the local and the production redirect URIs.
+
+Then add to your `.env`:
+
+    APP_URL=http://localhost:3000
+    GITHUB_CLIENT_ID=<from GitHub>
+    GITHUB_CLIENT_SECRET=<from GitHub>
+
+A provider with a blank ID or secret simply doesn't get a button, so GitHub
+alone is enough.
+
+`pnpm --filter @crdt/web exec playwright test` starts the web app and the sync
+server itself when they aren't already running, with placeholder provider
+credentials — the tests never complete a real sign-in. If you already have your
+own `pnpm dev` running, Playwright reuses it, and it then needs `APP_URL` and at
+least placeholder credentials in `.env` for the login tests to find the buttons.
 
 `pnpm install` regenerates the Prisma client automatically via a root
 `postinstall` script whenever the dependency graph changes — you should not need to
@@ -318,74 +355,124 @@ as any real document — there's no seed-only shortcut that could mask a bug in 
 real load path.
 
 ```bash
-DEMO_PASSWORD='<pick one>' pnpm exec tsx scripts/seed-demo.ts
+DEMO_OWNER_EMAIL='you@example.com' pnpm exec tsx scripts/seed-demo.ts
 ```
 
-Requires `DATABASE_URL` to be set (from `.env` locally, or the real host environment
-in production) and prints the seeded document's URL path on success.
+The workspace is owned by the email address you pass: sign in with GitHub or
+Google using that address and the demo workspace is yours. Requires
+`DATABASE_URL` to be set (from `.env` locally, or the real host environment in
+production) and prints the seeded document's URL path on success.
 
 ## Deployment
 
-Two Fly.io apps: `apps/sync` (the WebSocket server, pinned to a single machine —
-see "How I'd scale this") and `apps/web` (the Next.js app, stateless and free to
-scale), sharing one Postgres. Both have a `Dockerfile` and `fly.toml` in this repo,
-verified with a local `docker build` for each; neither has been deployed from this
-environment. **The commands below are the documented deployment procedure — they
-have not been run as part of building this repo**, and running them creates real,
-billable cloud resources, so they're left as a runbook for whoever does the actual
-deploy, not something this task executed on its own.
+The public deployment runs on free tiers: two **Render** web services built from
+this repo's Dockerfiles (`crdt-web` and `crdt-sync`, declared in `render.yaml`),
+and a **Neon** Postgres database. Render's own free Postgres isn't used — it is
+deleted 30 days after creation (plus a 14-day grace period), with no backups.
+Neon's free plan doesn't expire.
+
+**What free costs you.** Each Render service sleeps after 15 minutes without
+traffic and takes about a minute to wake, and the two wake separately. Every page
+pings the sync server as it loads, so they wake in parallel rather than one after
+the other. Render allows 750 free instance-hours a month across a workspace, and
+a browser tab left open on a document keeps the sync server awake around the
+clock. Neon's free plan holds 0.5 GB, and `DocumentUpdate` rows are never pruned.
+
+Nothing is lost when a service sleeps: the sync server only sleeps after 15
+minutes with no WebSocket traffic, long after its 500 ms write queue flushed.
+
+Do these steps in order — several values only exist once an earlier step has
+created them.
+
+### 1. Database (Neon)
+
+1. Create a project at neon.com in **AWS US West (Oregon)**, next to Render's
+   `oregon` region.
+2. From the project's **Connect** dialog, copy two connection strings: the
+   **pooled** one (its host contains `-pooler`) and the **direct** one (pooling
+   switched off).
+3. Apply the migrations from your machine with the **direct** string. Check the
+   target first: `migrate status` prints the host it is about to use, and it must
+   be your Neon host, not `localhost`.
+
+   ```bash
+   DATABASE_URL='<direct connection string>' pnpm --filter @crdt/db exec prisma migrate status
+   DATABASE_URL='<direct connection string>' pnpm --filter @crdt/db exec prisma migrate deploy
+   ```
+
+   A variable set on the command line takes precedence over your local `.env`,
+   so this cannot touch your local database.
+
+### 2. Services (Render)
+
+1. Generate the shared sync secret and keep it for the next step:
+   `openssl rand -hex 32`.
+2. In Render choose **New → Blueprint** and connect this GitHub repository.
+   Render reads `render.yaml` and asks for each value marked `sync: false`:
+
+   | Variable | Service | Value |
+   |---|---|---|
+   | `DATABASE_URL` | both | the **pooled** Neon string |
+   | `SYNC_JWT_SECRET` | both | the value from step 1 — **identical** on both |
+   | `APP_URL` | crdt-web | `https://placeholder.invalid` for now |
+   | `NEXT_PUBLIC_SYNC_URL` | crdt-web | `wss://placeholder.invalid` for now |
+   | `GITHUB_…`, `GOOGLE_…` | crdt-web | blank, or a placeholder if Render insists |
+
+   `SESSION_SECRET` is generated by Render.
+3. Once both services are live, note their URLs — for example
+   `https://crdt-web-xxxx.onrender.com` and `https://crdt-sync-xxxx.onrender.com`.
+   Open `https://<sync URL>/healthz`; it should answer `ok`.
+4. On **crdt-web → Environment**, set `APP_URL` to the web URL (no trailing slash)
+   and `NEXT_PUBLIC_SYNC_URL` to the sync URL with `wss://` in place of `https://`.
+
+### 3. Sign-in providers
+
+- **GitHub** → Settings → Developer settings → OAuth Apps. Either add a second
+  redirect URI to your existing app or register a new one. Redirect URI:
+  `<APP_URL>/api/auth/oauth/github/callback`. Generate a client secret.
+- **Google** → console.cloud.google.com, create a project, then configure the
+  OAuth consent screen (in the current console: *Google Auth Platform*): set the
+  app name and support email, choose audience **External**, and **publish** the
+  app — while it is in *Testing*, only listed test users can sign in. The scopes
+  used (`openid`, `email`, `profile`) are non-sensitive, so publishing doesn't
+  require Google's verification review. Then create an OAuth client of type
+  *Web application* with the authorized redirect URI
+  `<APP_URL>/api/auth/oauth/google/callback`. Console labels change over time;
+  what matters is the audience, the publishing status, and the exact redirect URI.
+
+Set `GITHUB_CLIENT_ID`, `GITHUB_CLIENT_SECRET`, `GOOGLE_CLIENT_ID` and
+`GOOGLE_CLIENT_SECRET` on **crdt-web**.
+
+### 4. Rebuild the web service
+
+`NEXT_PUBLIC_SYNC_URL` is compiled into the browser bundle, so changing it needs
+a rebuild, not a restart: **crdt-web → Manual Deploy → Clear build cache &
+deploy.** The build fails on purpose if the value isn't a `ws://` or `wss://` URL.
+
+### 5. Check it
+
+- `<APP_URL>/login` shows the provider buttons.
+- Sign in with GitHub: you land on a dashboard with *"<your name>'s workspace"*.
+- Sign out, then sign in with Google using the same email: you land in the same
+  workspace, because the two identities are linked by their verified email.
+- Open a board in two browsers — one normal, one incognito signed in as a second
+  account you invited from **Members** — and watch edits appear in both. DevTools
+  → Network → WS should show a connection to `wss://<sync URL>`.
+- If sign-in comes back with *"expired or was started in another tab"* every
+  time, `APP_URL` doesn't exactly match the address in your browser's address bar.
+
+### Seeding the public demo (optional)
 
 ```bash
-fly postgres create --name crdt-db --region ord
-fly apps create crdt-sync
-fly apps create crdt-web
-fly postgres attach crdt-db --app crdt-sync
-fly postgres attach crdt-db --app crdt-web
+DATABASE_URL='<direct connection string>' DEMO_OWNER_EMAIL='you@example.com' pnpm exec tsx scripts/seed-demo.ts
 ```
 
-Set the secrets — the same `SYNC_JWT_SECRET` on both apps, since it is the contract
-between them:
+### Fly.io
 
-```bash
-SYNC_SECRET=$(openssl rand -hex 32)
-fly secrets set SYNC_JWT_SECRET="$SYNC_SECRET" --app crdt-sync
-fly secrets set SYNC_JWT_SECRET="$SYNC_SECRET" --app crdt-web
-fly secrets set SESSION_SECRET="$(openssl rand -hex 32)" --app crdt-web
-fly secrets set NEXT_PUBLIC_SYNC_URL="wss://crdt-sync.fly.dev" --app crdt-web
-```
-
-```bash
-fly deploy --config apps/sync/fly.toml --app crdt-sync
-fly deploy --config apps/web/fly.toml --app crdt-web
-```
-
-Apply the migration against production:
-
-```bash
-fly ssh console --app crdt-web -C "pnpm --filter @crdt/db exec prisma migrate deploy"
-```
-
-Then seed the demo workspace against production by running `scripts/seed-demo.ts`
-with `DATABASE_URL` pointed at the production database (for example via
-`fly postgres connect` or by running the script from `fly ssh console` with the
-app's own environment).
-
-**One thing worth knowing about the `prisma generate` and `prisma migrate deploy`
-steps above:** `packages/db/prisma.config.ts` still resolves `DATABASE_URL` eagerly
-as part of loading its config, even for commands like `generate` that never open a
-connection — so the variable has to be *set* (to a real value for `migrate deploy`,
-to any placeholder for `generate`) before either command runs; an entirely unset
-`DATABASE_URL` fails config loading before Prisma gets anywhere near a connection
-attempt. Both Dockerfiles handle this at build time with a throwaway `DATABASE_URL`
-that is never baked into the image's persistent environment (see the comments next
-to the `prisma generate` steps in `apps/sync/Dockerfile` and `apps/web/Dockerfile`).
-The `fly ssh console ... prisma migrate deploy` command above runs against the
-app's real environment, where `DATABASE_URL` is already set via the Fly Postgres
-attachment, so no placeholder is needed there. (An earlier version of
-`prisma.config.ts` also crashed on a missing `.env` file before it even got to the
-`DATABASE_URL` check, independent of this — that was fixed to match the same
-`try/catch` guard `packages/db/src/index.ts` already had, so it no longer matters
-whether a `.env` file exists on the machine running any of these commands.)
+`apps/*/fly.toml` remain from an earlier deployment design and have never been
+deployed. If you use them, `NEXT_PUBLIC_SYNC_URL` must be passed at build time
+(`fly deploy ... --build-arg NEXT_PUBLIC_SYNC_URL=wss://...`); setting it as a Fly
+secret does not reach the browser bundle.
 
 ## Local Docker verification
 
@@ -396,7 +483,7 @@ from reading them:
 
 ```bash
 docker build -f apps/sync/Dockerfile -t crdt-sync:verify .
-docker build -f apps/web/Dockerfile -t crdt-web:verify .
+docker build -f apps/web/Dockerfile --build-arg NEXT_PUBLIC_SYNC_URL=ws://localhost:1234 -t crdt-web:verify .
 ```
 
 Both images start, connect to Postgres, and respond over HTTP (`/healthz` for
