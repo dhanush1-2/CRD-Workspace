@@ -35,6 +35,21 @@ RUN DATABASE_URL="postgresql://build:build@localhost:5432/build" \
 # below are what actually reach process.env.
 RUN touch .env
 
+# NEXT_PUBLIC_* values are compiled into the browser bundle when `next build`
+# runs, not read at runtime — so the sync server's public URL must be known
+# here. Render passes each service env var as a build arg, but only if this
+# ARG is declared. Fail the build rather than silently shipping a bundle that
+# points every visitor at ws://localhost:1234.
+#
+# Only this value is declared. Never add an ARG for a secret: a declared build
+# arg can end up in the image.
+ARG NEXT_PUBLIC_SYNC_URL
+RUN case "$NEXT_PUBLIC_SYNC_URL" in \
+      ws://*|wss://*) ;; \
+      *) echo "NEXT_PUBLIC_SYNC_URL build arg must be the sync server's ws:// or wss:// URL" >&2; exit 1 ;; \
+    esac
+ENV NEXT_PUBLIC_SYNC_URL=$NEXT_PUBLIC_SYNC_URL
+
 # next.config.ts loads the repo-root .env directly (see its own comment) but
 # tolerates it being absent, which is the case here and in production. Next's
 # "collecting page data" step imports /documents/[id]/page.tsx to inspect its

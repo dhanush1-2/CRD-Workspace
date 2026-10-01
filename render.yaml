@@ -1,0 +1,61 @@
+# Render Blueprint: two free web services built from this repo's Dockerfiles.
+# The database is Neon, not Render Postgres — Render's free Postgres is deleted
+# 30 days after creation. See README → Deployment for the full, ordered runbook.
+#
+# `sync: false` values are secrets or URLs that only exist after creation; Render
+# prompts for them when the Blueprint is first applied. SYNC_JWT_SECRET must be
+# the SAME value on both services — it is the contract between them — which is
+# why it is entered by hand rather than generated per service.
+services:
+  - type: web
+    name: crdt-sync
+    runtime: docker
+    plan: free
+    region: oregon
+    dockerfilePath: ./apps/sync/Dockerfile
+    dockerContext: .
+    healthCheckPath: /healthz
+    autoDeployTrigger: commit
+    envVars:
+      # Render routes traffic to PORT; the sync server listens on SYNC_PORT,
+      # which defaults to 1234. Pointing PORT at it needs no code change.
+      - key: PORT
+        value: "1234"
+      - key: DATABASE_URL
+        sync: false
+      - key: SYNC_JWT_SECRET
+        sync: false
+
+  - type: web
+    name: crdt-web
+    runtime: docker
+    plan: free
+    region: oregon
+    dockerfilePath: ./apps/web/Dockerfile
+    dockerContext: .
+    # /login renders without touching the database when no one is signed in.
+    healthCheckPath: /login
+    autoDeployTrigger: commit
+    envVars:
+      # `next start -p 3000` is fixed in package.json; point Render at it.
+      - key: PORT
+        value: "3000"
+      - key: DATABASE_URL
+        sync: false
+      - key: SESSION_SECRET
+        generateValue: true
+      - key: SYNC_JWT_SECRET
+        sync: false
+      - key: APP_URL
+        sync: false
+      # Build-time: changing it requires a rebuild, not a restart.
+      - key: NEXT_PUBLIC_SYNC_URL
+        sync: false
+      - key: GITHUB_CLIENT_ID
+        sync: false
+      - key: GITHUB_CLIENT_SECRET
+        sync: false
+      - key: GOOGLE_CLIENT_ID
+        sync: false
+      - key: GOOGLE_CLIENT_SECRET
+        sync: false
