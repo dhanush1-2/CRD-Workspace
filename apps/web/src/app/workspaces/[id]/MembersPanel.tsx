@@ -62,7 +62,7 @@ export function MembersPanel({
       // already clear enough to show as-is.
       setError(
         response.status === 404
-          ? `No account is registered to ${email}. They need to sign up first.`
+          ? `No account is registered to ${email}. They need to sign in once with GitHub or Google first.`
           : response.status === 403
             ? 'Your role in this workspace changed. Reload the page.'
             : (body?.error ?? 'Could not update that member'),

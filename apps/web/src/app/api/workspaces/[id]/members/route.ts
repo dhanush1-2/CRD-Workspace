@@ -4,7 +4,9 @@ import type { Role } from '@crdt/shared/types'
 import { requireUser, requireWorkspaceRole, toResponse, HttpError } from '@/lib/auth-guard'
 
 const Body = z.object({
-  email: z.string().email(),
+  // Sign-in stores emails trimmed and lowercased, so the lookup must match that,
+  // or inviting "Ada@Example.com" would never find ada@example.com.
+  email: z.string().trim().toLowerCase().email(),
   role: z.enum(['owner', 'editor', 'viewer']),
 })
 

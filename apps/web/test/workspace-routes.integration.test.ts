@@ -164,6 +164,19 @@ describe('members route: last-owner guard', () => {
     expect(stillOwner?.role).toBe('owner')
   })
 
+  it('finds the invitee regardless of the case or whitespace the inviter typed', async () => {
+    const response = await postAs(soleOwner.id, soleOwnerWorkspaceId, {
+      email: `  ${coOwnerB.email.toUpperCase()}  `,
+      role: 'viewer',
+    })
+    expect(response.status).toBe(201)
+
+    const member = await prisma.workspaceMember.findUnique({
+      where: { workspaceId_userId: { workspaceId: soleOwnerWorkspaceId, userId: coOwnerB.id } },
+    })
+    expect(member?.role).toBe('viewer')
+  })
+
   it('allows demoting an owner when another owner remains', async () => {
     const response = await postAs(coOwnerA.id, twoOwnerWorkspaceId, {
       email: coOwnerA.email,
