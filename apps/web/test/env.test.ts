@@ -54,3 +54,40 @@ describe('env.syncJwtSecret', () => {
     expect(() => env.syncJwtSecret).toThrow(/placeholder/)
   })
 })
+
+describe('env.appUrl', () => {
+  const ORIGINAL_APP_URL = process.env.APP_URL
+
+  afterEach(() => {
+    restore('APP_URL', ORIGINAL_APP_URL)
+  })
+
+  it('returns the origin, dropping any trailing slash or path', () => {
+    process.env.APP_URL = 'https://crdt-web.onrender.com/'
+    expect(env.appUrl).toBe('https://crdt-web.onrender.com')
+    process.env.APP_URL = 'https://crdt-web.onrender.com/some/path?x=1'
+    expect(env.appUrl).toBe('https://crdt-web.onrender.com')
+  })
+
+  it('accepts http for local development', () => {
+    process.env.APP_URL = 'http://localhost:3000'
+    expect(env.appUrl).toBe('http://localhost:3000')
+  })
+
+  it('throws when missing or blank', () => {
+    delete process.env.APP_URL
+    expect(() => env.appUrl).toThrow(/APP_URL must be set/)
+    process.env.APP_URL = '   '
+    expect(() => env.appUrl).toThrow(/APP_URL must be set/)
+  })
+
+  it('throws on something that is not a URL', () => {
+    process.env.APP_URL = 'crdt-web.onrender.com'
+    expect(() => env.appUrl).toThrow(/not a valid URL/)
+  })
+
+  it('throws on a non-http scheme', () => {
+    process.env.APP_URL = 'ftp://example.com'
+    expect(() => env.appUrl).toThrow(/http or https/)
+  })
+})

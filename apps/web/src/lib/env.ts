@@ -31,4 +31,23 @@ export const env = {
   get syncJwtSecret() {
     return required('SYNC_JWT_SECRET')
   },
+  get appUrl() {
+    const value = process.env.APP_URL?.trim()
+    if (!value) {
+      throw new Error('APP_URL must be set to the public origin, e.g. https://crdt-web.onrender.com')
+    }
+    let url: URL
+    try {
+      url = new URL(value)
+    } catch {
+      throw new Error(`APP_URL is not a valid URL: ${value}`)
+    }
+    if (url.protocol !== 'https:' && url.protocol !== 'http:') {
+      throw new Error(`APP_URL must be an http or https URL: ${value}`)
+    }
+    // The origin drops any path, query or trailing slash, so redirect URIs built
+    // from it are always exactly <origin>/api/auth/oauth/<provider>/callback —
+    // the form registered with each provider, matched character for character.
+    return url.origin
+  },
 }
