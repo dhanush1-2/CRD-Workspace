@@ -1,8 +1,56 @@
-# CRDT Collaborative Engine
+# CRDT Collaborative Workspace
 
-A real-time collaborative workspace: a Kanban board and a rich-text document, both
-backed by [Yjs](https://github.com/yjs/yjs), synced over a hand-rolled WebSocket
-server, with Postgres for durable storage and Next.js for the frontend.
+A full-stack real-time collaborative workspace: a Kanban board and a rich-text
+document that several people edit at the same time, where every edit merges without
+conflicts even after someone has been offline. A React frontend, two Node services,
+a Postgres database, and an authentication and authorization system, all built here.
+
+| Layer | What it is |
+|---|---|
+| **Frontend** | Next.js 16 App Router and React 19: sign-in, dashboard, workspaces, the board and rich-text editor, live presence |
+| **HTTP API** | Eight Next.js route handlers: sign-up, sign-in, sign-out, workspaces, documents, members, per-document tokens |
+| **Real-time** | A standalone Node WebSocket server ([`apps/sync`](apps/sync)) that owns the live documents and speaks the Yjs sync protocol |
+| **Data** | Postgres through Prisma 7: snapshot plus update-log persistence, with a write-behind queue kept off the broadcast path |
+| **Auth** | scrypt password hashing, signed session cookies, short-lived per-document JWTs, and three roles enforced at the wire protocol |
+| **Tests** | 164 unit and integration tests (Vitest) plus 19 end-to-end tests (Playwright, driving two real browsers) |
+
+Merge correctness comes from [Yjs](https://github.com/yjs/yjs). Everything around it
+— the transport, who is allowed to write, what happens when the database is slow, and
+what survives a restart — is the part that was actually worth building, and is what
+most of this README is about.
+
+## What it looks like
+
+### One board, open as two different people
+
+| Ada, the owner | Grace, an editor |
+|---|---|
+| ![The board as Ada sees it](docs/images/board-window-a.png) | ![The same board as Grace sees it](docs/images/board-window-b.png) |
+
+Grace added a card and hovered another one. Both reach Ada's window in milliseconds,
+over a WebSocket, through the sync server — including the "Grace is editing" marker,
+which rides the same connection as awareness state rather than the document itself.
+
+### A viewer sees every edit live, and cannot make one
+
+![A viewer: no controls, still receiving updates](docs/images/viewer-read-only.png)
+
+The add and delete controls are gone, and the header reads **read only** while the
+connection still reads **connected**: a viewer keeps receiving every edit in real
+time. Hiding the buttons is only a courtesy. The rule itself lives in
+[`apps/sync/src/guard.ts`](apps/sync/src/guard.ts), which rejects a viewer's frames
+before they reach the shared document, so a hand-crafted WebSocket frame gets no
+further than the UI would.
+
+### Workspaces, documents, and members
+
+| Your workspaces | Inside one workspace |
+|---|---|
+| ![Dashboard listing workspaces](docs/images/dashboard.png) | ![A workspace: documents and members](docs/images/workspace.png) |
+
+Roles are `owner`, `editor`, and `viewer`. Asking for a workspace you are not a
+member of returns 404 rather than 403, so the API never confirms that an id exists
+to someone with no access to it.
 
 ## The 30-second demo
 
@@ -11,9 +59,9 @@ watch it move in the other. Turn off networking in one window, keep dragging car
 and editing text, then turn networking back on — both windows converge on the same
 state without losing either side's edits.
 
-Once deployed, the board lives at `https://crdt-web.fly.dev/documents/<id>` (see
-[Deployment](#deployment) for how to stand this up and seed a demo board with the
-walkthrough cards already in it).
+**It is not deployed yet.** Everything here runs locally today — see
+[Development](#development) to start it yourself, and [Deployment](#deployment) for
+the hosting setup.
 
 ### Using the app
 
@@ -29,6 +77,47 @@ walkthrough cards already in it).
 
 Roles are `owner`, `editor`, and `viewer`. A viewer's edits are rejected at the
 sync server, not just hidden in the UI.
+
+## How it fits together
+
+```mermaid
+flowchart LR
+    UI["Browser — React UI<br/>board · editor · presence"]
+    WEB["apps/web — Next.js<br/>pages · HTTP API · sessions"]
+    SYNC["apps/sync — WebSocket server<br/>role guard · Yjs rooms · write queue"]
+    DB[("Postgres<br/>snapshots + update log")]
+
+    UI -->|"sign in, load pages, REST calls"| WEB
+    WEB -->|"mints a short-lived per-document JWT"| UI
+    UI -->|"WebSocket, carrying that JWT"| SYNC
+    WEB --> DB
+    SYNC --> DB
+```
+
+Two processes, deliberately. The Next.js app handles everything request-shaped:
+sessions, authorization, workspaces, documents. The sync server handles everything
+connection-shaped: it holds each open document in memory, decides per frame whether
+the sender may write, broadcasts to the other clients, and batches writes to
+Postgres behind the broadcast rather than in front of it.
+
+They never call each other. The only thing passing between them is a JWT, signed by
+the web app and verified by the sync server, naming the document and the caller's
+role. That is what lets the sync server authorize a connection without a database
+round trip, and what keeps either process replaceable.
+
+### Where the backend actually is
+
+| What | File |
+|---|---|
+| Role enforcement, per WebSocket frame | [`apps/sync/src/guard.ts`](apps/sync/src/guard.ts) |
+| Document rooms, broadcast, idle eviction | [`apps/sync/src/room.ts`](apps/sync/src/room.ts) |
+| Write-behind persistence queue | [`apps/sync/src/update-queue.ts`](apps/sync/src/update-queue.ts) |
+| Snapshot and update-log storage | [`apps/sync/src/store.ts`](apps/sync/src/store.ts) |
+| Connection handling and the upgrade race | [`apps/sync/src/server.ts`](apps/sync/src/server.ts) |
+| Sessions and password hashing | [`apps/web/src/lib/session.ts`](apps/web/src/lib/session.ts) |
+| Authorization, 404 before 403 | [`apps/web/src/lib/auth-guard.ts`](apps/web/src/lib/auth-guard.ts) |
+| The cross-process JWT contract | [`packages/shared/src/doc-token.ts`](packages/shared/src/doc-token.ts) |
+| Conflict-free card ordering | [`packages/shared/src/fractional-index.ts`](packages/shared/src/fractional-index.ts) |
 
 ## Why Yjs rather than a hand-written CRDT
 
@@ -158,7 +247,7 @@ even fail loudly, it just quietly breaks collaboration for whoever ends up on th
 - **Version-history UI.** The data (`DocumentSnapshot` and the full `DocumentUpdate`
   log) is there; there's no screen that reads it yet.
 
-## Architecture
+## Repository layout
 
 ```
 apps/web        Next.js app: auth API, workspace/document API, the board and
