@@ -12,6 +12,11 @@ enum Role {
   viewer
 }
 
+enum AuthProvider {
+  github
+  google
+}
+
 enum DocumentType {
   doc
   board
@@ -21,9 +26,10 @@ model User {
   id           String            @id @default(cuid())
   email        String            @unique
   name         String
-  passwordHash String
+  passwordHash String?
   createdAt    DateTime          @default(now())
   memberships  WorkspaceMember[]
+  accounts     Account[]
 }
 
 model Workspace {
@@ -80,4 +86,16 @@ model DocumentSnapshot {
   document        Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
 
   @@index([documentId, id])
+}
+
+model Account {
+  id                String       @id @default(cuid())
+  userId            String
+  provider          AuthProvider
+  providerAccountId String
+  createdAt         DateTime     @default(now())
+  user              User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+  @@index([userId])
 }
