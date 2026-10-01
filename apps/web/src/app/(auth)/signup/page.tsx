@@ -1,31 +1,13 @@
-import Link from 'next/link'
 import { redirect } from 'next/navigation'
-import { getCurrentUser } from '@/lib/current-user'
 import { safeNext } from '@/lib/safe-next'
-import { SignupForm } from './SignupForm'
-import styles from '../auth.module.css'
 
-export default async function SignupPage({
-  searchParams,
-}: {
-  searchParams: Promise<{ next?: string }>
-}) {
+type SearchParams = Promise<Record<string, string | string[] | undefined>>
+
+// With provider sign-in, signing up and signing in are the same action: the
+// first sign-in creates the account. Kept as a redirect so old links and
+// bookmarks to /signup still land somewhere useful.
+export default async function SignupPage({ searchParams }: { searchParams: SearchParams }) {
   const { next } = await searchParams
-  // Validated once, here. SignupForm and the sign-in link both receive the
-  // already-safe value, so there is exactly one place this check can be missed.
-  const destination = safeNext(next)
-
-  // redirect() signals by throwing — it is deliberately outside any try/catch.
-  if (await getCurrentUser()) redirect(destination)
-
-  return (
-    <>
-      <p className={styles.lede}>Create an account. You get a workspace of your own.</p>
-      <SignupForm next={destination} />
-      <p className={styles.alt}>
-        Already have one?{' '}
-        <Link href={`/login?next=${encodeURIComponent(destination)}`}>Sign in</Link>
-      </p>
-    </>
-  )
+  const destination = safeNext(typeof next === 'string' ? next : undefined)
+  redirect(`/login?next=${encodeURIComponent(destination)}`)
 }

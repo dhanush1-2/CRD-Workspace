@@ -1,56 +1,10 @@
 import { describe, it, expect } from 'vitest'
 import {
-  hashPassword, verifyPassword, signSession, verifySession, SessionError,
+  signSession, verifySession, SessionError,
   SESSION_COOKIE, SESSION_TTL_SECONDS, sessionCookie,
 } from '../src/lib/session.js'
 
 const SECRET = 'session-secret-long-enough-here!'
-
-describe('password hashing', () => {
-  it('accepts the correct password', async () => {
-    const stored = await hashPassword('correct horse battery staple')
-    await expect(verifyPassword('correct horse battery staple', stored)).resolves.toBe(true)
-  })
-
-  it('rejects the wrong password', async () => {
-    const stored = await hashPassword('correct horse battery staple')
-    await expect(verifyPassword('wrong', stored)).resolves.toBe(false)
-  })
-
-  it('produces a different hash for the same password each time', async () => {
-    const a = await hashPassword('same')
-    const b = await hashPassword('same')
-    expect(a).not.toBe(b)
-  })
-
-  it('returns false rather than throwing on a malformed stored value', async () => {
-    await expect(verifyPassword('x', 'garbage')).resolves.toBe(false)
-  })
-
-  it('returns false for a wrong scheme', async () => {
-    const stored = await hashPassword('correct horse battery staple')
-    const [, saltHex, hashHex] = stored.split('$')
-    await expect(
-      verifyPassword('correct horse battery staple', `bcrypt$${saltHex}$${hashHex}`),
-    ).resolves.toBe(false)
-  })
-
-  it('returns false for a non-hex salt with an otherwise valid hash', async () => {
-    const stored = await hashPassword('correct horse battery staple')
-    const [, , hashHex] = stored.split('$')
-    await expect(
-      verifyPassword('correct horse battery staple', `scrypt$not-hex-at-all-!!$${hashHex}`),
-    ).resolves.toBe(false)
-  })
-
-  it('returns false for a non-hex hash with an otherwise valid salt, for both the right and wrong password', async () => {
-    const stored = await hashPassword('correct horse battery staple')
-    const [, saltHex] = stored.split('$')
-    const corrupted = `scrypt$${saltHex}$not-hex-at-all-!!`
-    await expect(verifyPassword('correct horse battery staple', corrupted)).resolves.toBe(false)
-    await expect(verifyPassword('totally wrong password', corrupted)).resolves.toBe(false)
-  })
-})
 
 describe('session token', () => {
   it('round-trips a user id', async () => {

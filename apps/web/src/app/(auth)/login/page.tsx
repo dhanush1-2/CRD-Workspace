@@ -1,31 +1,52 @@
-import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import { getCurrentUser } from '@/lib/current-user'
 import { safeNext } from '@/lib/safe-next'
-import { LoginForm } from './LoginForm'
+import { oauthErrorMessage } from '@/lib/oauth/errors'
+import { PROVIDERS, availableProviders } from '@/lib/oauth/providers'
 import styles from '../auth.module.css'
 
-export default async function LoginPage({
-  searchParams,
-}: {
-  searchParams: Promise<{ next?: string }>
-}) {
-  const { next } = await searchParams
-  // Validated once, here. LoginForm and the signup link both receive the
-  // already-safe value, so there is exactly one place this check can be missed.
-  const destination = safeNext(next)
+type SearchParams = Promise<Record<string, string | string[] | undefined>>
+
+export default async function LoginPage({ searchParams }: { searchParams: SearchParams }) {
+  const { next, error } = await searchParams
+  // A repeated ?next= arrives as an array. Narrow it; anything that isn't a
+  // single string falls back to the default rather than crashing the page.
+  const destination = safeNext(typeof next === 'string' ? next : undefined)
 
   // redirect() signals by throwing — it is deliberately outside any try/catch.
   if (await getCurrentUser()) redirect(destination)
 
+  const providers = availableProviders()
+  // ?error= only selects one of a fixed set of messages; it is never displayed.
+  const message = oauthErrorMessage(error)
+
   return (
     <>
       <p className={styles.lede}>Sign in to your workspaces.</p>
-      <LoginForm next={destination} />
-      <p className={styles.alt}>
-        No account?{' '}
-        <Link href={`/signup?next=${encodeURIComponent(destination)}`}>Create one</Link>
-      </p>
+      {message && (
+        <p className={styles.error} role="alert" data-testid="auth-error">
+          {message}
+        </p>
+      )}
+      {providers.length === 0 ? (
+        <p className={styles.alt} data-testid="no-providers">
+          No sign-in providers are configured.
+        </p>
+      ) : (
+        <div className={styles.providers}>
+          {providers.map((id) => (
+            <a
+              key={id}
+              className={styles.provider}
+              href={`/api/auth/oauth/${id}?next=${encodeURIComponent(destination)}`}
+              data-testid={`signin-${id}`}
+            >
+              Continue with {PROVIDERS[id].label}
+            </a>
+          ))}
+        </div>
+      )}
+      <p className={styles.alt}>New here? Signing in creates your account and a workspace of your own.</p>
     </>
   )
 }

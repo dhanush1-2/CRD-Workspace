@@ -1,7 +1,6 @@
 import { prisma } from '@crdt/db'
 import { addCard, addColumn } from '@crdt/shared/board'
 import * as Y from 'yjs'
-import { hashPassword } from '../apps/web/src/lib/session.js'
 
 const doc = new Y.Doc()
 addColumn(doc, { id: 'todo', title: 'To do' })
@@ -11,13 +10,18 @@ addCard(doc, { id: 'c1', title: 'Open this board in two windows', columnId: 'tod
 addCard(doc, { id: 'c2', title: 'Drag a card and watch the other window', columnId: 'todo' })
 addCard(doc, { id: 'c3', title: 'Go offline, keep editing, come back', columnId: 'doing' })
 
-const password = process.env.DEMO_PASSWORD
-if (!password) throw new Error('DEMO_PASSWORD must be set')
+// The demo workspace is owned by whoever signs in with this address. Normalized
+// exactly as sign-in normalizes provider emails, so the first GitHub or Google
+// sign-in with it links to this user rather than creating a second one.
+const ownerEmail = process.env.DEMO_OWNER_EMAIL?.trim().toLowerCase()
+if (!ownerEmail || !ownerEmail.includes('@')) {
+  throw new Error('DEMO_OWNER_EMAIL must be set to the email you will sign in with (GitHub or Google)')
+}
 
 const user = await prisma.user.upsert({
-  where: { email: 'demo@crdt.test' },
+  where: { email: ownerEmail },
   update: {},
-  create: { email: 'demo@crdt.test', name: 'Demo', passwordHash: await hashPassword(password) },
+  create: { email: ownerEmail, name: 'Demo' },
 })
 
 const workspace = await prisma.workspace.create({ data: { name: 'Demo', ownerId: user.id } })
@@ -39,5 +43,5 @@ await prisma.documentUpdate.create({
   },
 })
 
-console.log(`seeded board: /documents/${document.id}`)
+console.log(`seeded board: /documents/${document.id} (owner: ${ownerEmail})`)
 await prisma.$disconnect()

@@ -1,16 +1,11 @@
+import type { Page } from '@playwright/test'
 import { prisma } from '@crdt/db'
-import { hashPassword, signSession } from '../src/lib/session.js'
 import type { Role } from '@crdt/shared/types'
-
-export const E2E_PASSWORD = 'e2e-password-1234'
+import { signSession } from '../src/lib/session.js'
 
 export async function seedWorkspace(label: string) {
   const owner = await prisma.user.create({
-    data: {
-      email: `${label}-owner@e2e.test`,
-      name: 'Owner',
-      passwordHash: await hashPassword(E2E_PASSWORD),
-    },
+    data: { email: `${label}-owner@e2e.test`, name: 'Owner' },
   })
   const workspace = await prisma.workspace.create({ data: { name: label, ownerId: owner.id } })
   await prisma.workspaceMember.create({
@@ -24,7 +19,6 @@ export async function addMember(workspaceId: string, label: string, role: Role) 
     data: {
       email: `${label}-${role}@e2e.test`,
       name: role === 'viewer' ? 'Vera' : 'Eddie',
-      passwordHash: await hashPassword(E2E_PASSWORD),
     },
   })
   await prisma.workspaceMember.create({ data: { workspaceId, userId: user.id, role } })
@@ -44,23 +38,16 @@ export async function sessionCookieFor(userId: string) {
   }
 }
 
+/**
+ * Signs a browser in by setting the session cookie directly. A real GitHub or
+ * Google sign-in cannot be scripted, and the OAuth flow itself is covered by
+ * oauth-routes.integration.test.ts; this is what every other e2e test uses.
+ */
+export async function signIn(page: Page, userId: string) {
+  await page.context().addCookies([await sessionCookieFor(userId)])
+}
+
 export async function cleanup(label: string) {
   await prisma.workspace.deleteMany({ where: { name: label } })
   await prisma.user.deleteMany({ where: { email: { contains: `${label}-` } } })
-}
-
-/**
- * Remove a user created through the signup UI, and the personal workspace signup
- * creates for them.
- *
- * cleanup(label) cannot do this: it finds workspaces by name, and signup names
- * the workspace after the person ("Ada's workspace"), not after the test label.
- * Workspace.ownerId is a plain string column rather than a relation, so deleting
- * the user does not cascade to it either — it has to go first, explicitly.
- */
-export async function cleanupUser(email: string) {
-  const user = await prisma.user.findUnique({ where: { email }, select: { id: true } })
-  if (!user) return
-  await prisma.workspace.deleteMany({ where: { ownerId: user.id } })
-  await prisma.user.delete({ where: { id: user.id } })
 }

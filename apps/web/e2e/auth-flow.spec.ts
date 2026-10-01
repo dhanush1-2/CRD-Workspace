@@ -1,137 +1,100 @@
 import { test, expect } from '@playwright/test'
-import {
-  cleanup,
-  cleanupUser,
-  seedWorkspace,
-  createDocument,
-  addMember,
-  E2E_PASSWORD,
-} from './fixtures.js'
+import { addMember, cleanup, createDocument, seedWorkspace, signIn } from './fixtures.js'
 
 const LABEL = 'e2e-auth'
-const NEW_EMAIL = 'e2e-auth-signup@e2e.test'
 
 test.afterAll(async () => {
   await cleanup(LABEL)
 })
 
-test('a visitor can sign in from the login page and lands on the dashboard', async ({ page }) => {
-  const { owner } = await seedWorkspace(LABEL)
-
-  await page.goto('/login')
-  await page.getByLabel('Email').fill(owner.email)
-  await page.getByLabel('Password').fill(E2E_PASSWORD)
-  await page.getByTestId('submit').click()
-
-  // Signing in lands on the dashboard, not back on the form.
-  await expect(page).toHaveURL('/')
+test('the login page offers GitHub and Google sign-in, carrying the destination', async ({ page }) => {
+  await page.goto('/login?next=/workspaces/abc')
+  await expect(page.getByTestId('signin-github')).toHaveAttribute(
+    'href',
+    '/api/auth/oauth/github?next=%2Fworkspaces%2Fabc',
+  )
+  await expect(page.getByTestId('signin-google')).toHaveAttribute(
+    'href',
+    '/api/auth/oauth/google?next=%2Fworkspaces%2Fabc',
+  )
 })
 
-test('a protocol-relative next param cannot redirect off-origin after sign-in', async ({
-  page,
-}) => {
-  const label = `${LABEL}-redirect`
-  const { owner } = await seedWorkspace(label)
-
-  // '//evil.example' starts with '/', so a naive check would let it through and
-  // the browser would resolve it off-origin after a real, successful sign-in.
-  // safeNext runs server-side on the login page itself, so this should already
-  // land on '/' well before the form is ever submitted.
+test('a hostile next param never reaches the sign-in buttons', async ({ page }) => {
   await page.goto('/login?next=//evil.example')
-  await page.getByLabel('Email').fill(owner.email)
-  await page.getByLabel('Password').fill(E2E_PASSWORD)
-  await page.getByTestId('submit').click()
-
-  await expect(page).toHaveURL('/')
-
-  await cleanup(label)
+  await expect(page.getByTestId('signin-github')).toHaveAttribute('href', '/api/auth/oauth/github?next=%2F')
 })
 
-test('a wrong password shows an error and stays on the form', async ({ page }) => {
-  const { owner } = await seedWorkspace(`${LABEL}-bad`)
+test('a repeated next param does not crash the login page', async ({ page }) => {
+  const response = await page.goto('/login?next=/a&next=/b')
+  expect(response?.status()).toBe(200)
+  await expect(page.getByTestId('signin-github')).toHaveAttribute('href', '/api/auth/oauth/github?next=%2F')
+})
 
+test('continuing with GitHub sends the browser to GitHub with state and PKCE', async ({ page }) => {
+  // Never actually load github.com: capture the navigation and abort it.
+  await page.route('https://github.com/**', (route) => route.abort())
   await page.goto('/login')
-  await page.getByLabel('Email').fill(owner.email)
-  await page.getByLabel('Password').fill('definitely-not-the-password')
-  await page.getByTestId('submit').click()
 
-  await expect(page.getByTestId('auth-error')).toHaveText('invalid credentials')
-  await expect(page).toHaveURL('/login')
-  await cleanup(`${LABEL}-bad`)
+  const [request] = await Promise.all([
+    page.waitForRequest((r) => r.url().startsWith('https://github.com/login/oauth/authorize')),
+    page.getByTestId('signin-github').click(),
+  ])
+
+  const url = new URL(request.url())
+  expect(url.searchParams.get('redirect_uri')).toBe('http://localhost:3000/api/auth/oauth/github/callback')
+  expect(url.searchParams.get('response_type')).toBe('code')
+  expect(url.searchParams.get('code_challenge_method')).toBe('S256')
+  expect(url.searchParams.get('state')).toMatch(/^[A-Za-z0-9_-]{43}$/)
+  expect(url.searchParams.get('code_challenge')).toMatch(/^[A-Za-z0-9_-]{43}$/)
+  expect(url.searchParams.get('client_id')).toBeTruthy()
 })
 
-test('a network failure during sign-in shows an error instead of hanging', async ({ page }) => {
-  const label = `${LABEL}-offline`
+test('a known sign-in error shows its fixed message', async ({ page }) => {
+  await page.goto('/login?error=state_mismatch')
+  await expect(page.getByTestId('auth-error')).toContainText('expired or was started in another tab')
+})
+
+test('an unknown error code shows a generic message, never the raw text', async ({ page }) => {
+  await page.goto(`/login?error=${encodeURIComponent('Call 555-0100 to verify your account')}`)
+  await expect(page.getByTestId('auth-error')).toHaveText('Sign-in failed. Please try again.')
+  await expect(page.getByText('555-0100')).toHaveCount(0)
+})
+
+test('/signup forwards to /login and keeps the destination', async ({ page }) => {
+  await page.goto('/signup?next=/workspaces/abc')
+  await expect(page).toHaveURL('/login?next=%2Fworkspaces%2Fabc')
+})
+
+test('the old password endpoints are gone', async ({ request }) => {
+  // If either route still existed, anyone could create an account for an email
+  // they do not own with a single curl command.
+  const login = await request.post('/api/auth/login', {
+    data: { email: 'someone@e2e.test', password: 'x'.repeat(12) },
+  })
+  const signup = await request.post('/api/auth/signup', {
+    data: { email: 'someone@e2e.test', password: 'x'.repeat(12), name: 'Someone' },
+  })
+  expect(login.status()).toBe(404)
+  expect(signup.status()).toBe(404)
+})
+
+test('a signed-in visitor to /login goes straight to their destination', async ({ page }) => {
+  const label = `${LABEL}-already`
   const { owner } = await seedWorkspace(label)
+  await signIn(page, owner.id)
 
-  await page.goto('/login')
-  await page.route('**/api/auth/login', (route) => route.abort())
-
-  await page.getByLabel('Email').fill(owner.email)
-  await page.getByLabel('Password').fill(E2E_PASSWORD)
-  await page.getByTestId('submit').click()
-
-  await expect(page.getByTestId('auth-error')).toContainText('Could not reach the server')
-  // The button must return to its idle state — the bug this covers left it disabled forever.
-  await expect(page.getByTestId('submit')).toBeEnabled()
+  await page.goto('/login?next=/')
+  await expect(page).toHaveURL('/')
 
   await cleanup(label)
 })
 
-test('a new visitor can create an account and lands on the dashboard', async ({ page }) => {
-  await cleanupUser(NEW_EMAIL)
-
-  await page.goto('/signup')
-  await page.getByLabel('Name').fill('Ada Lovelace')
-  await page.getByLabel('Email').fill(NEW_EMAIL)
-  await page.getByLabel('Password').fill('correct-horse-battery')
-  await page.getByTestId('submit').click()
-
-  await expect(page).toHaveURL('/')
-  await cleanupUser(NEW_EMAIL)
-})
-
-test('a password under 12 characters is refused', async ({ page }) => {
-  await page.goto('/signup')
-  await page.getByLabel('Name').fill('Too Short')
-  await page.getByLabel('Email').fill('e2e-auth-short@e2e.test')
-  await page.getByLabel('Password').fill('short')
-  await page.getByTestId('submit').click()
-
-  await expect(page.getByTestId('auth-error')).toHaveText('Password must be at least 12 characters.')
-  await expect(page).toHaveURL('/signup')
-})
-
-test('a network failure during sign-up shows an error instead of hanging', async ({ page }) => {
-  await cleanupUser(NEW_EMAIL)
-
-  await page.goto('/signup')
-  await page.route('**/api/auth/signup', (route) => route.abort())
-
-  await page.getByLabel('Name').fill('Ada Lovelace')
-  await page.getByLabel('Email').fill(NEW_EMAIL)
-  await page.getByLabel('Password').fill('correct-horse-battery')
-  await page.getByTestId('submit').click()
-
-  await expect(page.getByTestId('auth-error')).toContainText('Could not reach the server')
-  // The button must return to its idle state — the bug this covers left it disabled forever.
-  await expect(page.getByTestId('submit')).toBeEnabled()
-
-  await cleanupUser(NEW_EMAIL)
-})
-
-test('the dashboard lists the workspaces you belong to and can create another', async ({
-  page,
-}) => {
+test('the dashboard lists the workspaces you belong to and can create another', async ({ page }) => {
   const label = `${LABEL}-dash`
   const { owner, workspace } = await seedWorkspace(label)
+  await signIn(page, owner.id)
 
-  await page.goto('/login')
-  await page.getByLabel('Email').fill(owner.email)
-  await page.getByLabel('Password').fill(E2E_PASSWORD)
-  await page.getByTestId('submit').click()
-
-  await expect(page).toHaveURL('/')
+  await page.goto('/')
   await expect(page.getByTestId('current-user')).toHaveText('Owner')
   await expect(page.getByTestId(`workspace-${workspace.id}`)).toContainText(label)
 
@@ -146,7 +109,7 @@ test('the dashboard lists the workspaces you belong to and can create another', 
   await cleanup(`${label}-second`)
 })
 
-test('an unauthenticated visit to the dashboard sends you back to sign-in', async ({ page }) => {
+test('an unauthenticated visit to the dashboard sends you to sign-in', async ({ page }) => {
   await page.goto('/')
   await expect(page).toHaveURL(/\/login/)
 })
@@ -155,13 +118,9 @@ test('a workspace page lists its documents and can create a board', async ({ pag
   const label = `${LABEL}-ws`
   const { owner, workspace } = await seedWorkspace(label)
   const existing = await createDocument(workspace.id, 'doc')
+  await signIn(page, owner.id)
 
-  await page.goto('/login')
-  await page.getByLabel('Email').fill(owner.email)
-  await page.getByLabel('Password').fill(E2E_PASSWORD)
-  await page.getByTestId('submit').click()
-  await expect(page).toHaveURL('/')
-
+  await page.goto('/')
   await page.getByTestId(`workspace-${workspace.id}`).click()
   await expect(page).toHaveURL(`/workspaces/${workspace.id}`)
   await expect(page.getByTestId(`document-${existing.id}`)).toContainText('e2e doc')
@@ -179,15 +138,9 @@ test('a workspace you are not a member of is not found, not forbidden', async ({
   const theirs = `${LABEL}-theirs`
   const { owner } = await seedWorkspace(mine)
   const other = await seedWorkspace(theirs)
+  await signIn(page, owner.id)
 
-  await page.goto('/login')
-  await page.getByLabel('Email').fill(owner.email)
-  await page.getByLabel('Password').fill(E2E_PASSWORD)
-  await page.getByTestId('submit').click()
-  await expect(page).toHaveURL('/')
-
-  // 404, never 403: a 403 would confirm the id exists to somebody with no access
-  // to it, which is the rule requireWorkspaceRole already enforces on the API.
+  // 404, never 403: a 403 would confirm the id exists to somebody with no access.
   const response = await page.goto(`/workspaces/${other.workspace.id}`)
   expect(response?.status()).toBe(404)
 
@@ -195,23 +148,14 @@ test('a workspace you are not a member of is not found, not forbidden', async ({
   await cleanup(theirs)
 })
 
-test('a document in a workspace you are not a member of is not found, not forbidden', async ({
-  page,
-}) => {
+test('a document in a workspace you are not a member of is not found, not forbidden', async ({ page }) => {
   const mine = `${LABEL}-docmine`
   const theirs = `${LABEL}-doctheirs`
   const { owner } = await seedWorkspace(mine)
   const other = await seedWorkspace(theirs)
   const otherDocument = await createDocument(other.workspace.id, 'doc')
+  await signIn(page, owner.id)
 
-  await page.goto('/login')
-  await page.getByLabel('Email').fill(owner.email)
-  await page.getByLabel('Password').fill(E2E_PASSWORD)
-  await page.getByTestId('submit').click()
-  await expect(page).toHaveURL('/')
-
-  // 404, never 403: a 403 would confirm the id exists to somebody with no access
-  // to it, which is the rule requireDocumentRole already enforces on the API.
   const response = await page.goto(`/documents/${otherDocument.id}`)
   expect(response?.status()).toBe(404)
 
@@ -223,25 +167,15 @@ test('an owner sees the member list and can invite an existing user', async ({ p
   const label = `${LABEL}-members`
   const { owner, workspace } = await seedWorkspace(label)
   const invitee = await addMember(workspace.id, `${label}-pre`, 'viewer')
-  // Someone who exists but is not yet in this workspace.
   const outsider = await seedWorkspace(`${label}-outsider`)
+  await signIn(page, owner.id)
 
-  await page.goto('/login')
-  await page.getByLabel('Email').fill(owner.email)
-  await page.getByLabel('Password').fill(E2E_PASSWORD)
-  await page.getByTestId('submit').click()
-  // Wait for sign-in to land before navigating away: page.goto right after click()
-  // can outrun the login form's own async fetch-then-cookie-set, hitting the
-  // workspace page unauthenticated and bouncing back to /login.
-  await expect(page).toHaveURL('/')
   await page.goto(`/workspaces/${workspace.id}`)
-
   await expect(page.getByTestId(`member-${invitee.id}`)).toContainText('viewer')
 
   await page.getByTestId('member-email').fill(outsider.owner.email)
   await page.getByTestId('member-role').selectOption('editor')
   await page.getByTestId('add-member').click()
-
   await expect(page.getByTestId(`member-${outsider.owner.id}`)).toContainText('editor')
 
   await cleanup(label)
@@ -251,40 +185,35 @@ test('an owner sees the member list and can invite an existing user', async ({ p
 test('inviting an email with no account explains the problem', async ({ page }) => {
   const label = `${LABEL}-noaccount`
   const { owner, workspace } = await seedWorkspace(label)
+  await signIn(page, owner.id)
 
-  await page.goto('/login')
-  await page.getByLabel('Email').fill(owner.email)
-  await page.getByLabel('Password').fill(E2E_PASSWORD)
-  await page.getByTestId('submit').click()
-  // See the sibling test above: wait for sign-in to land before navigating away.
-  await expect(page).toHaveURL('/')
   await page.goto(`/workspaces/${workspace.id}`)
-
   await page.getByTestId('member-email').fill('nobody-at-all@e2e.test')
   await page.getByTestId('add-member').click()
 
-  // The API returns a bare 404 here. Shown raw it reads as "page not found",
-  // which is the wrong story entirely — the panel has to translate it.
   await expect(page.getByTestId('member-error')).toContainText('No account')
 
   await cleanup(label)
 })
 
-test('an unauthenticated visit to a document returns to it after signing in', async ({ page }) => {
+test('an unauthenticated visit to a document redirects to sign-in carrying the destination', async ({
+  page,
+}) => {
   const label = `${LABEL}-doc`
   const { owner, workspace } = await seedWorkspace(label)
   const document = await createDocument(workspace.id, 'board')
 
   await page.goto(`/documents/${document.id}`)
-  // Not a bare 404, and not a dead-end message — the login page, carrying the
-  // destination so signing in lands back on the document that was asked for.
   await expect(page).toHaveURL(`/login?next=${encodeURIComponent(`/documents/${document.id}`)}`)
+  await expect(page.getByTestId('signin-github')).toHaveAttribute(
+    'href',
+    `/api/auth/oauth/github?next=${encodeURIComponent(`/documents/${document.id}`)}`,
+  )
 
-  await page.getByLabel('Email').fill(owner.email)
-  await page.getByLabel('Password').fill(E2E_PASSWORD)
-  await page.getByTestId('submit').click()
-
-  await expect(page).toHaveURL(`/documents/${document.id}`)
+  // The return trip through OAuth is covered by oauth-routes.integration.test.ts;
+  // here, confirm the destination itself works once signed in.
+  await signIn(page, owner.id)
+  await page.goto(`/documents/${document.id}`)
   await expect(page.getByTestId('document-title')).toHaveText('e2e board')
   await expect(page.getByTestId('workspace-link')).toHaveText(label)
   await expect(page.getByTestId('role')).toHaveText('owner')

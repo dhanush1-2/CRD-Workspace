@@ -1,15 +1,4 @@
-import { randomBytes, scrypt, timingSafeEqual } from 'node:crypto'
-import { promisify } from 'node:util'
 import { SignJWT, jwtVerify } from 'jose'
-
-const scryptAsync = promisify(scrypt) as (
-  password: string,
-  salt: Buffer,
-  keylen: number,
-) => Promise<Buffer>
-
-const KEY_LENGTH = 64
-const HEX = /^[0-9a-f]+$/i
 
 export const SESSION_COOKIE = 'crdt_session'
 export const SESSION_TTL_SECONDS = 60 * 60 * 24 * 7
@@ -18,33 +7,6 @@ export class SessionError extends Error {
   constructor(message: string, options?: { cause?: unknown }) {
     super(message, options)
     this.name = 'SessionError'
-  }
-}
-
-export async function hashPassword(password: string): Promise<string> {
-  const salt = randomBytes(16)
-  const derived = await scryptAsync(password, salt, KEY_LENGTH)
-  return `scrypt$${salt.toString('hex')}$${derived.toString('hex')}`
-}
-
-export async function verifyPassword(password: string, stored: string): Promise<boolean> {
-  const [scheme, saltHex, hashHex] = stored.split('$')
-  if (scheme !== 'scrypt' || !saltHex || !hashHex) return false
-
-  // Buffer.from(..., 'hex') silently yields a zero-length buffer on invalid
-  // input rather than throwing. Deriving keylen from it would make scrypt
-  // return an empty buffer too, and timingSafeEqual on two empty buffers is
-  // true — so a corrupted row would authenticate anyone. Validate the
-  // encoding, and always derive exactly KEY_LENGTH bytes.
-  if (!HEX.test(saltHex) || !HEX.test(hashHex)) return false
-  if (hashHex.length !== KEY_LENGTH * 2) return false
-
-  try {
-    const expected = Buffer.from(hashHex, 'hex')
-    const derived = await scryptAsync(password, Buffer.from(saltHex, 'hex'), KEY_LENGTH)
-    return derived.length === expected.length && timingSafeEqual(derived, expected)
-  } catch {
-    return false
   }
 }
 
