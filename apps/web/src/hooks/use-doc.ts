@@ -2,8 +2,8 @@
 
 import { useEffect, useState } from 'react'
 import { createDocSession, type DocSession, type DocStatus } from '@/lib/doc-session'
+import { SYNC_URL } from '@/lib/sync-url'
 
-const SYNC_URL = process.env.NEXT_PUBLIC_SYNC_URL ?? 'ws://localhost:1234'
 
 async function fetchToken(documentId: string): Promise<string> {
   const response = await fetch(`/api/documents/${documentId}/token`, { method: 'POST' })
