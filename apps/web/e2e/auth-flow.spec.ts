@@ -232,7 +232,7 @@ test('an unauthenticated visit to a document redirects to sign-in carrying the d
   await page.goto(`/documents/${document.id}`)
   await expect(page.locator('[aria-current="page"]')).toHaveText('e2e board')
   await expect(page.getByTestId('workspace-link')).toHaveText(label)
-  await expect(page.getByTestId('role')).toHaveText('owner')
+  await expect(page.getByTestId('role')).toHaveText('Owner')
 
   await cleanup(label)
 })

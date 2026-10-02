@@ -6,6 +6,7 @@ import { useAnnouncePresence, usePresence } from '@/hooks/use-presence'
 import { Board } from '@/components/Board'
 import { Editor } from '@/components/Editor'
 import { Presence } from '@/components/Presence'
+import { ROLE_LABEL } from '@/lib/role-label'
 import styles from './document.module.css'
 import ui from '@/components/ui/ui.module.css'
 
@@ -27,10 +28,10 @@ export function DocumentClient({
   useAnnouncePresence(provider, user)
 
   return (
-    <main>
+    <div>
       <header className={styles.header}>
         <span className={ui.badge} data-testid="role">
-          {role}
+          {ROLE_LABEL[role]}
         </span>
         <div className={styles.spacer} />
         <Presence users={presence} />
@@ -53,6 +54,6 @@ export function DocumentClient({
         <Editor doc={doc} provider={provider} user={user} readOnly={readOnly} />
       )}
       {doc && type === 'board' && <Board doc={doc} provider={provider} readOnly={readOnly} />}
-    </main>
+    </div>
   )
 }

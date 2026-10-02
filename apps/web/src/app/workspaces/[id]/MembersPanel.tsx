@@ -6,15 +6,9 @@ import type { Role } from '@crdt/shared/types'
 import { Button } from '@/components/ui/Button'
 import { TextField } from '@/components/ui/TextField'
 import { colorFor } from '@/lib/color'
+import { ROLE_LABEL } from '@/lib/role-label'
 import styles from './workspace.module.css'
 import ui from '@/components/ui/ui.module.css'
-
-// The handoff's wording for each role, used for both the row and the invite select.
-const ROLE_LABEL: Record<Role, string> = {
-  owner: 'Owner',
-  editor: 'Can edit',
-  viewer: 'Can view',
-}
 
 export type WorkspaceMemberView = { id: string; name: string; email: string; role: Role }
 
