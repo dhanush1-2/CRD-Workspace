@@ -1,24 +1,51 @@
 :root {
-  --bg: #fafafa;
-  --surface: #ffffff;
-  --border: #e4e4e7;
-  --border-strong: #d4d4d8;
-  --text: #18181b;
-  --text-muted: #71717a;
-  --accent: #4f46e5;
-  --accent-hover: #4338ca;
-  --accent-contrast: #ffffff;
-  --danger: #dc2626;
-  --radius: 10px;
-  --radius-sm: 6px;
-  --space-1: 4px;
-  --space-2: 8px;
-  --space-3: 12px;
-  --space-4: 16px;
-  --space-5: 24px;
-  --space-6: 32px;
-  --shadow: 0 1px 2px rgb(0 0 0 / 0.06), 0 4px 12px rgb(0 0 0 / 0.04);
-  --font: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  /* surfaces */
+  --canvas-base: #f1f1ef;
+  --text: #1c1d1b;
+  --text-2: #3d403b;
+  --text-muted: #5f625d;
+  --text-faint: #7b7e78;
+  --icon-faint: #a3a6a0;
+  --danger: #c4372b;
+
+  /* accent: indigo-violet */
+  --accent: oklch(0.42 0.11 285);
+  --accent-hover: oklch(0.37 0.11 285);
+  --accent-text: oklch(0.38 0.1 285);
+  --accent-tint: oklch(0.95 0.02 285);
+  --accent-shadow: oklch(0.42 0.11 285 / 0.22);
+  --accent-ring: oklch(0.42 0.11 285 / 0.1);
+
+  /* status */
+  --ok: oklch(0.62 0.13 150);
+  --warn: oklch(0.72 0.15 65);
+  --sync: oklch(0.42 0.11 285);
+
+  /* glass */
+  --glass-bg: rgba(255, 255, 255, 0.55);
+  --glass-bg-strong: rgba(255, 255, 255, 0.72);
+  --glass-bg-sheet: rgba(255, 255, 255, 0.82);
+  --glass-border: rgba(255, 255, 255, 0.85);
+  --glass-blur: blur(28px) saturate(190%);
+  --glass-highlight: inset 0 1px 0 rgba(255, 255, 255, 0.95);
+  --field-bg: rgba(240, 240, 244, 0.9);
+  --field-border: rgba(40, 40, 60, 0.12);
+
+  /* motion */
+  --ease: cubic-bezier(0.32, 0.72, 0, 1);
+  --dur-fast: 0.3s;
+  --dur: 0.55s;
+  --dur-slow: 0.7s;
+
+  /* radii */
+  --r-pill: 999px;
+  --r-card: 18px;
+  --r-tile: 24px;
+  --r-column: 26px;
+  --r-sheet: 30px;
+  --r-panel: 28px;
+
+  --font: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Segoe UI', system-ui, sans-serif;
 }
 
 *,
@@ -27,19 +54,22 @@
   box-sizing: border-box;
 }
 
-html,
-body {
+html {
+  /* The page itself scrolls; there is no inner scroll container and no sidebar. */
   height: 100%;
 }
 
 body {
+  min-height: 100%;
   margin: 0;
-  background: var(--bg);
+  background: var(--canvas-base);
   color: var(--text);
   font-family: var(--font);
   font-size: 15px;
-  line-height: 1.5;
+  line-height: 1.47;
+  letter-spacing: -0.01em;
   -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
 }
 
 h1,
@@ -47,27 +77,29 @@ h2,
 h3 {
   margin: 0;
   font-weight: 600;
-  letter-spacing: -0.01em;
 }
 
 h1 {
-  font-size: 22px;
+  font-size: 32px;
+  letter-spacing: -0.025em;
 }
 
 h2 {
-  font-size: 16px;
+  font-size: 21px;
+  letter-spacing: -0.02em;
 }
 
 h3 {
-  font-size: 14px;
+  font-size: 18px;
 }
 
 p {
   margin: 0;
+  text-wrap: pretty;
 }
 
 a {
-  color: var(--accent);
+  color: var(--accent-text);
   text-decoration: none;
 }
 
@@ -77,8 +109,10 @@ a:hover {
 
 button,
 input,
-select {
+select,
+textarea {
   font: inherit;
+  letter-spacing: inherit;
   color: inherit;
 }
 
@@ -87,10 +121,140 @@ select {
   outline-offset: 2px;
 }
 
+/* Screen and surface entrances. Every one is motion-gated below. */
+@keyframes g-in {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+    filter: blur(6px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+    filter: none;
+  }
+}
+
+@keyframes g-pop {
+  from {
+    opacity: 0;
+    transform: translateY(-6px) scale(0.96);
+    filter: blur(4px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+    filter: none;
+  }
+}
+
+@keyframes g-sheet {
+  from {
+    opacity: 0;
+    transform: translateY(24px) scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes g-side {
+  from {
+    opacity: 0;
+    transform: translateX(28px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes g-fade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes g-up {
+  from {
+    opacity: 0;
+    transform: translate(-50%, 16px) scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, 0);
+  }
+}
+
+@keyframes g-pulse {
+  0%,
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.4;
+    transform: scale(0.8);
+  }
+}
+
+@keyframes g-paint {
+  0%,
+  100% {
+    transform: translate(0, 0) rotate(0) scale(1);
+    border-radius: 42% 58% 63% 37% / 41% 44% 56% 59%;
+  }
+  33% {
+    transform: translate(50px, -30px) rotate(12deg) scale(1.08);
+    border-radius: 63% 37% 44% 56% / 55% 62% 38% 45%;
+  }
+  66% {
+    transform: translate(-30px, 40px) rotate(-8deg) scale(0.95);
+    border-radius: 38% 62% 56% 44% / 48% 36% 64% 52%;
+  }
+}
+
+/*
+  Browsers without backdrop-filter get opaque surfaces instead of transparent
+  ones. Without this the glass reads as barely-tinted white and text over the
+  canvas blobs loses contrast.
+*/
+@supports not (backdrop-filter: blur(1px)) {
+  :root {
+    --glass-bg: rgba(255, 255, 255, 0.92);
+    --glass-bg-strong: rgba(255, 255, 255, 0.92);
+    --glass-bg-sheet: rgba(255, 255, 255, 0.92);
+  }
+}
+
+/* Tiptap editor surface. Typography follows the Glass document spec. */
 .editor .ProseMirror {
   min-height: 60vh;
-  padding: 24px;
   outline: none;
+  caret-color: var(--accent);
+}
+
+.editor .ProseMirror h1 {
+  font-size: 32px;
+  font-weight: 600;
+  margin: 0 0 20px;
+}
+
+.editor .ProseMirror h2 {
+  font-size: 21px;
+  font-weight: 600;
+  margin: 28px 0 8px;
+}
+
+.editor .ProseMirror p {
+  font-size: 17px;
+  line-height: 1.65;
+  color: var(--text-2);
+  margin: 0 0 12px;
 }
 
 .collaboration-carets__caret {
@@ -106,12 +270,14 @@ select {
 .collaboration-carets__label {
   border-radius: 3px 3px 3px 0;
   color: #fff;
-  font-size: 12px;
+  font-size: 11px;
+  font-weight: 500;
   left: -1px;
   line-height: 1;
-  padding: 2px 6px;
+  padding: 3px 5px;
   position: absolute;
   top: -1.4em;
   user-select: none;
   white-space: nowrap;
+  box-shadow: 0 4px 10px rgba(30, 45, 40, 0.18);
 }
