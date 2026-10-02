@@ -1,0 +1,223 @@
+.scroller {
+  display: flex;
+  gap: 16px;
+  align-items: flex-start;
+  padding: 28px 16px 16px;
+  overflow-x: auto;
+}
+
+/* Column: 290px, radius 26, glass rgba(255,255,255,.42) — handoff literals. */
+.column {
+  flex: none;
+  width: 290px;
+  border-radius: var(--r-column);
+  padding: 14px;
+  background: rgba(255, 255, 255, 0.42);
+  backdrop-filter: blur(20px) saturate(180%);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  border: 1px solid rgba(255, 255, 255, 0.85);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.9);
+}
+
+/* Drag-over: fill .75 plus a 2px accent inset — handoff literals. */
+.columnOver {
+  background: rgba(255, 255, 255, 0.75);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.9), inset 0 0 0 2px var(--accent);
+}
+
+.columnHead {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 2px 12px;
+}
+
+.columnTitle {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+/* Count chip: 22px pill, rgba(0,0,0,.05) — handoff literals. */
+.count {
+  flex: none;
+  display: grid;
+  place-items: center;
+  min-width: 22px;
+  height: 22px;
+  padding: 0 7px;
+  border-radius: var(--r-pill);
+  background: rgba(0, 0, 0, 0.05);
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--text-2);
+}
+
+.cards {
+  display: grid;
+  gap: 8px;
+}
+
+/*
+  Card. Base fill .92, radius 18, padding 14/16, title 14.5px, and the
+  0 0 0 1px #fff + 0 2px 8px rgba(30,45,40,.06) shadow are handoff literals.
+*/
+.card {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 14px 16px;
+  border-radius: var(--r-card);
+  background: rgba(255, 255, 255, 0.92);
+  box-shadow: 0 0 0 1px #fff, 0 2px 8px rgba(30, 45, 40, 0.06);
+  cursor: grab;
+}
+
+.card[data-readonly='true'] {
+  cursor: default;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .card {
+    animation: g-in 0.5s var(--ease);
+    transition:
+      transform var(--dur-fast) var(--ease),
+      box-shadow var(--dur-fast) var(--ease);
+  }
+  .card:hover {
+    transform: translateY(-3px) scale(1.01);
+  }
+  .card:active {
+    transform: scale(0.98);
+  }
+}
+
+.card:hover {
+  box-shadow: 0 0 0 1px #fff, 0 14px 30px rgba(30, 45, 40, 0.12);
+}
+
+.cardDragging {
+  opacity: 0.4;
+}
+
+/* Used by the card sheet in a later plan; no caller wires selection yet. */
+.cardSelected {
+  box-shadow: 0 0 0 2px var(--accent), 0 2px 8px rgba(30, 45, 40, 0.06);
+}
+
+/* A remote peer on the card — handoff literals, including the peer blue. */
+.cardPeer {
+  box-shadow: 0 0 0 2px #0ea5e9, 0 4px 14px rgba(14, 165, 233, 0.18);
+}
+
+.cardTitle {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-size: 14.5px;
+  line-height: 1.35;
+  color: var(--text);
+  overflow-wrap: anywhere;
+}
+
+/* Delete ×: a 24px circle for editors. */
+.delete {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  border: 0;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.05);
+  color: var(--text-muted);
+  font-size: 15px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.delete:hover {
+  background: rgba(0, 0, 0, 0.1);
+  color: var(--text);
+}
+
+/* Peer chip: avatar + name, rgba(14,165,233,.1) with text #0b6e99 — handoff literals. */
+.peerChip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 8px;
+  padding: 3px 9px 3px 3px;
+  border-radius: var(--r-pill);
+  background: rgba(14, 165, 233, 0.1);
+  color: #0b6e99;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.peerAvatar {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  color: #fff;
+  font-size: 10px;
+  font-weight: 600;
+}
+
+/* "+ Add a card": a ghost pill. */
+.addCard {
+  width: 100%;
+  height: 36px;
+  margin-top: 8px;
+  border: 0;
+  border-radius: var(--r-pill);
+  background: rgba(255, 255, 255, 0.55);
+  box-shadow: inset 0 0 0 1px rgba(40, 40, 60, 0.08);
+  color: var(--text-2);
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.addCard:hover {
+  background: rgba(255, 255, 255, 0.9);
+}
+
+/* "+ Add a list": a 230x54 dashed pill. */
+.addList {
+  flex: none;
+  width: 230px;
+  height: 54px;
+  border: 1.5px dashed rgba(40, 40, 60, 0.22);
+  border-radius: var(--r-pill);
+  background: rgba(255, 255, 255, 0.7);
+  backdrop-filter: blur(20px) saturate(180%);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.9), 0 4px 16px rgba(30, 45, 40, 0.06);
+  color: var(--text-2);
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.addList:hover {
+  background: rgba(255, 255, 255, 0.92);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .addCard,
+  .addList {
+    transition:
+      background var(--dur-fast) var(--ease),
+      transform var(--dur) var(--ease);
+  }
+  .addList:active,
+  .addCard:active {
+    transform: scale(0.97);
+  }
+}
