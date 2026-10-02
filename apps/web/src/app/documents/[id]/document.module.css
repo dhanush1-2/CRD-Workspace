@@ -11,20 +11,6 @@
   flex: 1;
 }
 
-.status {
-  font-size: 13px;
-  color: var(--text-muted);
-}
-
-.status[data-status='connected'] {
-  color: var(--ok-text);
-}
-
-.status[data-status='disconnected'],
-.status[data-status='fatal'] {
-  color: var(--danger);
-}
-
 .readOnly {
   font-size: 13px;
   color: var(--danger);

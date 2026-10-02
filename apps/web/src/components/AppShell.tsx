@@ -9,6 +9,7 @@ import { CommandPalette } from './CommandPalette'
 import { NavTabs } from './NavTabs'
 import { ShareContext } from './share-context'
 import { ShareSheet } from './ShareSheet'
+import { SyncStatus } from './SyncStatus'
 import { UserMenu } from './UserMenu'
 import { Button } from './ui/Button'
 import styles from './app-shell.module.css'
@@ -121,7 +122,7 @@ export function AppShell({
               <span className={styles.kbd}>⌘K</span>
             </button>
 
-            {/* Plan 2 fills this with the status pill. */}
+            <SyncStatus />
 
             {workspace && (
               <Button variant="accent" onClick={openShare} data-testid="share">

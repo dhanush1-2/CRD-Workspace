@@ -403,3 +403,24 @@ test('a 200-character single-word document title wraps inside its tile', async (
 
   await cleanup(label)
 })
+
+test('the nav status pill shows Synced on a document and does not exist on the dashboard', async ({
+  page,
+}) => {
+  const label = `${LABEL}-status`
+  const { owner, workspace } = await seedWorkspace(label)
+  const document = await createDocument(workspace.id, 'doc')
+  await signIn(page, owner.id)
+
+  await page.goto(`/documents/${document.id}`)
+  await expect(page.getByTestId('status')).toHaveAttribute('data-status', 'connected')
+  // The visible text is the human label, not the raw status value.
+  await expect(page.getByTestId('status')).toHaveText('Synced')
+
+  // Nothing is published on the dashboard, so the pill renders nothing at all.
+  await page.goto('/')
+  await expect(page.getByTestId('search')).toBeVisible()
+  await expect(page.getByTestId('status')).toHaveCount(0)
+
+  await cleanup(label)
+})

@@ -20,7 +20,7 @@ async function openBoard(page: Page, label: string, columns: number) {
   const document = await createDocument(workspace.id, 'board')
   await signIn(page, owner.id)
   await page.goto(`/documents/${document.id}`)
-  await expect(page.getByTestId('status')).toHaveText('connected')
+  await expect(page.getByTestId('status')).toHaveAttribute('data-status', 'connected')
 
   for (let i = 1; i <= columns; i++) {
     await page.getByTestId('add-column').click()
@@ -147,7 +147,7 @@ test('a remote peer on a card gets the ring and a named chip', async ({ browser 
   // ?nobc=1 forces both tabs to sync through the server rather than BroadcastChannel.
   for (const page of [pageA, pageB]) {
     await page.goto(`/documents/${document.id}?nobc=1`)
-    await expect(page.getByTestId('status')).toHaveText('connected')
+    await expect(page.getByTestId('status')).toHaveAttribute('data-status', 'connected')
   }
 
   await pageA.getByTestId('add-column').click()

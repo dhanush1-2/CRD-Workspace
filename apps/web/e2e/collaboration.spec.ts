@@ -16,7 +16,7 @@ async function openAs(
   const page = await context.newPage()
   // ?nobc=1 forces this tab to sync through the server rather than BroadcastChannel.
   await page.goto(`/documents/${documentId}?nobc=1`)
-  await expect(page.getByTestId('status')).toHaveText('connected')
+  await expect(page.getByTestId('status')).toHaveAttribute('data-status', 'connected')
   return page
 }
 

@@ -37,10 +37,10 @@ export function DocumentClient({
     publishDocState({
       documentId,
       status,
-      peers: presence.map((user) => ({
-        clientId: user.clientId,
-        name: user.name,
-        color: user.color,
+      peers: presence.map((peer) => ({
+        clientId: peer.clientId,
+        name: peer.name,
+        color: peer.color,
       })),
     })
   })
@@ -55,14 +55,6 @@ export function DocumentClient({
         </span>
         <div className={styles.spacer} />
         <Presence users={presence} />
-        {/*
-          collaboration.spec.ts asserts getByTestId('status') toHaveText('connected').
-          The status string stays this element's entire text content — the colour
-          comes from the data-status attribute, not from any extra markup.
-        */}
-        <span className={styles.status} data-status={status} data-testid="status">
-          {status}
-        </span>
         {readOnly && (
           <strong className={styles.readOnly} data-testid="read-only">
             read only
