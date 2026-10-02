@@ -144,12 +144,14 @@ test('a strip the user has scrolled by hand is not pulled back to the active tab
 }) => {
   const label = `${LABEL}-scroll`
   const { owner, workspace } = await seedWorkspace(label)
-  // Pin the viewport so the document count below means something. Measured at
-  // 1280x720 with "e2e doc" tabs: 8 documents fit exactly (scrollWidth equals
-  // clientWidth, 766), 9 overflow by ~65px, 10 by ~150px. 9 is the fewest that
-  // overflows by enough to scroll meaningfully. If fonts or padding change and
-  // it stops overflowing, the premise check below fails loudly rather than the
-  // test passing on nothing.
+  // Pin the viewport so the document count below means something. The strip
+  // shares the nav with the workspace name, so its width depends on that label
+  // too. With this label at 1280x720 and "e2e doc" tabs: 8 documents just fit
+  // (probed with a shorter label: scrollWidth equals clientWidth), and 9
+  // overflow by ~108px, which is the scroll range this test uses. 9 is the
+  // fewest that overflows by enough to scroll meaningfully. If fonts or padding
+  // change and it stops overflowing, the premise check below fails loudly
+  // rather than the test passing on nothing.
   await page.setViewportSize({ width: 1280, height: 720 })
   const documents = []
   for (let i = 0; i < 9; i++) documents.push(await createDocument(workspace.id, 'doc'))
