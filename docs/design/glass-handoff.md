@@ -381,7 +381,7 @@ straight onto the visible canvas rather than through an offscreen canvas.
 **Seed.** A fixed constant, `0x5ca77e5`, never `Date.now()`. The initial pattern is
 the same on every load.
 
-**Device pixel ratio.** `min(devicePixelRatio, 1.5)`: an addition, see deviations. The
+**Device pixel ratio.** `min(devicePixelRatio, 1)`: an addition, see deviations. The
 spec names a cap of 2. Offscreen canvases are painted at that ratio, so they are never
 upscaled. A resize rebuilds everything, **debounced 150ms**, and only when the layer's
 size or the device pixel ratio actually changed.
@@ -424,7 +424,7 @@ an arc is path construction.
    consumed in the order splats happen to expire, which depends on when frames ran
    (and on time spent on a hidden tab), so the second pattern can differ between loads
    and between machines.
-6. **Device pixel ratio is capped at 1.5, not 2.** The spec names 2. The splats sit at
+6. **Device pixel ratio is capped at 1, not 2.** The spec names 2. The splats sit at
    half opacity under the weave and behind translucent glass, so the sharpness is not
    visible; the memory and raster cost are. Measured at 1440×900 and DPR 2: splat
    canvases 29.0 to 16.3 MiB, visible canvas 19.8 to 11.1 MiB, and the raster cost per
@@ -475,27 +475,29 @@ makes the page miss a frame in software, but it is not free there: about a third
 the wall clock is raster for a background. If that matters on no-GPU machines, the
 remaining levers are 20 fps, a smaller splat scale, or dropping the layer.
 
-**Canvas memory** (`width × height × 4`, summed over every splat canvas), 1440×900:
-**28 splats, 17,103,960 bytes = 16.3 MiB (17.1 MB)**, side min / median / max 154 / 251
-/ 388 CSS px (231 / 377 / 582 device px at 1.5), all square. Budget was about 40MB; this
-is well inside it. The seed is fixed, so this is the real figure; across 500 other seeds
-the same layout ranged from 13.1 to 21.4 MiB. Memory scales with splat count and with
-the visible canvas, which is the larger part on big screens:
+**Canvas memory** (`width × height × 4`, summed over every splat canvas). The design
+owner later chose a DPR cap of **1** over 1.5, so these are the figures at cap 1,
+obtained by replaying the real generator with the real fixed seed in Node — the geometry
+is deterministic, so these are exact rather than sampled:
 
-| Viewport | Splats | Splat canvases | Visible canvas | Layer total | Total before (DPR 2) |
-|---|---|---|---|---|---|
-| 1440×900 | 28 | 16.3 MiB | 11.1 MiB | **27.4 MiB** | 48.8 MiB |
-| 1920×1080 | 32 | 18.5 | 17.8 | 36.3 | 64.5 |
-| 2560×1440 | 37 | 20.8 | 31.6 | 52.5 | 93.3 |
-| 3440×1440 (computed) | 40 | 22.2 | 42.5 | 64.8 | 115.1 |
-| 3840×2160 (computed) | 47 | 26.8 | 71.2 | 98.0 | 174.3 |
+| Viewport | Splats | Splat canvases | Visible canvas | Layer total | At cap 1.5 | At cap 2 |
+|---|---|---|---|---|---|---|
+| 1440×900 | 28 | 6.4 MiB | 4.9 MiB | **11.4 MiB** | 27.4 MiB | 48.8 MiB |
+| 1920×1080 | 32 | 7.7 | 7.9 | 15.6 | 36.3 | 64.5 |
+| 2560×1440 | 37 | 8.8 | 14.1 | 22.8 | 52.5 | 93.3 |
+| 3440×1440 | 40 | 9.3 | 18.9 | 28.2 | 64.8 | 115.1 |
+| 3840×2160 | 47 | 11.4 | 31.6 | **43.0** | 98.0 | 174.3 |
 
-The first three rows were measured; the last two were computed by replaying the
-generator at a cap of 1.5. They are CSS-pixel viewports at a DPR of 1.5 or more, so a
-4K screen at 100% scaling (DPR 1) is much smaller. The splat canvases alone stay under
-40 MiB at every size; the visible canvas, which a viewport-sized layer cannot avoid, is
-what grows. Anyone adding splats, raising the scale range or lifting the cap is
-spending from this.
+Canvas sides at cap 1, min / median / max: 178 / 236 / 348 CSS px at 1440×900, rising to
+156 / 240 / 388 at 4K. Budget was about 40 MB and every size is now inside it except a
+4K viewport, where the **visible canvas** — unavoidable for any viewport-sized layer —
+is 31.6 of the 43.0 MiB. The splat canvases themselves never exceed 12 MiB. Anyone
+adding splats, widening the scale range or lifting the cap is spending from this.
+
+**Raster cost at cap 1 is projected, not measured.** Raster scales with pixel count, so
+the 12.3 ms per draw measured at cap 1.5 should fall to roughly 5.5 ms, taking a
+no-GPU machine from about 37% of a core to about 16%. That figure has NOT been verified
+in a browser; the memory figures above have. Re-measure before relying on it.
 
 **The loop stops.** Counted on a patched `window.requestAnimationFrame`, with the
 caller of each call identified from its stack:
