@@ -251,10 +251,11 @@ Buttons generally use `transition: transform .4s var(--ease), background .3s` an
 
 ## Implementation status
 
-Four plans are complete:
+Five plans are complete:
 `2026-10-01-glass-foundation-and-shell.md`, `2026-10-02-board-and-cards.md`,
-`2026-10-02-paint-splatter.md` and
-`2026-10-02-command-palette-and-share-sheet.md` (all under
+`2026-10-02-paint-splatter.md`,
+`2026-10-02-command-palette-and-share-sheet.md` and
+`2026-10-02-document-page-and-nav-consolidation.md` (all under
 `docs/superpowers/plans/`).
 
 **None of them changed the schema, the sync server, or any API route.** The first
@@ -262,7 +263,8 @@ three were visual only. The palette and share sheet plan added real behaviour �
 two overlays, keyboard shortcuts, toasts, and moving invite and role editing out
 of the People panel — but still reached for no new endpoint: it reuses the
 existing members route, which already upserts, so a role change needs no new
-backend.
+backend. The document page and nav consolidation plan (below) likewise changed no
+schema, route or sync-server code.
 
 **Where this file and the prototype disagree, this file wins.**
 `docs/design/glass-prototype.html` is stale. It still uses the old `--text-faint`
@@ -551,15 +553,80 @@ viewport. This cost real debugging time. `AppShell` renders the palette and the
 sheet as siblings of `<main>`, with a comment saying why; anyone adding a third
 overlay must do the same.
 
+### Document page and nav consolidation
+
+Built, on branch `glass-features`. No backend, route or schema change.
+
+- **Document glass sheet.** The page is a 780px centred sheet: radius 30
+  (`--r-sheet`), padding 56/56/96, `rgba(255,255,255,.78)`, with the glass blur,
+  `--glass-border` and the `--glass-highlight` inset. It lives in
+  `app/documents/[id]/document.module.css` and is applied **only when `type ===
+  'doc'`**: the board is a horizontal scroller with its own gutters and would be
+  crushed into a 780px column. A test asserts both halves. The editor's temporary 24px
+  padding (`.editor .ProseMirror` in `globals.css`) was removed, since the sheet owns
+  the padding now.
+- **Remote cursor pill.** The label is a pill (`--r-pill`); 11px/500 and the
+  `0 4px 10px` shadow already matched. **There is no 0.7s glide**, and that is a
+  finding, not an omission: `y-tiptap` renders a remote caret as an inline widget
+  decoration (a `<span>` with `position: relative` and no offsets, label absolute
+  inside it). When a peer moves, ProseMirror re-inserts the node elsewhere in the
+  text flow; no `left` or `top` ever changes, so a transition on them would animate
+  nothing. A real glide needs an overlay positioned from `coordsAtPos`.
+- **Connection status pill** (`SyncStatus`), **nav presence avatars**
+  (`NavPresence`) and the **tab presence dot** (`NavTabs`), all reading the
+  document-state store (`lib/doc-state.ts`) that `DocumentClient` publishes to. The
+  transitional header row is gone. `Presence.tsx`'s `Presence` export was deleted;
+  **`CardPresence` remains** for the board's card rings.
+
+**The document-state store is a module singleton.** It is valid while one document is
+open at a time, which is how the app works today. Alternatives rejected:
+
+- *Move the provider into `AppShell`.* It relocates working sync code onto a new
+  path, and couples the nav to Yjs on every page, including pages with no document.
+- *A shared client layout above the document.* It is the same restructure as making
+  the tab indicator glide across navigations, which is still an open question (see
+  Known limitations). It should be decided once, not twice.
+
+**Three assertions were deliberately retargeted** because their subjects were removed
+by design. This was intent-preserving, not an accommodation to make tests pass:
+
+- `read-only` text became the `view-only` pill (the viewer is still told they cannot
+  edit, now in the nav).
+- The owner's `role` badge became an assertion that **no** `view-only` pill exists
+  (the design has no role indicator for owners).
+- The `role` chip style guard (a CSS-module class that no longer resolves renders as
+  bare text) now guards the document tile's type chip instead.
+
+**Below 1100px the status label and the presence avatars are clipped, not
+`display: none`**, so they stay in the accessibility tree. A test proves it by
+asserting a bounding box of width <= 1: a `display: none` element has no box at all,
+so a non-null box that is also that narrow can only be clipped.
+
+**Known limitations of this plan:**
+
+- **The tab dot appears only on the active tab.** The store holds state for the open
+  document only, and the client subscribes to awareness for that document alone.
+  Showing the dot on other tabs needs per-document awareness the client does not
+  have. This is not a finished feature; it is the part the current data supports.
+- **Avatar initials are white on the peer's awareness colour**, which is not
+  guaranteed to have contrast for lighter palette entries (white on `#f59e0b` is
+  roughly 2:1). The name is carried by `title` and `aria-label`, so the initials are
+  decorative, but it is a real contrast shortfall.
+- **The tab dot widens its tab**, and the strip's `ResizeObserver` does not fire for
+  that (the strip does not change size, one tab inside it does). A layout effect in
+  `NavTabs` therefore re-measures the sliding indicator when the dot appears or
+  goes. Anyone touching the indicator must keep it, or the pill drifts off its tab.
+
 ### Deferred, each needing its own plan
 
-- **Status pill, status popover, offline and syncing pills, presence avatars in
-  the nav, tab "others are here" dot.** Need the sync server to expose a version
-  sequence and a latency ping. (Toasts are built; see above.)
+- **Status popover, offline and syncing pills.** The status pill itself is built (see
+  above). The **popover** is still deferred: its version sequence, queued-edit count
+  and latency ping are not exposed by the sync server. The offline and syncing pills
+  can reuse the toast primitive.
 - **The palette's "Go offline" and "Reconnect" items.** Deliberately left out, not
   forgotten. They need the Yjs provider, which lives in `DocumentClient` and is not
-  reachable from the nav. They belong to the plan that lifts provider state, which
-  is also the status-pill plan.
+  reachable from the nav: the store publishes status and peers, not the provider.
+  They belong to a plan that exposes provider controls, likely with the popover.
 - **History button, history panel, version preview bar.** Need a snapshot list
   and fetch API, and authorship on updates.
 - **Card detail sheet.** Blocked on `description` and an activity log on the
@@ -590,10 +657,6 @@ overlay must do the same.
   at the workspace segment. The second is the better long-term shape, but it
   rewrites every document URL, every link, the OAuth `next=` targets and several
   tests.
-- **The document page carries a transitional row.** Its old header was trimmed to
-  the role badge, presence, status and the read-only flag, which this design
-  expects in the nav. The plan that builds the status pill and nav presence
-  should absorb that row and delete it.
 - **The "updated" line on document tiles shows time only, with no author.** The
   prototype's mock reads "Grace · 2 min ago". Per-update authorship does not
   exist in the schema, so the author half waits for the history and authorship
