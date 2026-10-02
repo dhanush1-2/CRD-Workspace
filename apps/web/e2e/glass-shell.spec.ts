@@ -92,6 +92,32 @@ test.describe('paint splatter motion', () => {
   })
 })
 
+// The loop is throttled to about 30 fps. rAF still fires at the display rate, so
+// what is counted is draws of the splatter canvas (each draw clears it once).
+test('the splatter loop redraws at about 30 fps, not at the display rate', async ({ page }) => {
+  await page.addInitScript(() => {
+    const w = window as unknown as { __splatterDraws: number }
+    w.__splatterDraws = 0
+    const clear = CanvasRenderingContext2D.prototype.clearRect
+    CanvasRenderingContext2D.prototype.clearRect = function (...args) {
+      if (this.canvas.dataset.testid === 'paint-splatter') w.__splatterDraws += 1
+      return clear.apply(this, args)
+    }
+  })
+  await page.goto('/login')
+  await waitUntilDrawn(page)
+
+  const draws = () => page.evaluate(() => (window as unknown as { __splatterDraws: number }).__splatterDraws)
+  const before = await draws()
+  await page.waitForTimeout(2000)
+  const perSecond = ((await draws()) - before) / 2
+
+  // Unthrottled this is the display rate: 60 at best on a 60 Hz screen, 144 on a
+  // fast one. Throttled it is about 30. The floor only guards a stalled loop.
+  expect(perSecond).toBeGreaterThan(10)
+  expect(perSecond).toBeLessThan(36)
+})
+
 test('role and type chips are actually styled, not bare text', async ({ page }) => {
   const label = `${LABEL}-chips`
   const { owner, workspace } = await seedWorkspace(label)

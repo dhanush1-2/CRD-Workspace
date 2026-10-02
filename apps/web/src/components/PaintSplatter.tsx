@@ -19,7 +19,17 @@ const LAYER_OPACITY = { subtle: 0.5, bold: 0.9 } as const
 const LANDING_MS = 650
 const FADE_OUT_MS = 2400
 const SPECK_PERIOD_MS = 700
-const MAX_DPR = 2
+// Capped at 1.5, below the 2 the owner's spec names, for this layer only. The
+// splats sit at half opacity under the weave and behind translucent glass, so the
+// extra sharpness is not visible, and the cost is. Measured at 1440x900 and DPR 2:
+// the splat canvases drop from 29.0 MiB to 16.3 MiB, and the visible canvas from
+// 19.8 MiB to 11.1 MiB, with raster cost falling roughly in proportion. Do not
+// raise this back to 2 without re-measuring: see docs/design/glass-handoff.md.
+const MAX_DPR = 1.5
+// The loop redraws at about 30 fps, not at the display rate. Fastest motion here is
+// a 650ms landing (about 20 frames at 30 fps). 32 rather than 33.3 so that two 60 Hz
+// frames (33.4ms) always qualify despite timer jitter.
+const MIN_FRAME_MS = 32
 
 // Everything the loop needs per splat. `canvas` is painted once, at build time,
 // and reused for the splat's whole life and every re-placement after it.
@@ -55,6 +65,8 @@ export function PaintSplatter({ strength = 'subtle', palette = 'purple', motion 
     let specks: ReturnType<typeof makeSpecks> = []
     let random = createRandom(SEED)
     let frame = 0
+    // When the last frame was actually drawn. 0 means draw the next one at once.
+    let lastDraw = 0
     let resizeTimer: ReturnType<typeof setTimeout> | undefined
     let hiddenAt = document.hidden ? performance.now() : 0
 
@@ -117,11 +129,18 @@ export function PaintSplatter({ strength = 'subtle', palette = 'purple', motion 
       drawSpecks((phase) => 0.55 + 0.175 * (1 + Math.sin(now / SPECK_PERIOD_MS + phase)))
     }
 
+    // rAF stays the clock, so the browser's own throttling and the visibility
+    // handling still apply. A frame that arrives too soon only reschedules. All
+    // motion is derived from `now`, never from a frame count, so a skipped or
+    // dropped frame does not slow anything down.
     const tick = (now: number) => {
       frame = requestAnimationFrame(tick)
+      if (lastDraw && now - lastDraw < MIN_FRAME_MS) return
+      lastDraw = now
       draw(now)
     }
     const start = () => {
+      lastDraw = 0
       if (!frame) frame = requestAnimationFrame(tick)
     }
     const stop = () => {
