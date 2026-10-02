@@ -48,3 +48,35 @@ test('role and type chips are actually styled, not bare text', async ({ page }) 
 
   await cleanup(label)
 })
+
+test('account menu rows centre their labels vertically', async ({ page }) => {
+  const label = `${LABEL}-menu`
+  const { owner } = await seedWorkspace(label)
+  await signIn(page, owner.id)
+
+  await page.goto('/')
+  await page.getByLabel('Account').click()
+
+  // The two rows are different elements (a link and a button). Chromium centres
+  // a button's label even at display:block but top-aligns a link's, so the rows
+  // drift apart unless the row is a flex container. That passes typecheck and
+  // every unit test, so measure it: each label's centre must sit on its row's.
+  const offsets = await page.getByRole('menu').evaluate((menu) => {
+    const rows = [
+      menu.querySelector('a[role="menuitem"]'),
+      menu.querySelector('button[role="menuitem"]'),
+    ] as HTMLElement[]
+    return rows.map((row) => {
+      const range = document.createRange()
+      range.selectNodeContents(row)
+      const text = range.getBoundingClientRect()
+      const box = row.getBoundingClientRect()
+      return text.top + text.height / 2 - (box.top + box.height / 2)
+    })
+  })
+
+  expect(offsets).toHaveLength(2)
+  for (const offset of offsets) expect(Math.abs(offset)).toBeLessThanOrEqual(1)
+
+  await cleanup(label)
+})
