@@ -1,0 +1,772 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+html,body{margin:0;height:100%;background:#f1f1ef;color:#1c1d1b;font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI",system-ui,sans-serif;-webkit-font-smoothing:antialiased}
+*{box-sizing:border-box}
+button,input,select,textarea{font:inherit;color:inherit}
+a{color:oklch(0.42 0.11 285);text-decoration:none}
+a:hover{text-decoration:underline}
+[contenteditable]:focus{outline:none}
+::selection{background:oklch(0.85 0.08 300 / .5)}
+@keyframes g-in{from{opacity:0;transform:translateY(14px);filter:blur(6px)}to{opacity:1;transform:none;filter:none}}
+@keyframes g-pop{from{opacity:0;transform:translateY(-6px) scale(.96);filter:blur(4px)}to{opacity:1;transform:none;filter:none}}
+@keyframes g-sheet{from{opacity:0;transform:translateY(24px) scale(.97)}to{opacity:1;transform:none}}
+@keyframes g-side{from{opacity:0;transform:translateX(28px)}to{opacity:1;transform:none}}
+@keyframes g-fade{from{opacity:0}to{opacity:1}}
+@keyframes g-up{from{opacity:0;transform:translate(-50%,16px) scale(.96)}to{opacity:1;transform:translate(-50%,0)}}
+@keyframes g-pulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.4;transform:scale(.8)}}
+@keyframes g-paint{0%,100%{transform:translate(0,0) rotate(0) scale(1);border-radius:42% 58% 63% 37% / 41% 44% 56% 59%}33%{transform:translate(50px,-30px) rotate(12deg) scale(1.08);border-radius:63% 37% 44% 56% / 55% 62% 38% 45%}66%{transform:translate(-30px,40px) rotate(-8deg) scale(.95);border-radius:38% 62% 56% 44% / 48% 36% 64% 52%}}
+</style>
+</helmet>
+<div style="height:100vh;overflow:auto;position:relative;font-size:15px;line-height:1.47;letter-spacing:-0.01em">
+  <div style="position:fixed;inset:0;pointer-events:none;overflow:hidden;z-index:0;background:var(--p0,#f1f1ef);transition:background 1.2s ease">
+    <div style="position:absolute;width:620px;height:520px;left:-140px;top:-160px;background:var(--p1,oklch(0.86 0.012 260));filter:blur(90px);opacity:.55;transition:background 1.2s ease;border-radius:42% 58% 63% 37% / 41% 44% 56% 59%;animation:g-paint 52s ease-in-out infinite"></div>
+    <div style="position:absolute;width:520px;height:460px;right:-120px;top:-60px;background:var(--p2,oklch(0.9 0.015 80));filter:blur(90px);opacity:.55;transition:background 1.2s ease;border-radius:42% 58% 63% 37% / 41% 44% 56% 59%;animation:g-paint 60s ease-in-out infinite reverse"></div>
+    <div style="position:absolute;width:480px;height:420px;right:18%;bottom:-180px;background:var(--p3,oklch(0.83 0.01 240));filter:blur(90px);opacity:.55;transition:background 1.2s ease;border-radius:42% 58% 63% 37% / 41% 44% 56% 59%;animation:g-paint 68s ease-in-out infinite"></div>
+    <div style="position:absolute;width:520px;height:440px;left:12%;bottom:-200px;background:var(--p4,oklch(0.92 0.012 60));filter:blur(90px);opacity:.55;transition:background 1.2s ease;border-radius:42% 58% 63% 37% / 41% 44% 56% 59%;animation:g-paint 76s ease-in-out infinite reverse"></div>
+    <div style="position:absolute;width:360px;height:320px;left:44%;top:22%;background:var(--p5,oklch(0.88 0.008 200));filter:blur(90px);opacity:.55;transition:background 1.2s ease;border-radius:42% 58% 63% 37% / 41% 44% 56% 59%;animation:g-paint 84s ease-in-out infinite"></div>
+    <div style="position:absolute;inset:0;background-image:repeating-linear-gradient(0deg,rgba(60,50,30,.018) 0 1px,transparent 1px 3px),repeating-linear-gradient(90deg,rgba(60,50,30,.015) 0 1px,transparent 1px 4px);mix-blend-mode:multiply"></div>
+    
+  </div>
+
+<sc-if value="{{ onLogin }}" hint-placeholder-val="{{ false }}">
+  <div style="position:relative;z-index:1;min-height:100%;display:grid;place-items:center;padding:24px">
+    <div style="width:100%;max-width:400px;padding:44px 40px;border-radius:28px;background:rgba(255,255,255,.55);backdrop-filter:blur(30px) saturate(190%);-webkit-backdrop-filter:blur(30px) saturate(190%);border:1px solid rgba(255,255,255,.8);box-shadow:inset 0 1px 0 rgba(255,255,255,.95),0 24px 60px rgba(30,45,40,.12);display:flex;flex-direction:column;gap:28px;text-align:center;animation:g-sheet .7s cubic-bezier(.32,.72,0,1)">
+      <span style="align-self:center;width:52px;height:52px;border-radius:16px;background:oklch(0.42 0.11 285);box-shadow:inset 0 1px 0 rgba(255,255,255,.4),0 8px 20px oklch(0.42 0.11 285 / .28)"></span>
+      <div style="display:flex;flex-direction:column;gap:8px">
+        <h1 style="margin:0;font-size:30px;font-weight:600;letter-spacing:-0.025em">Sign in</h1>
+        <p style="margin:0;color:#5f625d">Sign in to your workspaces.</p>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:10px">
+        <button onClick="{{ signIn }}" style="height:50px;border:none;border-radius:999px;background:oklch(0.42 0.11 285);color:#ffffff;cursor:pointer;font-weight:500;box-shadow:inset 0 1px 0 rgba(255,255,255,.3),0 6px 16px oklch(0.42 0.11 285 / .25);transition:transform .4s cubic-bezier(.32,.72,0,1),box-shadow .4s" style-hover="transform:translateY(-1px);box-shadow:inset 0 1px 0 rgba(255,255,255,.3),0 10px 24px oklch(0.42 0.11 285 / .3)" style-active="transform:scale(.97)">Continue with GitHub</button>
+        <button onClick="{{ signIn }}" style="height:50px;border:1px solid rgba(255,255,255,.9);border-radius:999px;background:rgba(255,255,255,.6);cursor:pointer;font-weight:500;transition:transform .4s cubic-bezier(.32,.72,0,1),background .3s" style-hover="background:rgba(255,255,255,.9)" style-active="transform:scale(.97)">Continue with Google</button>
+      </div>
+      <p style="margin:0;font-size:13px;color:#7b7e78;text-wrap:pretty">New here? Signing in creates your account and a workspace of your own.</p>
+    </div>
+  </div>
+</sc-if>
+
+<sc-if value="{{ inApp }}" hint-placeholder-val="{{ true }}">
+  <div style="position:sticky;top:0;z-index:30;padding:12px 16px 0">
+    <nav style="display:flex;align-items:center;gap:10px;height:56px;padding:0 8px 0 10px;border-radius:999px;background:rgba(255,255,255,.72);backdrop-filter:blur(28px) saturate(190%);-webkit-backdrop-filter:blur(28px) saturate(190%);border:1px solid rgba(40,40,60,.1);box-shadow:inset 0 1px 0 rgba(255,255,255,1),0 12px 32px rgba(30,30,50,.12),0 2px 6px rgba(30,30,50,.08);animation:g-pop .6s cubic-bezier(.32,.72,0,1)">
+      <button onClick="{{ goDashboard }}" title="All workspaces" aria-label="All workspaces" style="width:36px;height:36px;flex:none;border:none;border-radius:50%;background:oklch(0.42 0.11 285);box-shadow:inset 0 1px 0 rgba(255,255,255,.4),0 4px 10px oklch(0.42 0.11 285 / .25);cursor:pointer;transition:transform .4s cubic-bezier(.32,.72,0,1)" style-hover="transform:rotate(-8deg) scale(1.05)" style-active="transform:scale(.92)"></button>
+      <sc-if value="{{ showTabs }}">
+        <button onClick="{{ goWorkspace }}" style="display:flex;align-items:center;gap:6px;height:36px;padding:0 12px;border:none;border-radius:999px;background:transparent;cursor:pointer;font-weight:600;white-space:nowrap;transition:background .3s" style-hover="background:rgba(255,255,255,.7)">{{ wsName }}</button>
+        <span style="width:1px;height:22px;background:rgba(0,0,0,.08);flex:none"></span>
+        <div ref="{{ tabsRef }}" style="position:relative;display:flex;align-items:center;gap:2px;flex:1 1 auto;min-width:120px;overflow-x:auto;scrollbar-width:none;padding:3px;border-radius:999px;-webkit-mask-image:{{ tabsMask }};mask-image:{{ tabsMask }}">
+          <span style="position:absolute;top:3px;bottom:3px;left:0;width:{{ indW }};transform:translateX({{ indX }});opacity:{{ indOpacity }};border-radius:999px;background:linear-gradient(180deg,rgba(255,255,255,.35) 0%,rgba(255,255,255,0) 45%,rgba(255,255,255,0) 70%,rgba(255,255,255,.25) 100%),rgba(110,110,130,.07);backdrop-filter:blur(6px) saturate(240%) contrast(1.05);-webkit-backdrop-filter:blur(6px) saturate(240%) contrast(1.05);box-shadow:inset 0 1px 0 rgba(255,255,255,.95),inset 0 -1px 0 rgba(255,255,255,.6),inset 1px 0 0 rgba(255,255,255,.45),inset -1px 0 0 rgba(255,255,255,.45),inset 0 0 0 1px rgba(80,80,100,.08),inset 0 2px 6px rgba(80,80,100,.08),inset 0 -3px 8px rgba(255,255,255,.35),0 1px 2px rgba(40,40,60,.06),0 4px 14px rgba(40,40,60,.06);pointer-events:none;transition:transform .55s cubic-bezier(.32,.72,0,1),width .55s cubic-bezier(.32,.72,0,1),opacity .3s"></span>
+          <sc-for list="{{ tabs }}" as="t" hint-placeholder-count="3">
+            <button data-active="{{ t.activeStr }}" onClick="{{ t.open }}" style="position:relative;display:flex;align-items:center;gap:7px;height:32px;padding:0 14px;border:none;border-radius:999px;background:transparent;cursor:pointer;font-size:14px;font-weight:{{ t.weight }};color:{{ t.fg }};white-space:nowrap;transition:color .3s" style-hover="color:#1c1d1b">
+              {{ t.label }}
+              <sc-if value="{{ t.live }}"><span style="width:6px;height:6px;border-radius:50%;background:oklch(0.62 0.13 150)"></span></sc-if>
+            </button>
+          </sc-for>
+        </div>
+      </sc-if>
+      <sc-if value="{{ onDashboard }}"><span style="font-weight:600;padding:0 6px">Workspaces</span></sc-if>
+      <div style="flex:0 1 8px;min-width:4px"></div>
+      <button onClick="{{ openPalette }}" style="display:flex;align-items:center;gap:8px;height:36px;padding:0 10px 0 14px;border:1px solid rgba(40,40,60,.12);border-radius:999px;background:rgba(240,240,244,.9);cursor:pointer;font-size:14px;color:#55585f;white-space:nowrap;flex:none;min-width:{{ searchMinW }};justify-content:space-between;box-shadow:inset 0 1px 2px rgba(30,30,50,.06);transition:background .3s,border-color .3s" style-hover="background:#ffffff;border-color:rgba(40,40,60,.22)"><sc-if value="{{ wide }}">Search</sc-if><span style="font-size:11.5px;padding:1px 7px;border-radius:6px;background:#ffffff;border:1px solid rgba(40,40,60,.12);color:#6b6e75">⌘K</span></button>
+      <sc-if value="{{ onDoc }}">
+        <div style="display:{{ presenceDisplay }};align-items:center;padding-left:6px;flex:none">
+          <sc-for list="{{ presence }}" as="p" hint-placeholder-count="3">
+            <span title="{{ p.name }}" style="width:28px;height:28px;margin-left:-7px;border-radius:50%;background:{{ p.color }};color:#fff;display:grid;place-items:center;font-size:12px;font-weight:600;box-shadow:0 0 0 2px rgba(255,255,255,.95);opacity:{{ p.opacity }};transition:transform .4s cubic-bezier(.32,.72,0,1),opacity .4s" style-hover="transform:translateY(-3px) scale(1.06)">{{ p.initial }}</span>
+          </sc-for>
+        </div>
+        <button onClick="{{ toggleHistory }}" style="height:36px;padding:0 14px;border:none;border-radius:999px;background:{{ historyBtnBg }};cursor:pointer;font-size:14px;font-weight:500;white-space:nowrap;transition:background .3s,transform .4s cubic-bezier(.32,.72,0,1)" style-hover="background:rgba(255,255,255,.9)" style-active="transform:scale(.95)">History</button>
+      </sc-if>
+      <div style="position:relative">
+        <button onClick="{{ toggleStatus }}" style="display:flex;align-items:center;gap:7px;height:36px;padding:0 12px;border:1px solid rgba(40,40,60,.12);border-radius:999px;background:rgba(240,240,244,.9);cursor:pointer;font-size:13.5px;color:#3d403b;white-space:nowrap;transition:background .3s" style-hover="background:rgba(255,255,255,.9)">
+          <span style="width:8px;height:8px;border-radius:50%;background:{{ connColor }};animation:{{ connAnim }};transition:background .4s"></span><sc-if value="{{ wide }}">{{ statusShort }}</sc-if>
+        </button>
+        <sc-if value="{{ statusOpen }}">
+          <div style="position:absolute;right:0;top:48px;width:270px;padding:16px;border-radius:22px;background:rgba(255,255,255,.72);backdrop-filter:blur(30px) saturate(190%);-webkit-backdrop-filter:blur(30px) saturate(190%);border:1px solid rgba(255,255,255,.85);box-shadow:inset 0 1px 0 rgba(255,255,255,.95),0 18px 44px rgba(30,45,40,.14);display:flex;flex-direction:column;gap:12px;transform-origin:top right;animation:g-pop .45s cubic-bezier(.32,.72,0,1)">
+            <div style="display:flex;align-items:center;gap:8px;font-weight:600"><span style="width:8px;height:8px;border-radius:50%;background:{{ connColor }}"></span>{{ connTitle }}</div>
+            <div style="display:grid;grid-template-columns:1fr auto;gap:6px 12px;font-size:13.5px">
+              <span style="color:#5f625d">People here</span><span>{{ peersCount }}</span>
+              <span style="color:#5f625d">Response time</span><span>{{ latencyLabel }}</span>
+              <span style="color:#5f625d">Waiting to sync</span><span>{{ pendingShort }}</span>
+              <span style="color:#5f625d">Version</span><span>{{ versionLabel }}</span>
+            </div>
+            <sc-if value="{{ hasConnAction }}"><button onClick="{{ toggleConn }}" style="height:36px;border:none;border-radius:999px;background:rgba(0,0,0,.05);cursor:pointer;font-size:14px;font-weight:500;transition:background .3s" style-hover="background:rgba(0,0,0,.09)">{{ connActionNice }}</button></sc-if>
+          </div>
+        </sc-if>
+      </div>
+      <sc-if value="{{ showShare }}">
+        <button onClick="{{ openShare }}" style="height:36px;padding:0 18px;border:none;border-radius:999px;background:oklch(0.42 0.11 285);color:#ffffff;cursor:pointer;font-size:14px;font-weight:500;white-space:nowrap;box-shadow:inset 0 1px 0 rgba(255,255,255,.3),0 4px 12px oklch(0.42 0.11 285 / .22);transition:transform .4s cubic-bezier(.32,.72,0,1),background .3s" style-hover="background:oklch(0.37 0.11 285)" style-active="transform:scale(.95)">Share</button>
+      </sc-if>
+      <div style="position:relative">
+        <button onClick="{{ toggleUserMenu }}" style="width:36px;height:36px;border:none;border-radius:50%;background:#8b5cf6;color:#fff;font-size:13px;font-weight:600;cursor:pointer;box-shadow:0 0 0 2px rgba(255,255,255,.9);transition:transform .4s cubic-bezier(.32,.72,0,1)" style-active="transform:scale(.92)">A</button>
+        <sc-if value="{{ userMenu }}">
+          <div style="position:absolute;right:0;top:48px;width:220px;padding:6px;border-radius:20px;background:rgba(255,255,255,.72);backdrop-filter:blur(30px) saturate(190%);-webkit-backdrop-filter:blur(30px) saturate(190%);border:1px solid rgba(255,255,255,.85);box-shadow:inset 0 1px 0 rgba(255,255,255,.95),0 18px 44px rgba(30,45,40,.14);display:flex;flex-direction:column;transform-origin:top right;animation:g-pop .45s cubic-bezier(.32,.72,0,1)">
+            <div style="padding:10px 12px;display:flex;flex-direction:column;line-height:1.3"><span style="font-weight:600">Ada</span><span style="font-size:13px;color:#7b7e78">ada@example.com</span></div>
+            <button onClick="{{ goDashboard }}" style="height:38px;padding:0 12px;border:none;border-radius:14px;background:transparent;text-align:left;cursor:pointer;transition:background .25s" style-hover="background:rgba(0,0,0,.05)">All workspaces</button>
+            <button onClick="{{ signOut }}" style="height:38px;padding:0 12px;border:none;border-radius:14px;background:transparent;text-align:left;cursor:pointer;color:#c4372b;transition:background .25s" style-hover="background:rgba(0,0,0,.05)">Sign out</button>
+          </div>
+        </sc-if>
+      </div>
+    </nav>
+    <div style="display:flex;justify-content:center;gap:8px;flex-wrap:wrap">
+      <sc-if value="{{ showConnBand }}">
+        <div style="margin-top:10px;display:flex;align-items:center;gap:12px;max-width:100%;padding:6px 6px 6px 16px;border-radius:999px;background:rgba(255,255,255,.62);backdrop-filter:blur(24px) saturate(180%);-webkit-backdrop-filter:blur(24px) saturate(180%);border:1px solid rgba(255,255,255,.85);box-shadow:0 8px 24px rgba(30,45,40,.1);font-size:14px;animation:g-pop .5s cubic-bezier(.32,.72,0,1)">
+          <span style="width:8px;height:8px;border-radius:50%;background:{{ connColor }};animation:{{ connAnim }}"></span>
+          <span style="min-width:0;color:#3d403b;text-wrap:pretty">{{ connBandNice }}</span>
+          <sc-if value="{{ isOffline }}"><button onClick="{{ toggleConn }}" style="height:30px;padding:0 14px;border:none;border-radius:999px;background:#1c1d1b;color:#ffffff;cursor:pointer;font-size:13px;font-weight:500;white-space:nowrap">Reconnect</button></sc-if>
+        </div>
+      </sc-if>
+      <sc-if value="{{ isPreview }}">
+        <div style="margin-top:10px;display:flex;align-items:center;gap:10px;max-width:100%;min-width:0;padding:6px 6px 6px 16px;border-radius:999px;background:rgba(28,29,27,.82);backdrop-filter:blur(24px);-webkit-backdrop-filter:blur(24px);color:#ffffff;font-size:13.5px;box-shadow:0 10px 28px rgba(0,0,0,.2);animation:g-pop .5s cubic-bezier(.32,.72,0,1)">
+          <span style="flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ previewNice }}</span>
+          <sc-if value="{{ canEdit }}"><button onClick="{{ restore }}" style="height:30px;padding:0 14px;border:none;border-radius:999px;background:#ffffff;color:#1c1d1b;cursor:pointer;font-size:13px;font-weight:500;white-space:nowrap">Restore</button></sc-if>
+          <button onClick="{{ backToLive }}" style="height:30px;padding:0 14px;border:none;border-radius:999px;background:rgba(255,255,255,.16);color:#ffffff;cursor:pointer;font-size:13px;white-space:nowrap">Back to now</button>
+        </div>
+      </sc-if>
+    </div>
+  </div>
+
+  <main style="position:relative;z-index:1;padding:{{ mainPad }};transition:padding .55s cubic-bezier(.32,.72,0,1)">
+    <sc-if value="{{ onDashboard }}">
+      <div style="max-width:960px;margin:0 auto;padding:40px 16px 64px;display:flex;flex-direction:column;gap:28px;animation:g-in .7s cubic-bezier(.32,.72,0,1)">
+        <h1 style="margin:0;font-size:32px;font-weight:600;letter-spacing:-0.025em">Workspaces</h1>
+        <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:16px">
+          <sc-for list="{{ workspaceRows }}" as="w" hint-placeholder-count="2">
+            <button onClick="{{ w.open }}" style="display:flex;flex-direction:column;align-items:flex-start;gap:32px;padding:22px;border:1px solid rgba(255,255,255,.85);border-radius:24px;background:rgba(255,255,255,.55);backdrop-filter:blur(20px) saturate(180%);-webkit-backdrop-filter:blur(20px) saturate(180%);box-shadow:inset 0 1px 0 rgba(255,255,255,.9),0 4px 16px rgba(30,45,40,.05);text-align:left;cursor:pointer;transition:transform .55s cubic-bezier(.32,.72,0,1),box-shadow .55s cubic-bezier(.32,.72,0,1),background .3s" style-hover="transform:translateY(-2px);background:rgba(255,255,255,.8);box-shadow:inset 0 1px 0 rgba(255,255,255,.95),0 10px 28px rgba(30,45,40,.08)" style-active="transform:scale(.98)">
+              <span style="width:44px;height:44px;border-radius:14px;background:oklch(0.42 0.11 285);color:#ffffff;display:grid;place-items:center;font-size:18px;font-weight:600;box-shadow:inset 0 1px 0 rgba(255,255,255,.35)">{{ w.initial }}</span>
+              <span style="display:flex;flex-direction:column;gap:2px"><span style="font-weight:600;font-size:18px">{{ w.name }}</span><span style="font-size:13.5px;color:#5f625d">{{ w.docs }} documents · {{ w.members }} people</span></span>
+            </button>
+          </sc-for>
+          <div style="display:flex;flex-direction:column;justify-content:space-between;gap:12px;padding:22px;border-radius:24px;border:1.5px dashed rgba(0,0,0,.12)">
+            <span style="font-weight:600;font-size:18px">New workspace</span>
+            <input value="{{ newWsName }}" onChange="{{ onNewWsName }}" onKeyDown="{{ onWsKey }}" placeholder="Name it, then press Enter" style="height:42px;padding:0 16px;border:1px solid rgba(0,0,0,.08);border-radius:999px;background:rgba(255,255,255,.7);transition:box-shadow .3s,border-color .3s" style-focus="outline:none;border-color:oklch(0.42 0.11 285);box-shadow:0 0 0 4px oklch(0.42 0.11 285 / .1)">
+          </div>
+        </div>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{ onWorkspace }}">
+      <div style="max-width:960px;margin:0 auto;padding:40px 16px 64px;display:flex;flex-direction:column;gap:44px;animation:g-in .7s cubic-bezier(.32,.72,0,1)">
+        <div style="display:flex;flex-direction:column;gap:6px">
+          <h1 style="margin:0;font-size:32px;font-weight:600;letter-spacing:-0.025em">{{ wsName }}</h1>
+          <p style="margin:0;color:#5f625d">{{ wsMetaNice }}</p>
+        </div>
+        <section style="display:flex;flex-direction:column;gap:14px">
+          <h2 style="margin:0;font-size:21px;font-weight:600;letter-spacing:-0.02em">Documents</h2>
+          <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:16px">
+            <sc-for list="{{ docRows }}" as="d" hint-placeholder-count="2">
+              <button onClick="{{ d.open }}" style="display:flex;flex-direction:column;align-items:flex-start;gap:40px;padding:22px;border:1px solid rgba(255,255,255,.85);border-radius:24px;background:rgba(255,255,255,.55);backdrop-filter:blur(20px) saturate(180%);-webkit-backdrop-filter:blur(20px) saturate(180%);box-shadow:inset 0 1px 0 rgba(255,255,255,.9),0 4px 16px rgba(30,45,40,.05);text-align:left;cursor:pointer;transition:transform .55s cubic-bezier(.32,.72,0,1),box-shadow .55s cubic-bezier(.32,.72,0,1),background .3s" style-hover="transform:translateY(-2px);background:rgba(255,255,255,.8);box-shadow:inset 0 1px 0 rgba(255,255,255,.95),0 10px 28px rgba(30,45,40,.08)" style-active="transform:scale(.98)">
+                <span style="font-size:12.5px;font-weight:600;padding:3px 10px;border-radius:999px;background:oklch(0.95 0.02 285);color:oklch(0.38 0.1 285)">{{ d.kind }}</span>
+                <span style="display:flex;flex-direction:column;gap:2px"><span style="font-weight:600;font-size:18px">{{ d.title }}</span><span style="font-size:13.5px;color:#7b7e78">{{ d.updated }}</span></span>
+              </button>
+            </sc-for>
+            <sc-if value="{{ canEdit }}">
+              <div style="display:flex;flex-direction:column;justify-content:space-between;gap:12px;padding:22px;border-radius:24px;border:1.5px dashed rgba(0,0,0,.12)">
+                <input value="{{ newDocTitle }}" onChange="{{ onNewDocTitle }}" onKeyDown="{{ onDocKey }}" placeholder="New document name" maxLength="200" style="height:42px;padding:0 16px;border:1px solid rgba(0,0,0,.08);border-radius:999px;background:rgba(255,255,255,.7);transition:box-shadow .3s,border-color .3s" style-focus="outline:none;border-color:oklch(0.42 0.11 285);box-shadow:0 0 0 4px oklch(0.42 0.11 285 / .1)">
+                <div style="display:flex;gap:8px">
+                  <div style="flex:1;display:flex;padding:3px;border-radius:999px;background:rgba(0,0,0,.05)">
+                    <button onClick="{{ setTypeDoc }}" style="flex:1;height:32px;border:none;border-radius:999px;background:{{ typeDocBg }};box-shadow:{{ typeDocShadow }};cursor:pointer;font-size:13.5px;font-weight:500;transition:background .4s,box-shadow .4s">Page</button>
+                    <button onClick="{{ setTypeBoard }}" style="flex:1;height:32px;border:none;border-radius:999px;background:{{ typeBoardBg }};box-shadow:{{ typeBoardShadow }};cursor:pointer;font-size:13.5px;font-weight:500;transition:background .4s,box-shadow .4s">Board</button>
+                  </div>
+                  <button onClick="{{ createDoc }}" style="height:38px;padding:0 18px;border:none;border-radius:999px;background:oklch(0.42 0.11 285);color:#ffffff;font-weight:500;font-size:14px;cursor:pointer;transition:transform .4s cubic-bezier(.32,.72,0,1)" style-active="transform:scale(.95)">Create</button>
+                </div>
+              </div>
+            </sc-if>
+          </div>
+          <sc-if value="{{ noDocs }}"><p style="margin:0;color:#7b7e78">Nothing here yet.</p></sc-if>
+        </section>
+        <section style="display:flex;flex-direction:column;gap:14px">
+          <div style="display:flex;align-items:center;justify-content:space-between">
+            <h2 style="margin:0;font-size:21px;font-weight:600;letter-spacing:-0.02em">People</h2>
+            <button onClick="{{ openShare }}" style="border:none;background:none;padding:0;color:oklch(0.42 0.11 285);font-weight:500;cursor:pointer;font-size:15px">{{ manageLabel }}</button>
+          </div>
+          <div style="border-radius:22px;background:rgba(255,255,255,.55);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);border:1px solid rgba(255,255,255,.85);overflow:hidden">
+            <sc-for list="{{ memberRows }}" as="m" hint-placeholder-count="3">
+              <div style="display:flex;align-items:center;gap:12px;padding:14px 18px;border-bottom:1px solid rgba(0,0,0,.05)">
+                <span style="width:34px;height:34px;border-radius:50%;background:{{ m.color }};color:#fff;display:grid;place-items:center;font-size:13px;font-weight:600;flex:none">{{ m.initial }}</span>
+                <span style="display:flex;flex-direction:column;line-height:1.3;flex:1;min-width:0"><span style="font-weight:500">{{ m.name }}</span><span style="color:#7b7e78;font-size:13px">{{ m.email }}</span></span>
+                <span style="font-size:13px;color:#5f625d">{{ m.roleNice }}</span>
+              </div>
+            </sc-for>
+          </div>
+        </section>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{ isBoard }}">
+      <div style="overflow-x:auto;padding:28px 0 48px;animation:g-in .7s cubic-bezier(.32,.72,0,1)">
+        <div style="display:flex;gap:16px;align-items:flex-start;width:max-content;padding:0 16px">
+          <sc-for list="{{ columns }}" as="col" hint-placeholder-count="3">
+            <section onDragOver="{{ col.onDragOver }}" onDrop="{{ col.onDrop }}" style="width:290px;flex:none;border-radius:26px;background:{{ col.bg }};backdrop-filter:blur(20px) saturate(170%);-webkit-backdrop-filter:blur(20px) saturate(170%);border:1px solid rgba(255,255,255,.8);box-shadow:{{ col.ring }};display:flex;flex-direction:column;transition:background .4s,box-shadow .4s cubic-bezier(.32,.72,0,1)">
+              <header style="display:flex;align-items:center;gap:8px;padding:16px 18px 10px">
+                <span style="font-weight:600;font-size:15px">{{ col.title }}</span>
+                <span style="font-size:12.5px;min-width:22px;height:22px;padding:0 7px;border-radius:999px;background:rgba(0,0,0,.05);color:#5f625d;display:grid;place-items:center">{{ col.count }}</span>
+              </header>
+              <div style="padding:0 10px 10px;display:flex;flex-direction:column;gap:8px">
+                <sc-for list="{{ col.cards }}" as="card" hint-placeholder-count="2">
+                  <article draggable="{{ boardEditable }}" onDragStart="{{ card.onDragStart }}" onDragEnd="{{ card.onDragEnd }}" onDrop="{{ card.onDrop }}" onClick="{{ card.open }}" style="background:rgba(255,255,255,.92);border-radius:18px;padding:14px 16px;cursor:pointer;opacity:{{ card.opacity }};box-shadow:{{ card.shadow }};display:flex;flex-direction:column;gap:8px;animation:g-in .5s cubic-bezier(.32,.72,0,1);transition:transform .5s cubic-bezier(.32,.72,0,1),box-shadow .5s cubic-bezier(.32,.72,0,1),opacity .3s" style-hover="transform:translateY(-3px) scale(1.01);box-shadow:0 0 0 1px rgba(255,255,255,1),0 14px 30px rgba(30,45,40,.12)" style-active="transform:scale(.98)">
+                    <div style="display:flex;gap:8px;align-items:flex-start">
+                      <span style="flex:1;text-wrap:pretty;line-height:1.4;font-size:14.5px">{{ card.title }}</span>
+                      <sc-if value="{{ boardEditable }}"><button onClick="{{ card.remove }}" aria-label="Delete card" style="width:24px;height:24px;flex:none;border:none;border-radius:50%;background:transparent;color:#a3a6a0;cursor:pointer;line-height:1;display:grid;place-items:center;transition:background .3s,color .3s" style-hover="background:rgba(0,0,0,.05);color:#1c1d1b">×</button></sc-if>
+                    </div>
+                    <sc-if value="{{ card.metaRow }}">
+                      <div style="display:flex;align-items:center;gap:8px;font-size:12.5px;color:#7b7e78">
+                        <sc-if value="{{ card.hasDesc }}"><span>Has notes</span></sc-if>
+                        <sc-if value="{{ card.peer }}"><span style="margin-left:auto;display:flex;align-items:center;gap:6px;padding:2px 8px 2px 2px;border-radius:999px;background:rgba(14,165,233,.1);color:#0b6e99;animation:g-pop .4s cubic-bezier(.32,.72,0,1)"><span style="width:18px;height:18px;border-radius:50%;background:{{ card.peerColor }};color:#fff;display:grid;place-items:center;font-size:10px;font-weight:600">G</span>{{ card.peerName }}</span></sc-if>
+                      </div>
+                    </sc-if>
+                  </article>
+                </sc-for>
+                <sc-if value="{{ boardEditable }}">
+                  <button onClick="{{ col.add }}" style="height:40px;border:none;border-radius:999px;background:transparent;color:#5f625d;cursor:pointer;font-size:14px;text-align:left;padding:0 14px;transition:background .3s,color .3s" style-hover="background:rgba(255,255,255,.7);color:#1c1d1b">+ Add a card</button>
+                </sc-if>
+              </div>
+            </section>
+          </sc-for>
+          <sc-if value="{{ boardEditable }}">
+            <button onClick="{{ addColumn }}" style="width:230px;flex:none;height:54px;border:1.5px dashed rgba(0,0,0,.12);border-radius:999px;background:transparent;color:#5f625d;cursor:pointer;font-size:14px;transition:background .3s,color .3s" style-hover="background:rgba(255,255,255,.6);color:#1c1d1b">+ Add a list</button>
+          </sc-if>
+        </div>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{ isText }}">
+      <div style="max-width:780px;margin:28px auto 64px;padding:0 16px;animation:g-in .7s cubic-bezier(.32,.72,0,1)">
+        <div style="padding:56px 56px 96px;border-radius:30px;background:rgba(255,255,255,.78);backdrop-filter:blur(24px) saturate(170%);-webkit-backdrop-filter:blur(24px) saturate(170%);border:1px solid rgba(255,255,255,.9);box-shadow:inset 0 1px 0 rgba(255,255,255,1),0 10px 40px rgba(30,45,40,.06)">
+          <sc-if value="{{ isPreview }}">
+            <div style="font-size:17px;line-height:1.65;color:#3d403b;animation:g-fade .4s ease">
+              <sc-for list="{{ previewBlocks }}" as="b">
+                <sc-if value="{{ b.isH1 }}"><h1 style="font-size:32px;line-height:1.2;font-weight:600;letter-spacing:-0.025em;margin:0 0 24px;color:#1c1d1b">{{ b.text }}</h1></sc-if>
+                <sc-if value="{{ b.isH2 }}"><h2 style="font-size:21px;font-weight:600;letter-spacing:-0.02em;margin:32px 0 10px;color:#1c1d1b">{{ b.text }}</h2></sc-if>
+                <sc-if value="{{ b.isP }}"><p style="margin:0 0 14px">{{ b.text }}</p></sc-if>
+              </sc-for>
+            </div>
+          </sc-if>
+          <sc-if value="{{ showEditor }}">
+            <div style="position:relative">
+              <div ref="{{ editorRef }}" contentEditable="{{ docEditable }}" suppressContentEditableWarning="{{ true }}" onInput="{{ onDocInput }}" style="font-size:17px;line-height:1.65;color:#3d403b;min-height:50vh;caret-color:oklch(0.42 0.11 285)"></div>
+              <sc-if value="{{ showCaret }}">
+                <div style="position:absolute;left:{{ caretLeft }};top:{{ caretTop }};height:{{ caretHeight }};width:2px;border-radius:1px;background:#0ea5e9;pointer-events:none;transition:left .7s cubic-bezier(.32,.72,0,1),top .7s cubic-bezier(.32,.72,0,1)">
+                  <span style="position:absolute;bottom:calc(100% + 3px);left:-1px;background:#0ea5e9;color:#fff;font-size:11px;font-weight:500;line-height:1;padding:4px 8px;border-radius:999px;white-space:nowrap;box-shadow:0 4px 10px rgba(14,165,233,.3)">Grace</span>
+                </div>
+              </sc-if>
+            </div>
+          </sc-if>
+        </div>
+      </div>
+    </sc-if>
+  </main>
+
+  <sc-if value="{{ showHistory }}">
+    <aside style="position:fixed;top:84px;right:16px;bottom:16px;width:330px;z-index:25;border-radius:28px;background:rgba(255,255,255,.66);backdrop-filter:blur(30px) saturate(190%);-webkit-backdrop-filter:blur(30px) saturate(190%);border:1px solid rgba(255,255,255,.85);box-shadow:inset 0 1px 0 rgba(255,255,255,.95),0 24px 60px rgba(30,45,40,.14);display:flex;flex-direction:column;overflow:hidden;animation:g-side .6s cubic-bezier(.32,.72,0,1)">
+      <div style="padding:20px 20px 10px;display:flex;align-items:center;justify-content:space-between">
+        <span style="font-weight:600;font-size:18px;letter-spacing:-0.02em">History</span>
+        <button onClick="{{ toggleHistory }}" aria-label="Close history" style="width:30px;height:30px;border:none;border-radius:50%;background:rgba(0,0,0,.06);color:#5f625d;cursor:pointer;font-size:15px;line-height:1;transition:background .3s" style-hover="background:rgba(0,0,0,.1)">×</button>
+      </div>
+      <div style="padding:4px 20px 14px;display:flex;flex-direction:column;gap:6px">
+        <input type="range" min="0" max="{{ historyMax }}" step="1" value="{{ historyIdx }}" onChange="{{ onScrub }}" style="width:100%;accent-color:oklch(0.42 0.11 285)">
+        <div style="display:flex;justify-content:space-between;font-size:12px;color:#7b7e78"><span>Earliest</span><span>Now</span></div>
+      </div>
+      <div style="flex:1;overflow:auto;padding:0 10px 12px;display:flex;flex-direction:column;gap:2px">
+        <sc-for list="{{ history }}" as="h" hint-placeholder-count="4">
+          <button onClick="{{ h.select }}" style="width:100%;display:flex;gap:12px;align-items:center;padding:10px 12px;border:none;border-radius:18px;background:{{ h.bgC }};text-align:left;cursor:pointer;transition:background .35s" style-hover="background:rgba(255,255,255,.75)">
+            <span style="width:32px;height:32px;border-radius:50%;background:{{ h.color }};color:#fff;display:grid;place-items:center;font-size:12px;font-weight:600;flex:none">{{ h.initial }}</span>
+            <span style="display:flex;flex-direction:column;min-width:0;line-height:1.35"><span style="font-size:14px;font-weight:500;text-wrap:pretty">{{ h.what }}</span><span style="font-size:12.5px;color:#7b7e78">{{ h.metaNice }}</span></span>
+          </button>
+        </sc-for>
+      </div>
+    </aside>
+  </sc-if>
+</sc-if>
+
+<sc-if value="{{ hasDrawer }}">
+  <div onClick="{{ closeDrawer }}" style="position:fixed;inset:0;background:rgba(30,40,35,.16);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);display:grid;place-items:center;padding:24px;z-index:40;animation:g-fade .35s ease">
+    <div onClick="{{ stop }}" style="width:100%;max-width:580px;max-height:100%;overflow:auto;border-radius:30px;background:rgba(255,255,255,.82);backdrop-filter:blur(30px) saturate(190%);-webkit-backdrop-filter:blur(30px) saturate(190%);border:1px solid rgba(255,255,255,.9);box-shadow:inset 0 1px 0 rgba(255,255,255,1),0 40px 90px rgba(30,45,40,.22);display:flex;flex-direction:column;animation:g-sheet .6s cubic-bezier(.32,.72,0,1)">
+      
+
+      <div style="display:flex;align-items:center;gap:10px;padding:22px 26px 0">
+        <select value="{{ drawerCol }}" onChange="{{ onDrawerCol }}" disabled="{{ isViewer }}" style="height:32px;padding:0 12px;border:none;border-radius:999px;background:rgba(0,0,0,.05);font-size:13.5px;font-weight:500;cursor:pointer">
+          <sc-for list="{{ columnOptions }}" as="o"><option value="{{ o.id }}">{{ o.title }}</option></sc-for>
+        </select>
+        <sc-if value="{{ drawerPeer }}"><span style="display:flex;align-items:center;gap:6px;font-size:13.5px;color:#3d403b;animation:g-pop .4s cubic-bezier(.32,.72,0,1)"><span style="width:8px;height:8px;border-radius:50%;background:#0ea5e9;animation:g-pulse 1.8s infinite"></span>Grace is here too</span></sc-if>
+        <span style="flex:1"></span>
+        <button onClick="{{ closeDrawer }}" aria-label="Close" style="width:30px;height:30px;border:none;border-radius:50%;background:rgba(0,0,0,.06);color:#5f625d;cursor:pointer;font-size:15px;line-height:1">×</button>
+      </div>
+      <div style="padding:16px 26px 26px;display:flex;flex-direction:column;gap:20px">
+        <textarea value="{{ drawerTitle }}" onChange="{{ onDrawerTitle }}" readOnly="{{ isViewer }}" rows="2" style="width:100%;border:none;resize:none;background:transparent;font-size:26px;font-weight:600;line-height:1.22;padding:0;letter-spacing:-0.025em" style-focus="outline:none"></textarea>
+        <textarea value="{{ drawerDesc }}" onChange="{{ onDrawerDesc }}" readOnly="{{ isViewer }}" rows="5" placeholder="Add notes" style="width:100%;padding:16px 18px;border:1px solid rgba(255,255,255,.9);border-radius:20px;background:rgba(255,255,255,.6);resize:vertical;line-height:1.55;font-size:15px;transition:box-shadow .4s cubic-bezier(.32,.72,0,1),background .3s" style-focus="outline:none;background:rgba(255,255,255,.95);box-shadow:0 0 0 1px oklch(0.42 0.11 285),0 0 0 5px oklch(0.42 0.11 285 / .1)"></textarea>
+        <div style="display:flex;flex-direction:column;gap:10px">
+          <span style="font-size:13px;font-weight:600;color:#7b7e78">Activity</span>
+          <sc-for list="{{ drawerActivity }}" as="a">
+            <div style="display:flex;gap:10px;align-items:center;font-size:14px">
+              <span style="width:24px;height:24px;border-radius:50%;background:{{ a.color }};color:#fff;display:grid;place-items:center;font-size:10.5px;font-weight:600;flex:none">{{ a.initial }}</span>
+              <span style="flex:1"><span style="font-weight:500">{{ a.who }}</span> <span style="color:#5f625d">{{ a.what }}</span></span>
+              <span style="font-size:12.5px;color:#7b7e78">{{ a.t }}</span>
+            </div>
+          </sc-for>
+        </div>
+      </div>
+      <sc-if value="{{ boardEditable }}">
+        <div style="padding:14px 26px 20px;display:flex;justify-content:space-between;align-items:center">
+          <button onClick="{{ drawerRemove }}" style="border:none;background:none;padding:0;color:#c4372b;cursor:pointer;font-size:14px">Delete card</button>
+          <button onClick="{{ closeDrawer }}" style="height:38px;padding:0 22px;border:none;border-radius:999px;background:oklch(0.42 0.11 285);color:#ffffff;cursor:pointer;font-size:14px;font-weight:500;box-shadow:inset 0 1px 0 rgba(255,255,255,.3),0 6px 14px oklch(0.42 0.11 285 / .22);transition:transform .4s cubic-bezier(.32,.72,0,1)" style-active="transform:scale(.95)">Done</button>
+        </div>
+      </sc-if>
+    </div>
+  </div>
+</sc-if>
+
+<sc-if value="{{ isShare }}">
+  <div onClick="{{ closeModal }}" style="position:fixed;inset:0;background:rgba(30,40,35,.16);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);display:grid;place-items:center;padding:24px;z-index:40;animation:g-fade .35s ease">
+    <div onClick="{{ stop }}" style="width:100%;max-width:510px;border-radius:30px;background:rgba(255,255,255,.82);backdrop-filter:blur(30px) saturate(190%);-webkit-backdrop-filter:blur(30px) saturate(190%);border:1px solid rgba(255,255,255,.9);box-shadow:inset 0 1px 0 rgba(255,255,255,1),0 40px 90px rgba(30,45,40,.22);display:flex;flex-direction:column;animation:g-sheet .6s cubic-bezier(.32,.72,0,1)">
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:24px 26px 6px">
+        <span style="font-weight:600;font-size:21px;letter-spacing:-0.02em">Share “{{ wsName }}”</span>
+        <button onClick="{{ closeModal }}" aria-label="Close" style="width:30px;height:30px;border:none;border-radius:50%;background:rgba(0,0,0,.06);color:#5f625d;cursor:pointer;font-size:15px;line-height:1">×</button>
+      </div>
+      <div style="padding:14px 26px 20px;display:flex;flex-direction:column;gap:18px">
+        <sc-if value="{{ isOwner }}">
+          <div style="display:flex;flex-direction:column;gap:8px">
+            <div style="display:flex;gap:6px;padding:5px;border-radius:999px;background:rgba(255,255,255,.7);border:1px solid rgba(255,255,255,.9);box-shadow:inset 0 1px 2px rgba(0,0,0,.04)">
+              <input value="{{ inviteEmail }}" onChange="{{ onInviteEmail }}" onKeyDown="{{ onInviteKey }}" placeholder="Add people by email" style="flex:1;min-width:0;height:36px;padding:0 12px;border:none;background:transparent" style-focus="outline:none">
+              <select value="{{ inviteRole }}" onChange="{{ onInviteRole }}" style="height:36px;padding:0 10px;border:none;border-radius:999px;background:rgba(0,0,0,.05);font-size:13.5px;font-weight:500;cursor:pointer">
+                <option value="viewer">Can view</option><option value="editor">Can edit</option><option value="owner">Owner</option>
+              </select>
+              <button onClick="{{ invite }}" style="height:36px;padding:0 18px;border:none;border-radius:999px;background:oklch(0.42 0.11 285);color:#ffffff;font-weight:500;cursor:pointer;transition:transform .4s cubic-bezier(.32,.72,0,1)" style-active="transform:scale(.95)">Add</button>
+            </div>
+            <sc-if value="{{ hasInviteError }}"><p style="margin:0;padding:0 14px;color:#c4372b;font-size:13px;text-wrap:pretty;animation:g-pop .4s cubic-bezier(.32,.72,0,1)">{{ inviteError }}</p></sc-if>
+          </div>
+        </sc-if>
+        <div style="display:flex;flex-direction:column;gap:4px">
+          <sc-for list="{{ memberRows }}" as="m" hint-placeholder-count="3">
+            <div style="display:flex;align-items:center;gap:12px;padding:8px 0">
+              <span style="width:36px;height:36px;border-radius:50%;background:{{ m.color }};color:#fff;display:grid;place-items:center;font-size:13px;font-weight:600;flex:none">{{ m.initial }}</span>
+              <span style="display:flex;flex-direction:column;line-height:1.3;flex:1;min-width:0"><span style="font-weight:500">{{ m.name }}</span><span style="color:#7b7e78;font-size:13px">{{ m.email }}</span></span>
+              <sc-if value="{{ m.editable }}">
+                <select value="{{ m.role }}" onChange="{{ m.onRole }}" style="height:32px;padding:0 10px;border:none;border-radius:999px;background:rgba(0,0,0,.05);font-size:13.5px;font-weight:500;cursor:pointer">
+                  <option value="viewer">Can view</option><option value="editor">Can edit</option><option value="owner">Owner</option>
+                </select>
+              </sc-if>
+              <sc-if value="{{ m.fixed }}"><span style="font-size:13px;color:#5f625d">{{ m.roleNice }}</span></sc-if>
+            </div>
+          </sc-for>
+        </div>
+      </div>
+      <p style="margin:0;padding:4px 26px 24px;font-size:12.5px;color:#7b7e78;text-wrap:pretty">People need to have signed in once before you can add them. Role changes apply the next time they connect.</p>
+    </div>
+  </div>
+</sc-if>
+
+<sc-if value="{{ isPalette }}">
+  <div onClick="{{ closePalette }}" style="position:fixed;inset:0;background:rgba(30,40,35,.1);display:flex;justify-content:center;align-items:flex-start;padding:110px 24px 24px;z-index:45;animation:g-fade .3s ease">
+    <div onClick="{{ stop }}" style="width:100%;max-width:580px;border-radius:28px;background:rgba(255,255,255,.72);backdrop-filter:blur(36px) saturate(200%);-webkit-backdrop-filter:blur(36px) saturate(200%);border:1px solid rgba(255,255,255,.9);box-shadow:inset 0 1px 0 rgba(255,255,255,1),0 30px 70px rgba(30,45,40,.2);overflow:hidden;animation:g-pop .5s cubic-bezier(.32,.72,0,1)">
+      <input ref="{{ paletteRef }}" value="{{ paletteQ }}" onChange="{{ onPaletteQ }}" onKeyDown="{{ onPaletteKey }}" placeholder="Search documents and actions" style="width:100%;height:60px;padding:0 24px;border:none;border-bottom:1px solid rgba(0,0,0,.06);background:transparent;font-size:18px" style-focus="outline:none">
+      <div style="max-height:340px;overflow:auto;padding:8px">
+        <sc-for list="{{ paletteItems }}" as="it" hint-placeholder-count="4">
+          <button onClick="{{ it.run }}" onMouseEnter="{{ it.hover }}" style="width:100%;display:flex;align-items:center;gap:12px;height:46px;padding:0 16px;border:none;border-radius:999px;background:{{ it.bg }};color:{{ it.fg }};text-align:left;cursor:pointer;transition:background .25s,color .25s">
+            <span style="flex:1;font-size:15px">{{ it.label }}</span>
+            <span style="font-size:12.5px;opacity:.7">{{ it.hint }}</span>
+          </button>
+        </sc-for>
+        <sc-if value="{{ paletteEmpty }}"><p style="margin:0;padding:16px;color:#7b7e78;font-size:14px">No matches.</p></sc-if>
+      </div>
+    </div>
+  </div>
+</sc-if>
+
+<sc-if value="{{ hasToast }}">
+  <div style="position:fixed;left:50%;bottom:28px;transform:translateX(-50%);display:flex;align-items:center;gap:10px;padding:12px 20px;border-radius:999px;background:rgba(28,29,27,.82);backdrop-filter:blur(24px);-webkit-backdrop-filter:blur(24px);color:#ffffff;font-size:14px;box-shadow:0 14px 36px rgba(0,0,0,.22);z-index:50;white-space:nowrap;animation:g-up .55s cubic-bezier(.32,.72,0,1)">
+    <span style="width:8px;height:8px;border-radius:50%;background:oklch(0.78 0.12 300)"></span>{{ toastNice }}
+  </div>
+</sc-if>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;canvas&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;neutral&quot;,&quot;dusk&quot;,&quot;ocean&quot;,&quot;meadow&quot;,&quot;sunset&quot;,&quot;stone&quot;],&quot;default&quot;:&quot;neutral&quot;,&quot;tsType&quot;:&quot;'neutral'|'dusk'|'ocean'|'meadow'|'sunset'|'stone'&quot;,&quot;section&quot;:&quot;Appearance&quot;},&quot;role&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;owner&quot;,&quot;editor&quot;,&quot;viewer&quot;],&quot;default&quot;:&quot;owner&quot;,&quot;tsType&quot;:&quot;'owner'|'editor'|'viewer'&quot;,&quot;section&quot;:&quot;Session&quot;},&quot;startScreen&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;login&quot;,&quot;dashboard&quot;,&quot;workspace&quot;,&quot;board&quot;,&quot;doc&quot;],&quot;default&quot;:&quot;board&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Session&quot;},&quot;peers&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Simulation&quot;}}">
+class Component extends DCLogic {
+  T = { colBg:'rgba(255,255,255,.42)', colOver:'rgba(255,255,255,.75)', border:'rgba(0,0,0,.06)', navActive:'rgba(255,255,255,.9)', listActive:'rgba(255,255,255,.85)', contentBg:'transparent', boardBg:'transparent', segOnBg:'#ffffff', segOnFg:'#1c1d1b', segOffFg:'#5f625d', btnActive:'rgba(255,255,255,.95)', green:'oklch(0.62 0.13 150)', amber:'oklch(0.72 0.15 65)', blue:'oklch(0.42 0.11 285)' };
+  PAL = { Ada:'#8b5cf6', Grace:'#0ea5e9', Vera:'#16a34a', Linus:'#f59e0b', Margaret:'#e11d48' };
+  ACCOUNTS = { 'linus@example.com':'Linus', 'margaret@example.com':'Margaret', 'grace@example.com':'Grace', 'vera@example.com':'Vera' };
+  CARDS0 = [
+    { id:'k1', doc:'d1', title:'Rate-limit the token endpoint', col:'c1', desc:'', by:'Ada' },
+    { id:'k2', doc:'d1', title:'Prune the update log past the snapshot', col:'c1', desc:'Delete update rows older than the newest durable snapshot. Safe because a snapshot is self-contained.', by:'Ada' },
+    { id:'k3', doc:'d1', title:'Offline merge: 5-minute disconnect', col:'c2', desc:'Disconnect one client for five minutes while both sides keep editing. Both windows should converge without losing either side\u2019s edits.', by:'Grace' },
+    { id:'k4', doc:'d1', title:'Enforce roles inside the sync protocol', col:'c3', desc:'Viewers may send sync-step1 and awareness frames, never sync-step2 or update.', by:'Ada' },
+  ];
+  B = {
+    h1:{k:'h1',text:'Architecture notes'},
+    p0:{k:'p',text:'Two processes, deliberately. The web app handles everything request-shaped: sessions, authorization, workspaces, documents. The sync server handles everything connection-shaped: it holds each open document in memory, decides per frame whether the sender may write, and broadcasts to the other clients.'},
+    h2a:{k:'h2',text:'The only contract between them'},
+    pa:{k:'p',text:'A short-lived JWT, signed by the web app and verified by the sync server, naming the document and the caller\u2019s role. That lets the sync server authorize a connection without a database round trip.'},
+    h2b:{k:'h2',text:'Persistence'},
+    pb:{k:'p',text:'Accepted updates go to an in-memory queue that flushes to Postgres every 500 ms or after 64 pending updates. A slow database degrades durability, never collaboration latency.'},
+    h2c:{k:'h2',text:'Open questions'},
+    pc:{k:'p',text:'Live role changes for connected users. A demoted editor keeps write access on an open connection until they reconnect.'},
+  };
+  ACTIVITY = {
+    k1:[{who:'Ada',what:'created this card',t:'Sep 29'}],
+    k2:[{who:'Ada',what:'added notes',t:'Sep 29'},{who:'Ada',what:'created this card',t:'Sep 29'}],
+    k3:[{who:'Grace',what:'edited the title',t:'09:14'},{who:'Grace',what:'moved to In progress',t:'09:04'},{who:'Grace',what:'created this card',t:'09:02'}],
+    k4:[{who:'Grace',what:'moved to Done',t:'Sep 30'},{who:'Ada',what:'created this card',t:'Sep 29'}],
+  };
+  state = {
+    screen:'login', wsId:'w1', docId:'d1', conn:'online', pending:0, latency:38, version:128,
+    workspaces:[{id:'w1',name:'Product',role:'owner'},{id:'w2',name:'Ada\u2019s workspace',role:'owner'}],
+    docs:[{id:'d1',ws:'w1',title:'Launch board',type:'board',updated:'Grace \u00b7 2 min ago'},{id:'d2',ws:'w1',title:'Architecture notes',type:'doc',updated:'Ada \u00b7 yesterday'}],
+    columns:[{id:'c1',doc:'d1',title:'Backlog'},{id:'c2',doc:'d1',title:'In progress'},{id:'c3',doc:'d1',title:'Done'}],
+    cards:this.CARDS0.map(c => ({...c})),
+    members:[{name:'Ada',email:'ada@example.com',role:'owner'},{name:'Grace',email:'grace@example.com',role:'editor'},{name:'Vera',email:'vera@example.com',role:'viewer'}],
+    drawer:null, modal:null, historyOpen:false, historyIdx:null, dragId:null, dragOver:null,
+    inviteEmail:'', inviteRole:'editor', inviteError:null, newDocTitle:'', newDocType:'doc', newWsName:'',
+    statusOpen:false, userMenu:false, ind:{ x:0, w:0, on:false }, palette:false, paletteQ:'', paletteSel:0, peerCard:'k3', peerLine:1, caret:null, toast:null,
+  };
+  docHtml = {};
+  editorEl = null;
+
+  html(blocks) {
+    return blocks.map(b => b.k === 'h1'
+      ? `<h1 style="font-size:30px;line-height:1.2;font-weight:600;letter-spacing:-0.01em;margin:0 0 20px">${b.text}</h1>`
+      : b.k === 'h2' ? `<h2 style="font-size:17px;font-weight:600;margin:28px 0 8px">${b.text}</h2>`
+      : `<p style="margin:0 0 12px">${b.text}</p>`).join('');
+  }
+  componentDidMount() {
+    const B = this.B;
+    this.docHtml.d2 = this.html([B.h1,B.p0,B.h2a,B.pa,B.h2b,B.pb,B.h2c,B.pc]);
+    this.applyStart();
+    this.applyCanvas();
+    this.onResizeNav = () => { const n = window.innerWidth < 1100; if (n !== this.state.narrowNav) this.setState({ narrowNav:n }); this.measureTabs(); };
+    this.onResizeNav(); window.addEventListener('resize', this.onResizeNav);
+    this.timer = setInterval(() => this.tick(), 2600);
+    this.onKey = e => {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k' && this.state.screen !== 'login') { e.preventDefault(); this.openPalette(); }
+      if (e.key === 'Escape') this.setState({ modal:null, drawer:null, palette:false, statusOpen:false, userMenu:false });
+    };
+    window.addEventListener('keydown', this.onKey);
+  }
+  componentDidUpdate(prevProps, prevState) {
+    if ((prevProps && prevProps.startScreen) !== this.props.startScreen) this.applyStart();
+    const id = this.state && this.state.docId;
+    if (this.lastDocId !== undefined && this.lastDocId !== id && this.editorEl) this.editorEl.innerHTML = this.docHtml[id] || '';
+    this.lastDocId = id;
+    this.measureTabs();
+    if ((prevProps && prevProps.canvas) !== this.props.canvas) this.applyCanvas();
+  }
+  componentWillUnmount() { clearInterval(this.timer); clearTimeout(this.toastT); window.removeEventListener('keydown', this.onKey); window.removeEventListener('resize', this.onResizeNav); }
+  applyStart() {
+    const s = this.props.startScreen ?? 'board';
+    if (s === 'board') this.go('doc', 'd1'); else if (s === 'doc') this.go('doc', 'd2'); else this.go(s);
+  }
+  go(screen, docId) {
+    this.setState(st => ({ userMenu:false, statusOpen:false, screen, docId: docId ?? st.docId, drawer:null, historyOpen:false, historyIdx:null, modal:null }), () => setTimeout(() => this.measureCaret(), 60));
+  }
+  editorRef = el => {
+    this.editorEl = el;
+    if (el) { el.innerHTML = this.docHtml[this.state.docId] || ''; setTimeout(() => this.measureCaret(), 60); }
+  };
+  tick() {
+    if (this.props.peers === false) return;
+    const s = this.state; if (s.conn !== 'online') return;
+    const ids = s.cards.filter(c => c.doc === 'd1').map(c => c.id);
+    this.setState({ peerCard: ids[Math.floor(Math.random() * ids.length)] ?? null, peerLine: (s.peerLine + 1) % 8, latency: 26 + Math.round(Math.random() * 30) }, () => this.measureCaret());
+  }
+  measureCaret() {
+    const el = this.editorEl; if (!el || !el.isConnected || !el.children.length) return this.state.caret && this.setState({ caret:null });
+    const kids = el.children, child = kids[this.state.peerLine % kids.length];
+    const r = document.createRange(); r.selectNodeContents(child);
+    const rects = r.getClientRects(), last = rects[rects.length - 1]; if (!last) return;
+    const base = el.parentElement.getBoundingClientRect();
+    const k = base.width / el.parentElement.offsetWidth || 1;
+    this.setState({ caret:{ x:(last.right - base.left) / k, y:(last.top - base.top) / k, h:last.height / k } });
+  }
+  CANVAS = {
+    neutral:['#f1f1ef','oklch(0.86 0.012 260)','oklch(0.9 0.015 80)','oklch(0.83 0.01 240)','oklch(0.92 0.012 60)','oklch(0.88 0.008 200)'],
+    dusk:   ['#f4f1f8','oklch(0.82 0.09 300)','oklch(0.87 0.07 335)','oklch(0.84 0.07 272)','oklch(0.89 0.06 355)','oklch(0.92 0.04 310)'],
+    ocean:  ['#eef3f4','oklch(0.84 0.07 200)','oklch(0.92 0.05 90)','oklch(0.8 0.07 230)','oklch(0.88 0.06 175)','oklch(0.93 0.03 60)'],
+    meadow: ['#f2efe8','oklch(0.84 0.07 170)','oklch(0.9 0.07 80)','oklch(0.85 0.07 35)','oklch(0.87 0.05 230)','oklch(0.91 0.04 130)'],
+    sunset: ['#f6efe9','oklch(0.86 0.09 60)','oklch(0.83 0.09 25)','oklch(0.88 0.07 90)','oklch(0.82 0.07 340)','oklch(0.9 0.05 300)'],
+    stone:  ['#f1f0ee','oklch(0.88 0.015 80)','oklch(0.84 0.02 250)','oklch(0.9 0.02 40)','oklch(0.86 0.015 170)','oklch(0.92 0.01 0)'],
+  };
+  applyCanvas() {
+    const p = this.CANVAS[this.props.canvas ?? 'neutral'] || this.CANVAS.neutral, r = document.documentElement.style;
+    p.forEach((c, i) => r.setProperty('--p' + i, c));
+  }
+  tabsRef = el => { if (this.tabsEl && this.tabsEl !== el) this.tabsEl.removeEventListener('scroll', this.onTabsScroll); this.tabsEl = el; if (el) { el.addEventListener('scroll', this.onTabsScroll, { passive:true }); setTimeout(() => this.measureTabs(), 30); } };
+  onTabsScroll = () => this.measureTabs();
+  measureTabs() {
+    const el = this.tabsEl; const cur = this.state.ind;
+    const a = el && el.isConnected ? el.querySelector('[data-active="true"]') : null;
+    if (a && el) { const l = a.offsetLeft, r = l + a.offsetWidth; if (l < el.scrollLeft) el.scrollTo({ left: l - 12, behavior:'smooth' }); else if (r > el.scrollLeft + el.clientWidth) el.scrollTo({ left: r - el.clientWidth + 24, behavior:'smooth' }); }
+    const ov = !!el && el.scrollWidth > el.clientWidth + 2 && el.scrollLeft + el.clientWidth < el.scrollWidth - 2;
+    if (ov !== this.state.tabsOverflow) this.setState({ tabsOverflow: ov });
+    const n = a ? { x:a.offsetLeft, w:a.offsetWidth, on:true } : { x:cur.x, w:cur.w, on:false };
+    if (n.x !== cur.x || n.w !== cur.w || n.on !== cur.on) this.setState({ ind:n });
+  }
+  openPalette = () => { this.setState({ palette:true, paletteQ:'', paletteSel:0, statusOpen:false }); setTimeout(() => this.palEl && this.palEl.focus(), 30); };
+  paletteRef = el => { this.palEl = el; };
+  paletteList() {
+    const s = this.state, q = s.paletteQ.trim().toLowerCase();
+    const items = [
+      ...s.docs.filter(d => d.ws === s.wsId).map(d => ({ label:d.title, hint: d.type === 'board' ? 'Board' : 'Page', run: () => this.go('doc', d.id) })),
+      { label:'Go to workspace overview', hint:'Workspace', run: () => this.go('workspace') },
+      { label:'All workspaces', hint:'Navigate', run: () => this.go('dashboard') },
+      { label:'Share and invite people', hint:'Action', run: () => this.setState({ modal:'share', inviteError:null }) },
+      { label: s.conn === 'online' ? 'Go offline (simulate)' : 'Reconnect', hint:'Sync', run: () => this.toggleConn() },
+    ];
+    return q ? items.filter(i => i.label.toLowerCase().includes(q)) : items;
+  }
+  toast(msg) { clearTimeout(this.toastT); this.setState({ toast:msg }); this.toastT = setTimeout(() => this.setState({ toast:null }), 3200); }
+  role() { return this.props.role ?? 'owner'; }
+  canEdit() { return this.role() !== 'viewer'; }
+  edit(fn) {
+    if (!this.canEdit()) return;
+    this.setState(s => ({ ...fn(s), pending: s.conn === 'online' ? 0 : s.pending + 1, version: s.conn === 'online' ? s.version + 1 : s.version }));
+  }
+  toggleConn = () => {
+    const s = this.state;
+    if (s.conn === 'online') return this.setState({ conn:'offline' });
+    if (s.conn === 'offline') {
+      this.setState({ conn:'syncing' });
+      setTimeout(() => {
+        const n = this.state.pending;
+        this.setState(st => ({ conn:'online', version: st.version + st.pending, pending:0 }), () => this.measureCaret());
+        this.toast(n ? `Back online \u00b7 ${n} change${n > 1 ? 's' : ''} synced` : 'Back online');
+      }, 1500);
+    }
+  };
+  moveCard(s, id, col, beforeId) {
+    const card = s.cards.find(c => c.id === id); if (!card) return {};
+    const cards = s.cards.filter(c => c.id !== id);
+    let idx = beforeId ? cards.findIndex(c => c.id === beforeId) : -1;
+    if (idx < 0) { let last = -1; cards.forEach((c, i) => { if (c.col === col) last = i; }); idx = last + 1 || cards.length; }
+    cards.splice(idx, 0, { ...card, col });
+    return { cards };
+  }
+  versions(doc, s) {
+    const live = { v:s.version, who:'Live', t:'now', what:'Current state' };
+    const B = this.B;
+    if (doc.id === 'd1') return [
+      { v:124, who:'Ada', t:'Sep 29, 10:14', what:'Created board', cards:[{id:'k4',col:'c1'}] },
+      { v:125, who:'Ada', t:'Sep 29, 10:16', what:'Added 2 cards', cards:[{id:'k1',col:'c1'},{id:'k2',col:'c1'},{id:'k4',col:'c2'}] },
+      { v:126, who:'Grace', t:'Sep 30, 16:40', what:'Moved \u201cEnforce roles\u201d to Done', cards:[{id:'k1',col:'c1'},{id:'k2',col:'c1'},{id:'k4',col:'c3'}] },
+      { v:127, who:'Grace', t:'Oct 1, 09:02', what:'Added \u201cOffline merge\u201d', cards:[{id:'k1',col:'c1'},{id:'k2',col:'c1'},{id:'k3',col:'c2'},{id:'k4',col:'c3'}] },
+      live];
+    if (doc.id === 'd2') return [
+      { v:118, who:'Ada', t:'Sep 27, 14:20', what:'Created document', blocks:[B.h1,B.p0] },
+      { v:121, who:'Ada', t:'Sep 28, 11:05', what:'Added \u201cThe only contract\u201d', blocks:[B.h1,B.p0,B.h2a,B.pa] },
+      { v:125, who:'Grace', t:'Sep 30, 17:31', what:'Added \u201cPersistence\u201d', blocks:[B.h1,B.p0,B.h2a,B.pa,B.h2b,B.pb] },
+      live];
+    return [live];
+  }
+
+  renderVals() {
+    const s = this.state, T = this.T, role = this.role();
+    const canEdit = role !== 'viewer', isOwner = role === 'owner', isViewer = !canEdit;
+    const ws = s.workspaces.find(w => w.id === s.wsId) || s.workspaces[0];
+    const doc = s.docs.find(d => d.id === s.docId);
+    const onDoc = s.screen === 'doc' && !!doc;
+    const isBoard = onDoc && doc.type === 'board', isText = onDoc && doc.type === 'doc';
+    const versions = onDoc ? this.versions(doc, s) : [];
+    const max = Math.max(0, versions.length - 1);
+    const idx = s.historyIdx ?? max;
+    const isPreview = onDoc && s.historyOpen && idx < max;
+    const ver = versions[idx];
+    const boardEditable = canEdit && !isPreview;
+    const peersOn = this.props.peers !== false && (doc?.id === 'd1' || doc?.id === 'd2');
+    const online = s.conn === 'online';
+    const wsDocs = s.docs.filter(d => d.ws === ws.id);
+    const memberCount = ws.id === 'w1' ? s.members.length : 1;
+
+    let cards = s.cards.filter(c => c.doc === s.docId);
+    if (isPreview && ver.cards) cards = ver.cards.map(x => ({ ...this.CARDS0.find(c => c.id === x.id), col:x.col }));
+    const columns = s.columns.filter(c => c.doc === s.docId).map(col => {
+      const list = cards.filter(c => c.col === col.id);
+      return {
+        id:col.id, title:col.title, count:String(list.length),
+        bg: s.dragOver === col.id ? T.colOver : T.colBg,
+        onDragOver: e => { if (!boardEditable) return; e.preventDefault(); if (s.dragOver !== col.id) this.setState({ dragOver:col.id }); },
+        onDrop: e => { e.preventDefault(); const id = this.state.dragId; this.setState({ dragOver:null, dragId:null }); if (id) this.edit(st => this.moveCard(st, id, col.id)); },
+        add: () => { const id = 'k' + Date.now().toString(36); this.edit(st => ({ cards:[...st.cards, { id, doc:st.docId, title:'New card', col:col.id, desc:'', by:'Ada' }] })); this.setState({ drawer:id }); },
+        cards: list.map(c => {
+          const peer = online && peersOn && !isPreview && s.peerCard === c.id;
+          return {
+            id:c.id, title:c.title, key:'#' + c.id.toUpperCase(), hasDesc: !!c.desc, peer, peerName:'Grace', peerColor:this.PAL.Grace,
+            border: peer ? this.PAL.Grace : (s.drawer === c.id ? '#1c1b18' : T.border),
+            shadow: peer ? `0 0 0 1px ${this.PAL.Grace}` : 'none',
+            opacity: s.dragId === c.id ? 0.4 : 1,
+            onDragStart: e => { e.dataTransfer.setData('text/plain', c.id); e.dataTransfer.effectAllowed = 'move'; this.setState({ dragId:c.id }); },
+            onDragEnd: () => this.setState({ dragId:null, dragOver:null }),
+            onDrop: e => { e.preventDefault(); e.stopPropagation(); const id = this.state.dragId; this.setState({ dragOver:null, dragId:null }); if (id && id !== c.id) this.edit(st => this.moveCard(st, id, col.id, c.id)); },
+            open: () => !isPreview && this.setState({ drawer:c.id, historyOpen:false }),
+            remove: e => { e.stopPropagation(); this.edit(st => ({ cards: st.cards.filter(x => x.id !== c.id), drawer: st.drawer === c.id ? null : st.drawer })); },
+          };
+        }),
+      };
+    });
+
+    const dc = s.cards.find(c => c.id === s.drawer);
+    const hasDrawer = onDoc && isBoard && !!dc;
+    const setCard = patch => this.edit(st => ({ cards: st.cards.map(c => c.id === s.drawer ? { ...c, ...patch } : c) }));
+
+    const presence = [{ initial:'A', name:'Ada (you)', color:this.PAL.Ada, opacity:1 }];
+    if (peersOn) presence.push({ initial:'G', name:'Grace \u00b7 editing', color:this.PAL.Grace, opacity: online ? 1 : 0.35 }, { initial:'V', name:'Vera \u00b7 viewing', color:this.PAL.Vera, opacity: online ? 1 : 0.35 });
+    const nOnline = presence.length;
+
+    const crumbs = s.screen === 'dashboard' ? [null, 'Workspaces'] : s.screen === 'workspace' ? ['Workspaces', ws.name] : [ws.name, doc?.title ?? ''];
+    const pending = s.pending;
+
+    return {
+      role, canEdit, isOwner, isViewer, onLogin: s.screen === 'login', inApp: s.screen !== 'login',
+      onDashboard: s.screen === 'dashboard', onWorkspace: s.screen === 'workspace', onDoc, isBoard, isText,
+      showShare: s.screen === 'workspace' || onDoc, showReadOnly: isViewer && onDoc,
+      hasCrumbA: !!crumbs[0], crumbA: crumbs[0], crumbB: crumbs[1],
+      crumbAGo: () => s.screen === 'workspace' ? this.go('dashboard') : this.go('workspace'),
+      wsName: ws.name, wsInitial: ws.name.slice(0, 1).toUpperCase(),
+      wsMeta: `${wsDocs.length} document${wsDocs.length === 1 ? '' : 's'} \u00b7 ${memberCount} member${memberCount === 1 ? '' : 's'} \u00b7 you are ${role}`,
+      wsNavBg: s.screen === 'workspace' ? T.navActive : 'transparent',
+      dashNavBg: s.screen === 'dashboard' ? T.navActive : 'transparent',
+      contentBg: isBoard ? T.boardBg : T.contentBg,
+      docCount: String(wsDocs.length), noDocs: wsDocs.length === 0,
+      sideDocs: wsDocs.map(d => ({ title:d.title, tag: d.type === 'board' ? 'BRD' : 'DOC', live: this.props.peers !== false && (d.id === 'd1' || d.id === 'd2') && online, bg: onDoc && d.id === s.docId ? T.navActive : 'transparent', open: () => this.go('doc', d.id) })),
+      docRows: wsDocs.map(d => ({ title:d.title, tag: d.type === 'board' ? 'BOARD' : 'DOC', updated:d.updated, open: () => this.go('doc', d.id) })),
+      workspaceRows: s.workspaces.map(w => ({ name:w.name, initial:w.name.slice(0, 1).toUpperCase(), role: w.id === 'w1' ? role : w.role, docs: String(s.docs.filter(d => d.ws === w.id).length), members: String(w.id === 'w1' ? s.members.length : 1), open: () => { this.setState({ wsId:w.id }); this.go('workspace'); } })),
+      memberRows: (ws.id === 'w1' ? s.members : [s.members[0]]).map((m, i) => ({
+        name: m.name + (m.name === 'Ada' ? ' (you)' : ''), email:m.email, role: m.name === 'Ada' ? role : m.role, initial:m.name[0], color:this.PAL[m.name] ?? '#6e6a62',
+        editable: isOwner && m.name !== 'Ada', fixed: !(isOwner && m.name !== 'Ada'),
+        onRole: e => { const v = e.target.value; this.setState(st => ({ members: st.members.map(x => x.email === m.email ? { ...x, role:v } : x) })); this.toast(`${m.name} is now ${v} \u00b7 applies on next connection`); },
+      })),
+      manageLabel: isOwner ? 'Manage access' : 'View access',
+      goDashboard: () => this.go('dashboard'), goWorkspace: () => this.go('workspace'),
+      signIn: () => this.go('doc', 'd1'), signOut: () => this.go('login'),
+      newWsName: s.newWsName, onNewWsName: e => this.setState({ newWsName:e.target.value }),
+      createWs: () => { const n = s.newWsName.trim(); if (!n) return; this.setState(st => ({ workspaces:[...st.workspaces, { id:'w' + Date.now(), name:n, role:'owner' }], newWsName:'' })); this.toast(`Created ${n}`); },
+      newDocTitle: s.newDocTitle, onNewDocTitle: e => this.setState({ newDocTitle:e.target.value }),
+      setTypeDoc: () => this.setState({ newDocType:'doc' }), setTypeBoard: () => this.setState({ newDocType:'board' }),
+      typeDocBg: s.newDocType === 'doc' ? T.segOnBg : 'transparent', typeDocFg: s.newDocType === 'doc' ? T.segOnFg : T.segOffFg,
+      typeBoardBg: s.newDocType === 'board' ? T.segOnBg : 'transparent', typeBoardFg: s.newDocType === 'board' ? T.segOnFg : T.segOffFg,
+      createDoc: () => {
+        const t = s.newDocTitle.trim(); if (!t) return;
+        const id = 'd' + Date.now(), type = s.newDocType;
+        if (type === 'doc') this.docHtml[id] = this.html([{ k:'h1', text:t }, { k:'p', text:'' }]);
+        this.setState(st => ({ newDocTitle:'', docs:[...st.docs, { id, ws:ws.id, title:t, type, updated:'Ada \u00b7 just now' }], columns: type === 'board' ? [...st.columns, ...['To do','Doing','Done'].map((x, i) => ({ id:id + 'c' + i, doc:id, title:x }))] : st.columns }));
+        this.go('doc', id);
+      },
+      presence, peersLabel: online ? `${nOnline} online` : 'peers unknown',
+      connLabel: online ? 'connected' : s.conn === 'offline' ? 'offline' : 'syncing\u2026',
+      connColor: online ? T.green : s.conn === 'offline' ? T.amber : T.blue,
+      latencyLabel: online ? `${s.latency} ms` : '\u2014 ms',
+      pendingLabel: `${pending} queued`, versionLabel: `v${s.version}`, isOffline: s.conn === 'offline',
+      hasConnAction: s.conn !== 'syncing', connAction: online ? 'Go offline' : 'Reconnect', toggleConn: this.toggleConn,
+      showConnBand: !online,
+      connBandText: s.conn === 'offline' ? 'You\u2019re offline. Edits are kept on this device and merge when you reconnect.' : `Reconnecting. Sending ${pending} queued update${pending === 1 ? '' : 's'} and fetching what you missed\u2026`,
+      columns, boardEditable,
+      addColumn: () => this.edit(st => ({ columns:[...st.columns, { id:'c' + Date.now(), doc:st.docId, title:'New column' }] })),
+      hasDrawer, drawerKey: dc ? '#' + dc.id.toUpperCase() : '', drawerTitle: dc?.title ?? '', drawerDesc: dc?.desc ?? '', drawerCol: dc?.col ?? '',
+      drawerCreator: dc?.by ?? 'Ada', drawerPeer: !!dc && online && peersOn && s.peerCard === dc.id,
+      onDrawerTitle: e => setCard({ title:e.target.value }), onDrawerDesc: e => setCard({ desc:e.target.value }), onDrawerCol: e => setCard({ col:e.target.value }),
+      columnOptions: s.columns.filter(c => c.doc === s.docId).map(c => ({ id:c.id, title:c.title })),
+      drawerActivity: (dc ? (this.ACTIVITY[dc.id] ?? [{ who:'Ada', what:'created this card', t:'just now' }]) : []).map(a => ({ ...a, color:this.PAL[a.who] ?? '#6e6a62' })),
+      closeDrawer: () => this.setState({ drawer:null }),
+      drawerRemove: () => this.edit(st => ({ cards: st.cards.filter(x => x.id !== st.drawer), drawer:null })),
+      showHistory: onDoc && s.historyOpen, historyBtnBg: s.historyOpen ? T.btnActive : 'transparent',
+      toggleHistory: () => this.setState(st => ({ historyOpen: !st.historyOpen, historyIdx:null, drawer:null })),
+      historyMax: String(max), historyIdx: String(idx), historyFirst: versions[0] ? 'v' + versions[0].v : '',
+      onScrub: e => this.setState({ historyIdx: +e.target.value }),
+      history: versions.map((v, i) => ({ v:'v' + v.v, what:v.what, meta: v.who === 'Live' ? 'Live \u00b7 now' : `${v.who} \u00b7 ${v.t}`, color: this.PAL[v.who] ?? T.green, bg: i === idx ? T.listActive : 'transparent', select: () => this.setState({ historyIdx:i }) })).reverse(),
+      isPreview, previewLabel: ver ? `v${ver.v} \u00b7 ${ver.who} \u00b7 ${ver.t}` : '',
+      previewBlocks: isPreview && ver.blocks ? ver.blocks.map(b => ({ text:b.text, isH1:b.k === 'h1', isH2:b.k === 'h2', isP:b.k === 'p' })) : [],
+      restore: () => {
+        if (ver.cards) this.edit(st => ({ cards:[...st.cards.filter(c => c.doc !== 'd1'), ...ver.cards.map(x => ({ ...this.CARDS0.find(c => c.id === x.id), col:x.col }))] }));
+        if (ver.blocks) { this.docHtml[s.docId] = this.html(ver.blocks); this.edit(() => ({})); }
+        this.setState({ historyIdx:null }); this.toast('Version restored');
+      },
+      backToLive: () => this.setState({ historyIdx:null }),
+      showEditor: isText && !isPreview, editorRef: this.editorRef, docEditable: canEdit,
+      onDocInput: e => { this.docHtml[s.docId] = e.currentTarget.innerHTML; if (s.conn !== 'online') this.setState(st => ({ pending: st.pending + 1 })); else if (Math.random() < 0.25) this.setState(st => ({ version: st.version + 1 })); },
+      showCaret: isText && !isPreview && online && peersOn && !!s.caret,
+      caretLeft: s.caret ? s.caret.x + 'px' : '0px', caretTop: s.caret ? s.caret.y + 'px' : '0px', caretHeight: s.caret ? s.caret.h + 'px' : '0px',
+      isShare: s.modal === 'share', openShare: () => this.setState({ modal:'share', inviteError:null }), closeModal: () => this.setState({ modal:null }), stop: e => e.stopPropagation(),
+      inviteEmail: s.inviteEmail, onInviteEmail: e => this.setState({ inviteEmail:e.target.value, inviteError:null }),
+      inviteRole: s.inviteRole, onInviteRole: e => this.setState({ inviteRole:e.target.value }),
+      onInviteKey: e => { if (e.key === 'Enter') this.invite(); },
+      invite: () => this.invite(),
+      hasInviteError: !!s.inviteError, inviteError: s.inviteError,
+      toast: s.toast, hasToast: !!s.toast,
+      toastNice: s.toast,
+      ...this.calmVals(s, { online, doc, onDoc, isPreview, ver, peersOn, nOnline, role, ws, wsDocs, memberCount, versions, idx, columns, canEdit }),
+    };
+  }
+  calmVals(s, v) {
+    const roleNice = r => r === 'owner' ? 'Owner' : r === 'editor' ? 'Can edit' : 'Can view';
+    const items = s.palette ? this.paletteList() : [];
+    const sel = Math.min(s.paletteSel, Math.max(0, items.length - 1));
+    const n = s.pending;
+    const shortDate = t => t;
+    return {
+      headerBorder: v.onDoc ? '#e8e8ed' : 'transparent',
+      statusOpen: s.statusOpen, toggleStatus: () => this.setState(st => ({ statusOpen: !st.statusOpen })),
+      statusShort: v.online ? (v.onDoc ? v.nOnline + ' here' : 'Synced') : s.conn === 'offline' ? 'Offline' : 'Syncing',
+      connTitle: v.online ? 'Everything is up to date' : s.conn === 'offline' ? 'Working offline' : 'Catching up',
+      connAnim: s.conn === 'syncing' ? 'c-pulse 1s infinite' : 'none',
+      peersCount: v.online ? String(v.onDoc ? v.nOnline : 1) : '—',
+      pendingShort: n ? n + (n === 1 ? ' change' : ' changes') : 'None',
+      connActionNice: v.online ? 'Go offline (simulate)' : 'Reconnect now',
+      bandBg: s.conn === 'offline' ? '#fff8ec' : '#eef5fe',
+      connBandNice: s.conn === 'offline' ? (n ? `You're offline. ${n} change${n === 1 ? '' : 's'} saved on this device will sync when you're back.` : "You're offline. Keep working, your changes are saved on this device.") : 'Back online. Syncing your changes…',
+      wsMetaNice: `${v.wsDocs.length} document${v.wsDocs.length === 1 ? '' : 's'} · ${v.memberCount} ${v.memberCount === 1 ? 'person' : 'people'}`,
+      docRows: v.wsDocs.map(d => ({ title:d.title, kind: d.type === 'board' ? 'Board' : 'Page', updated:d.updated, open: () => this.go('doc', d.id) })),
+      sideDocs: v.wsDocs.map(d => { const on = v.onDoc && d.id === s.docId; return { title:d.title, glyph: d.type === 'board' ? '▦' : '¶', live: this.props.peers !== false && (d.id === 'd1' || d.id === 'd2') && v.online, bg: on ? '#e3e3e8' : 'transparent', fg: '#1d1d1f', weight: on ? 600 : 400, open: () => this.go('doc', d.id) }; }),
+      typeDocShadow: s.newDocType === 'doc' ? '0 1px 3px rgba(30,45,40,.14)' : 'none',
+      typeBoardShadow: s.newDocType === 'board' ? '0 1px 3px rgba(0,0,0,.12)' : 'none',
+      onDocKey: e => { if (e.key === 'Enter') this.renderVals().createDoc(); },
+      onWsKey: e => { if (e.key === 'Enter') this.renderVals().createWs(); },
+      memberRows: (v.ws.id === 'w1' ? s.members : [s.members[0]]).map(m => {
+        const r = m.name === 'Ada' ? v.role : m.role, own = v.role === 'owner' && m.name !== 'Ada';
+        return { name: m.name + (m.name === 'Ada' ? ' (you)' : ''), email:m.email, role:r, roleNice: roleNice(r), initial:m.name[0], color:this.PAL[m.name] ?? '#86868b', editable: own, fixed: !own,
+          onRole: e => { const x = e.target.value; this.setState(st => ({ members: st.members.map(y => y.email === m.email ? { ...y, role:x } : y) })); this.toast(`${m.name} ${roleNice(x).toLowerCase()} now`); } };
+      }),
+      manageLabel: v.role === 'owner' ? 'Manage' : 'See who has access',
+      historyBtnFg: '#1d1d1f', historyBtnBg: s.historyOpen ? '#ffffff' : 'rgba(240,240,244,.9)',
+      history: v.versions.map((x, i) => ({ what: x.who === 'Live' ? 'Now' : x.what, metaNice: x.who === 'Live' ? 'Current version' : `${x.who} · ${x.t}`, initial: x.who === 'Live' ? '•' : x.who[0], color: this.PAL[x.who] ?? '#34c759', bgC: i === v.idx ? 'rgba(255,255,255,.85)' : 'transparent', select: () => this.setState({ historyIdx:i }) })).reverse(),
+      previewNice: v.ver ? `${v.ver.who} · ${v.ver.t}` : '',
+      columns: v.columns.map(col => ({ ...col, ring: s.dragOver === col.id ? 'inset 0 0 0 2px oklch(0.42 0.11 285)' : 'none',
+        cards: col.cards.map(cd => ({ ...cd, metaRow: cd.hasDesc || cd.peer, peerName: 'Grace',
+          shadow: cd.peer ? '0 0 0 2px #0ea5e9, 0 4px 14px rgba(14,165,233,.18)' : (s.drawer === cd.id ? '0 0 0 2px oklch(0.42 0.11 285)' : '0 0 0 1px rgba(255,255,255,1), 0 2px 8px rgba(30,45,40,.06)') })) })),
+      drawerActivity: (this.ACTIVITY[s.drawer] ?? [{ who:'Ada', what:'created this card', t:'just now' }]).map(a => ({ ...a, initial:a.who[0], color:this.PAL[a.who] ?? '#86868b' })),
+      openPalette: this.openPalette, isPalette: s.palette, paletteRef: this.paletteRef, paletteQ: s.paletteQ,
+      closePalette: () => this.setState({ palette:false }),
+      onPaletteQ: e => this.setState({ paletteQ:e.target.value, paletteSel:0 }),
+      onPaletteKey: e => {
+        if (e.key === 'ArrowDown') { e.preventDefault(); this.setState({ paletteSel: Math.min(sel + 1, items.length - 1) }); }
+        else if (e.key === 'ArrowUp') { e.preventDefault(); this.setState({ paletteSel: Math.max(sel - 1, 0) }); }
+        else if (e.key === 'Enter' && items[sel]) { this.setState({ palette:false }); items[sel].run(); }
+      },
+      paletteItems: items.map((it, i) => ({ label:it.label, hint:it.hint, bg: i === sel ? 'oklch(0.42 0.11 285)' : 'transparent', fg: i === sel ? '#ffffff' : '#1d1d1f', hover: () => this.state.paletteSel !== i && this.setState({ paletteSel:i }), run: () => { this.setState({ palette:false }); it.run(); } })),
+      paletteEmpty: s.palette && items.length === 0,
+      showTabs: s.screen === 'workspace' || s.screen === 'doc',
+      tabs: [{ id:'ov', label:'Overview', active: s.screen === 'workspace', live:false, open: () => this.go('workspace') },
+        ...v.wsDocs.map(d => ({ id:d.id, label:d.title, active: v.onDoc && d.id === s.docId, live: this.props.peers !== false && (d.id === 'd1' || d.id === 'd2') && v.online, open: () => this.go('doc', d.id) }))]
+        .map(x => ({ ...x, activeStr: String(x.active), fg: x.active ? '#1c1d1b' : '#5f625d', weight: x.active ? 600 : 500 })),
+      tabsRef: this.tabsRef, indX: s.ind.x + 'px', indW: s.ind.w + 'px', indOpacity: s.ind.on ? 1 : 0,
+      userMenu: s.userMenu, toggleUserMenu: () => this.setState(st => ({ userMenu: !st.userMenu, statusOpen:false })),
+      toggleStatus: () => this.setState(st => ({ statusOpen: !st.statusOpen, userMenu:false })),
+      mainPad: '0',
+      searchMinW: s.narrowNav ? '0px' : '170px',
+      wide: !s.narrowNav, presenceDisplay: s.narrowNav ? 'none' : 'flex',
+      tabsMask: s.tabsOverflow ? 'linear-gradient(90deg,#000 82%,transparent)' : 'none',
+    };
+  }
+  invite() {
+    const email = this.state.inviteEmail.trim().toLowerCase(); if (!email) return;
+    if (this.state.members.some(m => m.email === email)) return this.setState({ inviteError:`${email} already has access.` });
+    const name = this.ACCOUNTS[email];
+    if (!name) return this.setState({ inviteError:`We couldn't find ${email}. Ask them to sign in once, then try again.` });
+    this.setState(st => ({ members:[...st.members, { name, email, role:st.inviteRole }], inviteEmail:'', inviteError:null }));
+    this.toast(`${name} added`);
+  }
+}
+</script>
+</body>
+</html>
