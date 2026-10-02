@@ -32,6 +32,66 @@ test('the canvas background never intercepts a click', async ({ page }) => {
   await page.getByTestId('signin-github').click({ trial: true })
 })
 
+test('the paint splatter canvas itself has pointer-events none', async ({ page }) => {
+  await page.goto('/login')
+
+  // Read on the splatter element, not on .canvas: pointer-events inherits, so a
+  // check on the parent would still pass if this element were ever given an
+  // explicit pointer-events of its own.
+  const pointerEvents = await page
+    .getByTestId('paint-splatter')
+    .evaluate((el) => getComputedStyle(el).pointerEvents)
+  expect(pointerEvents).toBe('none')
+})
+
+/**
+ * A frame of the splatter canvas as a PNG data URL, plus whether it has been
+ * drawn to at all (a blank canvas of the same size serialises differently).
+ */
+async function splatterFrame(page: Page) {
+  return page.getByTestId('paint-splatter').evaluate((el) => {
+    const canvas = el as HTMLCanvasElement
+    const blank = document.createElement('canvas')
+    blank.width = canvas.width
+    blank.height = canvas.height
+    const url = canvas.toDataURL()
+    return { url, drawn: url !== blank.toDataURL() }
+  })
+}
+
+async function waitUntilDrawn(page: Page) {
+  await expect.poll(async () => (await splatterFrame(page)).drawn).toBe(true)
+}
+
+// These two are a pair: the reduced-motion half only means something because
+// the other half shows the same canvas does change when motion is allowed.
+test.describe('paint splatter motion', () => {
+  test.describe('with prefers-reduced-motion: reduce', () => {
+    test.use({ reducedMotion: 'reduce' })
+
+    test('the canvas is drawn once and then never changes', async ({ page }) => {
+      await page.goto('/login')
+      await waitUntilDrawn(page)
+
+      const first = await splatterFrame(page)
+      await page.waitForTimeout(500)
+      const second = await splatterFrame(page)
+
+      expect(second.url).toBe(first.url)
+    })
+  })
+
+  test('without it, the canvas keeps changing', async ({ page }) => {
+    await page.goto('/login')
+    await waitUntilDrawn(page)
+
+    const first = await splatterFrame(page)
+    // Polled, not slept: a fixed 500ms could straddle two identical frames. The
+    // specks shimmer every frame, so a live loop differs within a few of them.
+    await expect.poll(async () => (await splatterFrame(page)).url).not.toBe(first.url)
+  })
+})
+
 test('role and type chips are actually styled, not bare text', async ({ page }) => {
   const label = `${LABEL}-chips`
   const { owner, workspace } = await seedWorkspace(label)

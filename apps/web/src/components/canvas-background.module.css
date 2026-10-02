@@ -71,6 +71,18 @@
 }
 
 /*
+  The splatter sits above the blobs and below the weave, so the texture reads
+  over the paint. Opacity comes from the strength setting (.5 subtle, .9 bold)
+  and is set inline, since it is one number driven by a prop.
+*/
+.splatter {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+/*
   Canvas weave. multiply keeps it reading as texture on the paper rather than a
   grey film laid over it.
 */

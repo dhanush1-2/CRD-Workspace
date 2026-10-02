@@ -1,3 +1,4 @@
+import { PaintSplatter } from './PaintSplatter'
 import styles from './canvas-background.module.css'
 
 /**
@@ -5,8 +6,9 @@ import styles from './canvas-background.module.css'
  * texture. Fixed and pointer-events:none, so it never scrolls with content and
  * never intercepts a click.
  *
- * The blob animation is CSS-only and gated on prefers-reduced-motion, so it
- * needs no client JavaScript and costs nothing on the server.
+ * The blob animation is CSS-only and gated on prefers-reduced-motion. This
+ * component stays a server component: the one client island is PaintSplatter,
+ * which sits between the last blob and the weave so the texture reads over it.
  */
 export function CanvasBackground() {
   return (
@@ -16,6 +18,7 @@ export function CanvasBackground() {
       <div className={`${styles.blob} ${styles.b3}`} />
       <div className={`${styles.blob} ${styles.b4}`} />
       <div className={`${styles.blob} ${styles.b5}`} />
+      <PaintSplatter />
       <div className={styles.weave} />
     </div>
   )

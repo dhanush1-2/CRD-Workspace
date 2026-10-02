@@ -32,7 +32,8 @@ export type Splat = {
   color: string
   // Bounding radius around the splat origin. The painter sizes an offscreen
   // canvas of 2 * radius square from it, so it is computed from the actual
-  // geometry rather than from a safety margin.
+  // geometry plus a single pixel, which keeps the outermost blob's antialiased
+  // edge off the canvas border instead of tangent to it.
   radius: number
   core: Circle[]
   rays: Ray[]
@@ -117,7 +118,8 @@ export function makeSplat(random: Random, color: string, scale: number): Splat {
     })
   }
 
-  // Bounding radius: the furthest point of anything that gets painted. Rotation
+  // Bounding radius: the furthest point of anything that gets painted, plus 1px
+  // so a blob tangent to the bound is not cut by its own antialiasing. Rotation
   // about the origin preserves distance, so it does not enter into this.
   let radius = 0
   const reach = (x: number, y: number, extra: number) => {
@@ -135,7 +137,7 @@ export function makeSplat(random: Random, color: string, scale: number): Splat {
 
   return {
     color,
-    radius: Math.ceil(radius),
+    radius: Math.ceil(radius) + 1,
     core,
     rays,
     droplets,

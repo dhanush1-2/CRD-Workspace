@@ -66,7 +66,7 @@ describe('splat geometry', () => {
     expect(firstTen).toBeGreaterThan(lastTen)
   })
 
-  it('radius is the honest bounding radius of the geometry, not a margin', () => {
+  it('radius is the bounding radius of the geometry plus a 1px edge margin, not more', () => {
     for (let seed = 0; seed < 50; seed += 1) {
       const splat = makeSplat(createRandom(seed), '#7b3fe4', 1)
       let furthest = 0
@@ -79,8 +79,10 @@ describe('splat geometry', () => {
         furthest = Math.max(furthest, Math.hypot(tipX, tipY) + ray.tipR)
         if (ray.drip > 0) furthest = Math.max(furthest, Math.hypot(tipX, tipY + ray.drip) + ray.tipR)
       }
-      expect(splat.radius).toBeGreaterThanOrEqual(furthest)
-      expect(splat.radius).toBeLessThan(furthest + 1)
+      // ceil(furthest) + 1 lies in [furthest + 1, furthest + 2). The margin is
+      // one pixel, so anything at or past furthest + 2 is real over-allocation.
+      expect(splat.radius).toBeGreaterThanOrEqual(furthest + 1)
+      expect(splat.radius).toBeLessThan(furthest + 2)
     }
   })
 })

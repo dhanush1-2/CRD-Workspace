@@ -3,8 +3,8 @@ import type { Ray, Splat } from './geometry'
 // Rasterise one splat onto its own offscreen canvas.
 //
 // The canvas is sized to the splat (2 * radius square), never to the viewport:
-// `splat.radius` is the exact furthest painted point with no safety margin, so
-// nothing here may paint beyond it. In particular a ray's drip is drawn no
+// `splat.radius` is the furthest painted point plus a 1px antialiasing margin,
+// so nothing here may paint beyond the furthest point. In particular a ray's drip is drawn no
 // wider than that ray's `tipR`, which is the width the radius calculation in
 // geometry.ts assumes.
 //
