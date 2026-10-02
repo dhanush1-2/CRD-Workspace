@@ -1,7 +1,7 @@
 'use client'
 
 import { useRouter } from 'next/navigation'
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState, type RefObject } from 'react'
 import type { NavDocument } from './AppShell'
 import styles from './command-palette.module.css'
 
@@ -13,12 +13,18 @@ export function CommandPalette({
   workspaces,
   onClose,
   onOpenShare,
+  fallbackFocus,
 }: {
   workspace?: { id: string; name: string }
   documents?: NavDocument[]
   workspaces?: { id: string; name: string }[]
   onClose: () => void
   onOpenShare?: () => void
+  /**
+   * Where focus goes on close when the element that had it when the palette opened
+   * is no use. Opened with the keyboard shortcut, that element is usually <body>.
+   */
+  fallbackFocus?: RefObject<HTMLElement | null>
 }) {
   const router = useRouter()
   const [query, setQuery] = useState('')
@@ -77,8 +83,15 @@ export function CommandPalette({
   useEffect(() => {
     const opener = document.activeElement as HTMLElement | null
     input.current?.focus()
-    return () => opener?.focus()
-  }, [])
+    return () => {
+      // Cmd/Ctrl+K pressed with nothing focused captures <body>, and focusing that
+      // does nothing: the next Tab would restart from the top of the document. The
+      // palette exists for keyboard users, so land on the control that opens it. An
+      // opener that has since left the document is no better.
+      const usable = opener && opener !== document.body && opener.isConnected
+      ;(usable ? opener : fallbackFocus?.current)?.focus()
+    }
+  }, [fallbackFocus])
 
   return (
     <div

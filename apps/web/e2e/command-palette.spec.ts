@@ -116,6 +116,20 @@ test('Escape closes the palette and returns focus to the search control', async 
   await cleanup(label)
 })
 
+test('Escape after the keyboard shortcut returns focus to the search button', async ({ page }) => {
+  const label = `${LABEL}-shortcut-focus`
+  await seed(page, label)
+
+  // Opened from the keyboard, so nothing but <body> held focus beforehand.
+  await openWith(page, 'Control+k')
+
+  await page.keyboard.press('Escape')
+  await expect(page.getByTestId('palette')).toHaveCount(0)
+  await expect(page.getByTestId('search')).toBeFocused()
+
+  await cleanup(label)
+})
+
 test('the search button opens the palette as a combobox over a listbox', async ({ page }) => {
   const label = `${LABEL}-button`
   await seed(page, label)

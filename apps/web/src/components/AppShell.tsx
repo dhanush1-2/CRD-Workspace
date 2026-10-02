@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { useCallback, useEffect, useState, type ReactNode } from 'react'
+import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 import type { SessionUser } from '@/lib/current-user'
 import type { WorkspaceMemberView } from '@/lib/members'
 import { CommandPalette } from './CommandPalette'
@@ -48,6 +48,9 @@ export function AppShell({
   const openShare = useCallback(() => setOverlay('share'), [])
   const openPalette = useCallback(() => setOverlay('palette'), [])
   const closeOverlay = useCallback(() => setOverlay(null), [])
+  // Passed to the palette as its focus fallback. A ref rather than a data-testid
+  // lookup, so production focus behaviour does not depend on a test hook.
+  const searchButton = useRef<HTMLButtonElement>(null)
 
   // Meta on a Mac, Control elsewhere (the e2e suite also runs on Linux CI).
   useEffect(() => {
@@ -96,6 +99,7 @@ export function AppShell({
 
             <button
               type="button"
+              ref={searchButton}
               className={styles.search}
               onClick={openPalette}
               aria-label="Search"
@@ -133,6 +137,7 @@ export function AppShell({
             workspaces={workspaces}
             onClose={closeOverlay}
             onOpenShare={workspace ? openShare : undefined}
+            fallbackFocus={searchButton}
           />
         )}
 
