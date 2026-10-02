@@ -279,9 +279,25 @@
   box-shadow: 0 1px 3px rgba(30, 45, 40, 0.14);
 }
 
-.empty {
-  color: var(--text-muted);
+/*
+  Small text sitting directly on the painted background gets its own frosted pill,
+  so the canvas cannot show through the letters. The design specifies these literals.
+  width: fit-content, not align-self alone: these land in grid containers too, where
+  align-self is the block axis and would leave the pill stretched full width.
+*/
+.bgPill {
+  align-self: flex-start;
+  width: fit-content;
+  padding: 5px 14px;
+  border-radius: var(--r-pill);
+  background: rgba(255, 255, 255, 0.75);
+  backdrop-filter: blur(16px) saturate(180%);
+  -webkit-backdrop-filter: blur(16px) saturate(180%);
+  border: 1px solid rgba(255, 255, 255, 0.9);
+  box-shadow: 0 2px 8px rgba(30, 45, 40, 0.06);
+  color: var(--text-2);
   font-size: 14px;
+  font-weight: 500;
 }
 
 .error {

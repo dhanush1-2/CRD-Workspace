@@ -63,7 +63,7 @@ export default async function WorkspacePage({ params }: { params: Promise<{ id: 
       <div className={styles.page}>
         <div className={styles.header}>
           <h1>{workspace.name}</h1>
-          <p className={styles.meta}>
+          <p className={ui.bgPill}>
             {formatCount(workspace.documents.length, 'document')} ·{' '}
             {formatCount(workspace.members.length, 'person', 'people')}
           </p>
@@ -72,7 +72,7 @@ export default async function WorkspacePage({ params }: { params: Promise<{ id: 
         <section className={styles.section} aria-labelledby="documents-heading">
           <h2 id="documents-heading">Documents</h2>
           {workspace.documents.length === 0 && !canCreate ? (
-            <p className={ui.empty}>Nothing here yet.</p>
+            <p className={ui.bgPill}>Nothing here yet.</p>
           ) : (
             <div className={styles.grid}>
               <div className={styles.docs} data-testid="document-list">
