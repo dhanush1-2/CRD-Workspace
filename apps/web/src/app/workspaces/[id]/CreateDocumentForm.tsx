@@ -70,7 +70,7 @@ export function CreateDocumentForm({ workspaceId }: { workspaceId: string }) {
   }
 
   return (
-    <div className={styles.createTile}>
+    <div className={ui.tileCreate}>
       <form className={styles.form} onSubmit={onSubmit}>
         <TextField
           label="Document title"

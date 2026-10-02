@@ -5,6 +5,7 @@ import type { Role } from '@crdt/shared/types'
 import { getCurrentUser } from '@/lib/current-user'
 import { HttpError, requireWorkspaceRole } from '@/lib/auth-guard'
 import { AppShell } from '@/components/AppShell'
+import { lastActivityByDocument } from '@/lib/document-activity'
 import { formatCount, formatRelativeTime } from '@/lib/format'
 import { CreateDocumentForm } from './CreateDocumentForm'
 import { MembersPanel } from './MembersPanel'
@@ -34,15 +35,7 @@ export default async function WorkspacePage({ params }: { params: Promise<{ id: 
     select: {
       name: true,
       documents: {
-        // Documents carry no updatedAt column. Last activity is the newest stored
-        // update, falling back to creation for a document nobody has edited yet.
-        select: {
-          id: true,
-          title: true,
-          type: true,
-          createdAt: true,
-          updates: { select: { createdAt: true }, orderBy: { id: 'desc' }, take: 1 },
-        },
+        select: { id: true, title: true, type: true, createdAt: true },
         orderBy: { createdAt: 'asc' },
       },
       members: {
@@ -55,12 +48,17 @@ export default async function WorkspacePage({ params }: { params: Promise<{ id: 
 
   const canCreate = role === 'owner' || role === 'editor'
   const now = new Date()
+  const lastActivity = await lastActivityByDocument(workspace.documents.map((d) => d.id))
 
   return (
     <AppShell
       user={user}
       workspace={{ id, name: workspace.name }}
-      documents={workspace.documents.map(({ id, title, type }) => ({ id, title, type }))}
+      documents={workspace.documents.map(({ id: documentId, title, type }) => ({
+        id: documentId,
+        title,
+        type,
+      }))}
     >
       <div className={styles.page}>
         <div className={styles.header}>
@@ -76,25 +74,27 @@ export default async function WorkspacePage({ params }: { params: Promise<{ id: 
           {workspace.documents.length === 0 && !canCreate ? (
             <p className={ui.empty}>Nothing here yet.</p>
           ) : (
-            <div className={styles.grid} data-testid="document-list">
-              {workspace.documents.map((document) => (
-                <Link
-                  key={document.id}
-                  href={`/documents/${document.id}`}
-                  className={`${ui.glass} ${ui.tile} ${styles.docTile}`}
-                  data-testid={`document-${document.id}`}
-                >
-                  <span className={`${ui.chip} ${ui.chipAccent}`}>
-                    {document.type === 'board' ? 'Board' : 'Page'}
-                  </span>
-                  <span className={styles.docText}>
-                    <span className={styles.docTitle}>{document.title}</span>
-                    <span className={styles.docUpdated}>
-                      updated {formatRelativeTime(document.updates[0]?.createdAt ?? document.createdAt, now)}
+            <div className={styles.grid}>
+              <div className={styles.docs} data-testid="document-list">
+                {workspace.documents.map((document) => (
+                  <Link
+                    key={document.id}
+                    href={`/documents/${document.id}`}
+                    className={`${ui.glass} ${ui.tile} ${styles.docTile}`}
+                    data-testid={`document-${document.id}`}
+                  >
+                    <span className={`${ui.chip} ${ui.chipAccent}`}>
+                      {document.type === 'board' ? 'Board' : 'Page'}
                     </span>
-                  </span>
-                </Link>
-              ))}
+                    <span className={styles.docText}>
+                      <span className={styles.docTitle}>{document.title}</span>
+                      <span className={styles.docUpdated}>
+                        updated {formatRelativeTime(lastActivity.get(document.id) ?? document.createdAt, now)}
+                      </span>
+                    </span>
+                  </Link>
+                ))}
+              </div>
               {canCreate && <CreateDocumentForm workspaceId={id} />}
             </div>
           )}

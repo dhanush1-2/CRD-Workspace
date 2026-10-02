@@ -175,12 +175,12 @@ test('an owner sees the member list and can invite an existing user', async ({ p
   await signIn(page, owner.id)
 
   await page.goto(`/workspaces/${workspace.id}`)
-  await expect(page.getByTestId(`member-${invitee.id}`)).toContainText('viewer')
+  await expect(page.getByTestId(`member-${invitee.id}`)).toContainText('Can view')
 
   await page.getByTestId('member-email').fill(outsider.owner.email)
   await page.getByTestId('member-role').selectOption('editor')
   await page.getByTestId('add-member').click()
-  await expect(page.getByTestId(`member-${outsider.owner.id}`)).toContainText('editor')
+  await expect(page.getByTestId(`member-${outsider.owner.id}`)).toContainText('Can edit')
 
   await cleanup(label)
   await cleanup(`${label}-outsider`)

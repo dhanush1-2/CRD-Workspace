@@ -15,7 +15,7 @@
   display: grid;
   gap: 28px;
   padding: 44px 40px;
-  border-radius: 28px;
+  border-radius: var(--r-panel);
   text-align: center;
   background: var(--glass-bg);
   backdrop-filter: var(--glass-blur);

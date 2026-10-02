@@ -139,6 +139,12 @@
   padding: 22px;
 }
 
+.tile:hover {
+  background: rgba(255, 255, 255, 0.8);
+  box-shadow: var(--glass-highlight), 0 10px 28px rgba(30, 45, 40, 0.08);
+  text-decoration: none;
+}
+
 @media (prefers-reduced-motion: no-preference) {
   .tile {
     transition:
@@ -146,6 +152,23 @@
       box-shadow 0.4s var(--ease),
       background var(--dur-fast) var(--ease);
   }
+  .tile:hover {
+    transform: translateY(-2px);
+  }
+  .tile:active {
+    transform: scale(0.98);
+  }
+}
+
+/* The dashed "make a new one" tile that sits at the end of a tile grid. */
+.tileCreate {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 22px;
+  border: 1.5px dashed rgba(0, 0, 0, 0.12);
+  border-radius: var(--r-tile);
 }
 
 .chip {

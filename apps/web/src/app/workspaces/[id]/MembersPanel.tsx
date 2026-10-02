@@ -9,6 +9,13 @@ import { colorFor } from '@/lib/color'
 import styles from './workspace.module.css'
 import ui from '@/components/ui/ui.module.css'
 
+// The handoff's wording for each role, used for both the row and the invite select.
+const ROLE_LABEL: Record<Role, string> = {
+  owner: 'Owner',
+  editor: 'Can edit',
+  viewer: 'Can view',
+}
+
 export type WorkspaceMemberView = { id: string; name: string; email: string; role: Role }
 
 export function MembersPanel({
@@ -93,7 +100,7 @@ export function MembersPanel({
               <span className={styles.memberName}>{member.name}</span>
               <span className={styles.memberEmail}>{member.email}</span>
             </span>
-            <span className={styles.memberRole}>{member.role}</span>
+            <span className={styles.memberRole}>{ROLE_LABEL[member.role]}</span>
           </div>
         ))}
       </div>
@@ -117,9 +124,9 @@ export function MembersPanel({
             aria-label="Role"
             data-testid="member-role"
           >
-            <option value="viewer">Viewer</option>
-            <option value="editor">Editor</option>
-            <option value="owner">Owner</option>
+            <option value="viewer">{ROLE_LABEL.viewer}</option>
+            <option value="editor">{ROLE_LABEL.editor}</option>
+            <option value="owner">{ROLE_LABEL.owner}</option>
           </select>
           <Button type="submit" disabled={pending} data-testid="add-member">
             {pending ? 'Adding…' : 'Add'}

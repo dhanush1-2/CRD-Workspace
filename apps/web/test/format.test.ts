@@ -25,6 +25,7 @@ describe('formatRelativeTime', () => {
     expect(formatRelativeTime(ago(0), now)).toBe('just now')
     expect(formatRelativeTime(ago(59_999), now)).toBe('just now')
     expect(formatRelativeTime(ago(-5_000), now)).toBe('just now')
+    expect(formatRelativeTime(ago(-400 * DAY), now)).toBe('just now')
   })
 
   it('counts minutes, singular at exactly one', () => {
@@ -39,9 +40,10 @@ describe('formatRelativeTime', () => {
     expect(formatRelativeTime(ago(DAY - 1), now)).toBe('23 hours ago')
   })
 
-  it('says "yesterday" from 24 to 47 hours', () => {
-    expect(formatRelativeTime(ago(DAY), now)).toBe('yesterday')
-    expect(formatRelativeTime(ago(2 * DAY - 1), now)).toBe('yesterday')
+  it('reads 24 to 48 hours as "1 day ago", in elapsed time and never "yesterday"', () => {
+    expect(formatRelativeTime(ago(DAY), now)).toBe('1 day ago')
+    // 47h59m is two calendar days back on the clock, but still one elapsed day.
+    expect(formatRelativeTime(ago(2 * DAY - 1), now)).toBe('1 day ago')
   })
 
   it('counts several days up to a week', () => {
@@ -52,6 +54,11 @@ describe('formatRelativeTime', () => {
   it('falls back to a short date from a week on, with the year only when it differs', () => {
     // Built in local time, because the formatter reads local calendar fields.
     const localNow = new Date(2026, 9, 1, 12)
+    // Exactly seven days is the boundary: one millisecond less is still "6 days ago".
+    expect(formatRelativeTime(new Date(localNow.getTime() - 7 * DAY), localNow)).toBe('Sep 24')
+    expect(formatRelativeTime(new Date(localNow.getTime() - 7 * DAY + 1), localNow)).toBe(
+      '6 days ago',
+    )
     expect(formatRelativeTime(new Date(2026, 8, 20, 12), localNow)).toBe('Sep 20')
     expect(formatRelativeTime(new Date(2025, 11, 30, 12), localNow)).toBe('Dec 30, 2025')
   })

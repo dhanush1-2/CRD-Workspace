@@ -54,7 +54,7 @@ export function CreateWorkspaceForm() {
   }
 
   return (
-    <div className={styles.createTile}>
+    <div className={ui.tileCreate}>
       <span className={styles.createTitle} aria-hidden="true">New workspace</span>
       <form className={styles.createForm} onSubmit={onSubmit}>
         <TextField
