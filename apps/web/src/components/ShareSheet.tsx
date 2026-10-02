@@ -124,7 +124,7 @@ export function ShareSheet({
 
       <div className={styles.people}>
         {members.map((member) => (
-          <div className={styles.row} key={member.id} data-testid={`member-${member.id}`}>
+          <div className={styles.row} key={member.id} data-testid={`share-member-${member.id}`}>
             <span
               className={styles.avatar}
               style={{ background: colorFor(member.id) }}

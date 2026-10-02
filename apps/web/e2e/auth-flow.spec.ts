@@ -178,6 +178,9 @@ test('an owner sees the member list and can invite an existing user', async ({ p
   await expect(page.getByTestId(`member-${invitee.id}`)).toContainText('Can view')
   await expect(page.getByTestId(`member-${owner.id}`)).toContainText('Owner')
 
+  // The invite form lives in the share sheet now.
+  await page.getByTestId('share').click()
+
   // The invite options: visible labels, and the raw values the API receives. The
   // values staying intact is what keeps selectOption('editor') working. An <option>
   // has no .value that toHaveValue accepts (it is for inputs and selects), so read
@@ -204,10 +207,11 @@ test('inviting an email with no account explains the problem', async ({ page }) 
   await signIn(page, owner.id)
 
   await page.goto(`/workspaces/${workspace.id}`)
+  await page.getByTestId('share').click()
   await page.getByTestId('member-email').fill('nobody-at-all@e2e.test')
   await page.getByTestId('add-member').click()
 
-  await expect(page.getByTestId('member-error')).toContainText('No account')
+  await expect(page.getByTestId('member-error')).toContainText("We couldn't find nobody-at-all@e2e.test. Ask them to sign in once, then try again.")
 
   await cleanup(label)
 })

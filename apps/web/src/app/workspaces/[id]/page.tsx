@@ -114,11 +114,7 @@ export default async function WorkspacePage({ params }: { params: Promise<{ id: 
         <section className={styles.section} aria-labelledby="people-heading">
           <h2 id="people-heading">People</h2>
           <div className={`${ui.glass} ${styles.people}`}>
-            <MembersPanel
-              workspaceId={id}
-              members={members}
-              canManage={role === 'owner'}
-            />
+            <MembersPanel members={members} canManage={role === 'owner'} />
           </div>
         </section>
       </div>

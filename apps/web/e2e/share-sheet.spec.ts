@@ -75,8 +75,7 @@ test('inviting someone who already has access explains instead of changing their
   await page.goto(`/workspaces/${workspace.id}`)
 
   await page.getByTestId('share').click()
-  // Scoped to the sheet: the People panel behind it still has its own invite form
-  // with the same test ids until it is slimmed down.
+  // Scoped to the sheet, which is where these controls live.
   const sheet = page.getByTestId('sheet')
 
   // A viewer, invited with the form's default role (Can edit). The members route
@@ -114,6 +113,30 @@ test('changing a role in the sheet raises a toast and saves the change', async (
   // And the toast is not a lie: the role really changed, and the row shows it
   // once the refresh lands.
   await expect(sheet.getByTestId(`role-for-${viewer.id}`)).toHaveValue('editor')
+
+  await cleanup(label)
+})
+
+test('the People panel link opens the share sheet, labelled for the role', async ({ page }) => {
+  const label = `${LABEL}-link`
+  const { owner, workspace } = await seedWorkspace(label)
+  const viewer = await addMember(workspace.id, label, 'viewer')
+
+  await signIn(page, owner.id)
+  await page.goto(`/workspaces/${workspace.id}`)
+  await expect(page.getByTestId('open-share')).toHaveText('Manage')
+  await expect(page.getByTestId('sheet')).toHaveCount(0)
+  await page.getByTestId('open-share').click()
+  await expect(page.getByTestId('sheet')).toBeVisible()
+
+  // A viewer cannot manage, so the same link offers a look instead.
+  await page.context().clearCookies()
+  await signIn(page, viewer.id)
+  await page.goto(`/workspaces/${workspace.id}`)
+  await expect(page.getByTestId('open-share')).toHaveText('See who has access')
+  await expect(page.getByTestId('sheet')).toHaveCount(0)
+  await page.getByTestId('open-share').click()
+  await expect(page.getByTestId('sheet')).toBeVisible()
 
   await cleanup(label)
 })
