@@ -147,7 +147,24 @@ document is a usable version sequence with no new column.
 Card notes need no backend at all — a `Y.Map` field is CRDT state, not database schema —
 so they can be split out and shipped independently of the history work.
 
-## Open question
+## Decision 4 — Offline persistence is always-on
 
-Only one: whether offline persistence is always-on (recommended) or an opt-in toggle,
-per the divergence noted in Decision 3.
+**Chosen: always-on. No toggle.**
+
+Google Docs makes offline opt-in, but both of its reasons are artifacts of its own
+situation: storage quota on shared machines, and an offline mode that needed a browser
+extension. Neither applies here — `y-indexeddb` is a small library and stores only
+documents the user actually opened.
+
+So there is no settings surface, nothing to discover, and nobody loses work because they
+did not know a switch existed. The cost is that every opened document occupies some
+browser storage; if that ever becomes a problem the answer is eviction by age, not a
+toggle.
+
+**Consequence:** the two conflict flows in Decision 3 are not edge cases for a minority
+who opted in — they are on the main path for everyone. The "save a copy" path must be
+built properly, not stubbed.
+
+## No open questions
+
+All four decisions are settled. The backend plan can be written from this document.
