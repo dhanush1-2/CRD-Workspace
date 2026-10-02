@@ -1,9 +1,10 @@
 'use client'
 
 import Link from 'next/link'
-import { useCallback, useState, type ReactNode } from 'react'
+import { useCallback, useEffect, useState, type ReactNode } from 'react'
 import type { SessionUser } from '@/lib/current-user'
 import type { WorkspaceMemberView } from '@/lib/members'
+import { CommandPalette } from './CommandPalette'
 import { NavTabs } from './NavTabs'
 import { ShareContext } from './share-context'
 import { ShareSheet } from './ShareSheet'
@@ -20,6 +21,7 @@ export function AppShell({
   user,
   workspace,
   documents,
+  workspaces,
   activeDocumentId,
   members = [],
   canManage = false,
@@ -29,6 +31,8 @@ export function AppShell({
   /** Omitted on the dashboard, where there is no workspace in context. */
   workspace?: { id: string; name: string }
   documents?: NavDocument[]
+  /** Every workspace, for the palette on the dashboard where there is no current one. */
+  workspaces?: { id: string; name: string }[]
   activeDocumentId?: string
   /** The workspace's members, for the share sheet. */
   members?: WorkspaceMemberView[]
@@ -38,11 +42,24 @@ export function AppShell({
 }) {
   // Which overlay is open, if any. One slot rather than a boolean per overlay, so
   // opening one can never leave another open behind it.
-  const [overlay, setOverlay] = useState<'share' | null>(null)
+  const [overlay, setOverlay] = useState<'share' | 'palette' | null>(null)
   // Stable identity: this goes into a context, and a new function every render
   // would re-render every consumer every render.
   const openShare = useCallback(() => setOverlay('share'), [])
+  const openPalette = useCallback(() => setOverlay('palette'), [])
   const closeOverlay = useCallback(() => setOverlay(null), [])
+
+  // Meta on a Mac, Control elsewhere (the e2e suite also runs on Linux CI).
+  useEffect(() => {
+    function onKeyDown(event: KeyboardEvent) {
+      if ((event.metaKey || event.ctrlKey) && event.key === 'k') {
+        event.preventDefault()
+        setOverlay('palette')
+      }
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [])
 
   return (
     <ShareContext.Provider value={workspace ? openShare : noop}>
@@ -77,14 +94,17 @@ export function AppShell({
               <div className={styles.tabsSlot} />
             )}
 
-            {/*
-              Rendered to spec but inert until Plan 5 builds the palette. Marked
-              aria-disabled so it does not advertise an action that does nothing.
-            */}
-            <div className={styles.search} aria-disabled="true" title="Coming soon">
+            <button
+              type="button"
+              className={styles.search}
+              onClick={openPalette}
+              aria-label="Search"
+              aria-keyshortcuts="Meta+K Control+K"
+              data-testid="search"
+            >
               <span className={styles.searchLabel}>Search</span>
               <span className={styles.kbd}>⌘K</span>
-            </div>
+            </button>
 
             {/* Plan 2 fills this with the status pill. */}
 
@@ -106,6 +126,16 @@ export function AppShell({
           it, the overlay would be confined to the nav's 56px bar instead of
           covering the viewport.
         */}
+        {overlay === 'palette' && (
+          <CommandPalette
+            workspace={workspace}
+            documents={documents}
+            workspaces={workspaces}
+            onClose={closeOverlay}
+            onOpenShare={workspace ? openShare : undefined}
+          />
+        )}
+
         {workspace && overlay === 'share' && (
           <ShareSheet
             workspaceId={workspace.id}
