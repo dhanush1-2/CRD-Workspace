@@ -138,3 +138,64 @@ test('the indicator tracks the active tab', async ({ page }) => {
 
   await cleanup(label)
 })
+
+test('a strip the user has scrolled by hand is not pulled back to the active tab', async ({
+  page,
+}) => {
+  const label = `${LABEL}-scroll`
+  const { owner, workspace } = await seedWorkspace(label)
+  // Pin the viewport so the document count below means something. Measured at
+  // 1280x720 with "e2e doc" tabs: 8 documents fit exactly (scrollWidth equals
+  // clientWidth, 766), 9 overflow by ~65px, 10 by ~150px. 9 is the fewest that
+  // overflows by enough to scroll meaningfully. If fonts or padding change and
+  // it stops overflowing, the premise check below fails loudly rather than the
+  // test passing on nothing.
+  await page.setViewportSize({ width: 1280, height: 720 })
+  const documents = []
+  for (let i = 0; i < 9; i++) documents.push(await createDocument(workspace.id, 'doc'))
+  await signIn(page, owner.id)
+
+  // The first document, so the active tab sits at the left edge and anything
+  // scrolling the strip back toward it would be visible as scrollLeft dropping.
+  await page.goto(`/documents/${documents[0]!.id}`)
+  const strip = page.locator('[class*="strip"]')
+  await expect(page.getByTestId(`tab-${documents[0]!.id}`)).toHaveAttribute('data-active', 'true')
+
+  // Guard the premise: if the strip does not overflow there is nothing to scroll.
+  await expect
+    .poll(() => strip.evaluate((el) => el.scrollWidth - el.clientWidth))
+    .toBeGreaterThan(40)
+
+  await strip.hover()
+  await page.mouse.wheel(2000, 0)
+
+  // Wait for scrollLeft to hold still for 500ms, which outlasts the start of a
+  // smooth scroll-back, instead of sleeping a fixed time and hoping.
+  await strip.evaluate(
+    (el) =>
+      new Promise<void>((resolve) => {
+        let last = el.scrollLeft
+        let since = performance.now()
+        const tick = () => {
+          if (el.scrollLeft !== last) {
+            last = el.scrollLeft
+            since = performance.now()
+          } else if (performance.now() - since >= 500) {
+            resolve()
+            return
+          }
+          requestAnimationFrame(tick)
+        }
+        requestAnimationFrame(tick)
+      }),
+  )
+
+  const { scrollLeft, max } = await strip.evaluate((el) => ({
+    scrollLeft: el.scrollLeft,
+    max: el.scrollWidth - el.clientWidth,
+  }))
+  expect(max).toBeGreaterThan(40)
+  expect(scrollLeft).toBeGreaterThanOrEqual(max - 2)
+
+  await cleanup(label)
+})
