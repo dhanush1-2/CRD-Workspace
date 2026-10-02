@@ -6,9 +6,10 @@ import { prisma } from '@crdt/db'
  *
  * One lateral join: for each requested document it seeks the (documentId, id) index
  * backwards and stops at the first entry, so the cost is one index seek per document
- * rather than a walk over every update row. The old alternatives both read the whole
- * log: a nested `updates: { take: 1 }` applies the take in memory, and a groupBy
- * MAX(id) cannot skip within a document because Postgres has no loose index scan.
+ * rather than a walk over every update row. A nested `updates: { take: 1 }` reads the
+ * whole log, because Prisma applies the take in memory. A groupBy MAX(id) over the
+ * requested ids is an index scan over those documents' key ranges, but it still visits
+ * every update row of every one of them, because Postgres has no loose index scan.
  * Ordering by id rather than createdAt is deliberate: id is in the index and increases
  * with every insert.
  *
