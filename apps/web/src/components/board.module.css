@@ -223,7 +223,7 @@
   .addList {
     transition:
       background var(--dur-fast) var(--ease),
-      transform var(--dur) var(--ease);
+      transform 0.4s var(--ease);
   }
   .addList:active,
   .addCard:active {

@@ -75,7 +75,7 @@
 @media (prefers-reduced-motion: no-preference) {
   .provider {
     transition:
-      transform var(--dur-fast) var(--ease),
+      transform 0.4s var(--ease),
       box-shadow var(--dur-fast) var(--ease),
       background var(--dur-fast) var(--ease);
   }
@@ -93,15 +93,20 @@
 }
 
 .providerAccent:hover {
-  background: var(--accent-hover);
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.3),
     0 10px 24px var(--accent-shadow);
 }
 
 @media (prefers-reduced-motion: no-preference) {
-  .providerAccent:hover {
+  .providerAccent:hover,
+  .providerGlass:hover {
     transform: translateY(-1px);
+  }
+  /* Pressed wins over lifted, or a button under the pointer would never press in. */
+  .providerAccent:hover:active,
+  .providerGlass:hover:active {
+    transform: scale(0.97);
   }
 }
 
