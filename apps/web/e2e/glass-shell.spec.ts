@@ -1,4 +1,5 @@
 import { test, expect, type Page } from '@playwright/test'
+import { prisma } from '@crdt/db'
 import { cleanup, createDocument, seedWorkspace, signIn } from './fixtures.js'
 
 const LABEL = 'e2e-glass-shell'
@@ -99,6 +100,30 @@ test('the nav logo actually renders at 36px', async ({ page }) => {
     })
   expect(box.width).toBeCloseTo(36, 0)
   expect(box.height).toBeCloseTo(36, 0)
+
+  await cleanup(label)
+})
+
+test('a very long workspace name truncates in the nav instead of scrolling the page', async ({
+  page,
+}) => {
+  const label = `${LABEL}-longname`
+  const { owner, workspace } = await seedWorkspace(label)
+  await prisma.workspace.update({ where: { id: workspace.id }, data: { name: 'W'.repeat(120) } })
+  await createDocument(workspace.id, 'doc')
+  await signIn(page, owner.id)
+
+  // Pinned, because the verdict depends on the viewport.
+  await page.setViewportSize({ width: 1280, height: 800 })
+  await page.goto(`/workspaces/${workspace.id}`)
+
+  // The workspace link does not wrap, so unless it shrinks, 120 characters
+  // widen the nav past the viewport and the page scrolls horizontally.
+  const { scrollWidth, clientWidth } = await page.evaluate(() => ({
+    scrollWidth: document.documentElement.scrollWidth,
+    clientWidth: document.documentElement.clientWidth,
+  }))
+  expect(scrollWidth - clientWidth).toBeLessThanOrEqual(2)
 
   await cleanup(label)
 })

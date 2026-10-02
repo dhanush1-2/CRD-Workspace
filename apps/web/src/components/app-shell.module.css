@@ -60,16 +60,43 @@
   }
 }
 
+/*
+  Deliberate deviation from the prototype, which caps nothing: a 120-character workspace
+  name would otherwise stretch the nav and make the whole page scroll sideways. It shrinks
+  and truncates instead. 240px is not a design value; it leaves the tab strip its room.
+
+  A block with a line-height rather than the prototype's display:flex, because
+  text-overflow: ellipsis only applies to a block container's own text.
+*/
 .workspaceName {
-  flex: none;
+  display: block;
+  flex: 0 1 auto;
+  min-width: 0;
+  max-width: 240px;
+  height: 36px;
+  padding: 0 12px;
   border: 0;
+  border-radius: var(--r-pill);
   background: transparent;
-  padding: 0 4px;
   font-size: 15px;
   font-weight: 600;
+  line-height: 36px;
   color: var(--text);
   cursor: pointer;
   white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.workspaceName:hover {
+  background: rgba(255, 255, 255, 0.7);
+  text-decoration: none;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .workspaceName {
+    transition: background var(--dur-fast) var(--ease);
+  }
 }
 
 .divider {
