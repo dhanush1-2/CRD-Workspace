@@ -1,4 +1,11 @@
 import { test, expect } from '@playwright/test'
+import { cleanup, createDocument, seedWorkspace, signIn } from './fixtures.js'
+
+const LABEL = 'e2e-glass-shell'
+
+test.afterAll(async () => {
+  await cleanup(LABEL)
+})
 
 test('the canvas background never intercepts a click', async ({ page }) => {
   await page.goto('/login')
@@ -22,4 +29,22 @@ test('the canvas background never intercepts a click', async ({ page }) => {
   // And the sign-in button is still genuinely clickable.
   await expect(page.getByTestId('signin-github')).toBeVisible()
   await page.getByTestId('signin-github').click({ trial: true })
+})
+
+test('role and type chips are actually styled, not bare text', async ({ page }) => {
+  const label = `${LABEL}-chips`
+  const { owner, workspace } = await seedWorkspace(label)
+  const document = await createDocument(workspace.id, 'board')
+  await signIn(page, owner.id)
+
+  await page.goto(`/documents/${document.id}`)
+
+  // A CSS-module class that no longer exists resolves to undefined and the chip
+  // renders as plain text — invisible to every assertion that only locates it.
+  const background = await page
+    .getByTestId('role')
+    .evaluate((el) => getComputedStyle(el).backgroundColor)
+  expect(background).not.toBe('rgba(0, 0, 0, 0)')
+
+  await cleanup(label)
 })
