@@ -12,6 +12,7 @@ export function UserMenu({ user }: { user: SessionUser }) {
   const [open, setOpen] = useState(false)
   const [pending, setPending] = useState(false)
   const wrap = useRef<HTMLDivElement>(null)
+  const button = useRef<HTMLButtonElement>(null)
 
   // Close on an outside click or Escape. Without both, the popover strands the
   // person on any page with no obvious way back.
@@ -21,7 +22,11 @@ export function UserMenu({ user }: { user: SessionUser }) {
       if (!wrap.current?.contains(event.target as Node)) setOpen(false)
     }
     function onKeyDown(event: KeyboardEvent) {
-      if (event.key === 'Escape') setOpen(false)
+      if (event.key === 'Escape') {
+        // Focus may be inside the popover; closing would drop it to <body>.
+        button.current?.focus()
+        setOpen(false)
+      }
     }
     document.addEventListener('pointerdown', onPointerDown)
     document.addEventListener('keydown', onKeyDown)
@@ -37,7 +42,8 @@ export function UserMenu({ user }: { user: SessionUser }) {
         type="button"
         className={styles.avatar}
         style={{ background: colorFor(user.id) }}
-        aria-haspopup="menu"
+        ref={button}
+        aria-haspopup="true"
         aria-expanded={open}
         aria-label="Account"
         onClick={() => setOpen((value) => !value)}
@@ -46,7 +52,7 @@ export function UserMenu({ user }: { user: SessionUser }) {
       </button>
 
       {open && (
-        <div className={styles.popover} role="menu">
+        <div className={styles.popover}>
           <div className={styles.identity}>
             {/*
               current-user keeps its test id and its exact text: the e2e suite
@@ -58,19 +64,27 @@ export function UserMenu({ user }: { user: SessionUser }) {
             <div className={styles.email}>{user.email}</div>
           </div>
 
-          <Link className={styles.item} href="/" role="menuitem" onClick={() => setOpen(false)}>
+          <Link className={styles.item} href="/" onClick={() => setOpen(false)}>
             All workspaces
           </Link>
 
           <button
             type="button"
             className={`${styles.item} ${styles.danger}`}
-            role="menuitem"
             data-testid="sign-out"
             disabled={pending}
             onClick={async () => {
               setPending(true)
-              await fetch('/api/auth/logout', { method: 'POST' })
+              try {
+                await fetch('/api/auth/logout', { method: 'POST' })
+              } catch {
+                // fetch rejects — rather than resolving with an error status — when the
+                // request never reaches the server: offline, DNS failure, connection
+                // refused. Without this the rejection escapes the handler, pending stays
+                // true, and the button sits disabled forever with no way to retry.
+                setPending(false)
+                return
+              }
               // refresh() drops the server tree rendered for the old session
               // before navigating, so no signed-in data stays on screen.
               router.refresh()
