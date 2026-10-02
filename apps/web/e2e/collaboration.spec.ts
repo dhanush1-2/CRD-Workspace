@@ -144,6 +144,46 @@ test('the avatar and the dot go when the other person leaves', async ({ browser 
   await cleanup(label)
 })
 
+test('navigating away client-side clears the nav status and presence', async ({ browser }) => {
+  const label = `${LABEL}-nav-away`
+  const { owner, workspace } = await seedWorkspace(label)
+  const editor = await addMember(workspace.id, label, 'editor')
+  const document = await createDocument(workspace.id, 'doc')
+
+  const contextA = await browser.newContext()
+  const contextB = await browser.newContext()
+  const pageA = await openAs(contextA, owner.id, document.id)
+  await openAs(contextB, editor.id, document.id)
+  await expect(pageA.getByTestId('presence-Eddie')).toBeVisible()
+  await expect(pageA.getByTestId('status')).toBeVisible()
+
+  // A full page load resets the module-level store whatever the code does, so
+  // page.goto cannot test the clear on unmount. This marker lives on the window and
+  // does not survive a reload: finding it afterwards proves the move was client-side.
+  await pageA.evaluate(() => {
+    ;(window as unknown as { __clientNav: boolean }).__clientNav = true
+  })
+
+  await pageA.keyboard.press('Control+k')
+  await expect(pageA.getByTestId('palette')).toBeVisible()
+  await pageA.getByTestId('palette-input').fill('All workspaces')
+  await pageA.keyboard.press('Enter')
+
+  await expect(pageA).toHaveURL(/\/$/)
+  expect(
+    await pageA.evaluate(() => (window as unknown as { __clientNav?: boolean }).__clientNav),
+  ).toBe(true)
+
+  // The other person is still in the document. The pill and the avatars must go
+  // because this tab left, not because anyone else did.
+  await expect(pageA.getByTestId('status')).toHaveCount(0)
+  await expect(pageA.getByTestId('presence')).toHaveCount(0)
+
+  await contextA.close()
+  await contextB.close()
+  await cleanup(label)
+})
+
 test('below 1100px the avatars and the status label stay available to assistive tech', async ({
   browser,
 }) => {

@@ -22,4 +22,64 @@ describe('doc state store', () => {
     clearDocState('old')
     expect(getDocState().documentId).toBe('new')
   })
+
+  it('clearing the current document resets the store', () => {
+    publishDocState({
+      documentId: 'new',
+      status: 'connected',
+      peers: [{ clientId: 1, name: 'Eddie', color: '#fff' }],
+    })
+    let calls = 0
+    const stop = subscribeDocState(() => { calls += 1 })
+    clearDocState('new')
+    // The other half of the stale-clear test above: a guard that never lets a
+    // clear through passes that one too, and leaves a stale pill in the nav.
+    expect(getDocState().documentId).toBeNull()
+    expect(getDocState().peers).toEqual([])
+    expect(getDocState().status).toBe('connecting')
+    expect(calls).toBe(1)
+    stop()
+  })
+
+  it('a change to peers alone notifies', () => {
+    publishDocState({ documentId: 'p', status: 'connected', peers: [] })
+    let calls = 0
+    const stop = subscribeDocState(() => { calls += 1 })
+    publishDocState({
+      documentId: 'p',
+      status: 'connected',
+      peers: [{ clientId: 1, name: 'Eddie', color: '#fff' }],
+    })
+    expect(calls).toBe(1)
+    // And each field a peer carries, since the nav draws all three.
+    publishDocState({
+      documentId: 'p',
+      status: 'connected',
+      peers: [{ clientId: 1, name: 'Edwina', color: '#fff' }],
+    })
+    expect(calls).toBe(2)
+    publishDocState({
+      documentId: 'p',
+      status: 'connected',
+      peers: [{ clientId: 1, name: 'Edwina', color: '#000' }],
+    })
+    expect(calls).toBe(3)
+    publishDocState({
+      documentId: 'p',
+      status: 'connected',
+      peers: [{ clientId: 2, name: 'Edwina', color: '#000' }],
+    })
+    expect(calls).toBe(4)
+    stop()
+  })
+
+  it('a change to status alone notifies', () => {
+    publishDocState({ documentId: 's', status: 'connecting', peers: [] })
+    let calls = 0
+    const stop = subscribeDocState(() => { calls += 1 })
+    publishDocState({ documentId: 's', status: 'connected', peers: [] })
+    expect(calls).toBe(1)
+    expect(getDocState().status).toBe('connected')
+    stop()
+  })
 })
