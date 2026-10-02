@@ -251,8 +251,9 @@ Buttons generally use `transition: transform .4s var(--ease), background .3s` an
 
 ## Implementation status
 
-Plan 1 (`docs/superpowers/plans/2026-10-01-glass-foundation-and-shell.md`) and
-the board plan (`docs/superpowers/plans/2026-10-02-board-and-cards.md`) are
+Plan 1 (`docs/superpowers/plans/2026-10-01-glass-foundation-and-shell.md`), the
+board plan (`docs/superpowers/plans/2026-10-02-board-and-cards.md`) and the
+paint-splatter plan (`docs/superpowers/plans/2026-10-02-paint-splatter.md`) are
 complete and visual only: no schema, route, API or behaviour change.
 
 **Where this file and the prototype disagree, this file wins.**
@@ -291,6 +292,193 @@ plan. It now has three committed Playwright tests in `e2e/board.spec.ts`: a card
 moves across columns, a card dropped on a sibling reorders within its column,
 and a card is not left dimmed after a completed drop.
 
+### Paint splatter
+
+Built, on branch `glass-features`: `components/PaintSplatter.tsx` (client island),
+`lib/splatter/{random,geometry,paint}.ts`, tests in `test/splatter-*.test.ts` and
+`e2e/glass-shell.spec.ts`. **This subsection is now the specification.** It was
+written by the owner in a chat message on 2026-10-02 that is not in the repository;
+what follows is that specification as built, plus the places the build differs from
+it. Where this subsection and the code disagree, that is a defect in one of them.
+
+**Placement and stacking.** One `<canvas data-testid="paint-splatter">`, `aria-hidden`,
+absolutely positioned (`inset: 0`, 100% by 100%) inside the fixed, full-viewport
+`.canvas` layer of `CanvasBackground` (`z-index: 0`, `pointer-events: none`,
+`overflow: hidden`). Back to front: the five blobs, **the splatter**, the canvas weave
+(`mix-blend-mode: multiply`), so the texture reads over the paint. It inherits
+`pointer-events: none`, and a test reads it on the element itself. `CanvasBackground`
+stays a server component; `PaintSplatter` is its only client child.
+
+**Strength.** Layer opacity, set inline from one prop: `subtle` 0.5, `bold` 0.9,
+`off` renders nothing. Production ships `subtle`.
+
+**Palettes** (raw hex, artwork rather than tokens, one exported constant `PALETTES` in
+`lib/splatter/geometry.ts`). Each splat takes one colour from the chosen palette with
+`random.pick`, and so does each speck.
+
+```ts
+purple: [
+  '#7b3fe4', '#5b4ee8', '#9d5cf0', '#c13ea6', '#e8559b', '#3d8fdc',
+  '#22b8c9', '#f0b429', '#f2843a', '#4cc38a', '#b794f6',
+],
+orange: [
+  '#f2762e', '#f0b429', '#e2453c', '#f59e0b', '#2e8bd6', '#2aa58a',
+  '#e8559b', '#7b3fe4', '#22b8c9',
+],
+```
+
+**Open discrepancy, unresolved.** The brief for the geometry work said the purple set
+lists violet twice on purpose, so that `pick` chooses it more often, and said not to
+deduplicate it. The list above is what was handed over and what is in the code, and it
+contains eleven distinct values: no hex is repeated. The comment above `PALETTES` in
+`geometry.ts` repeats the claim and is not true of the array under it. Either the
+owner's original list had a repeated violet that was lost when it was transcribed into
+the brief, or the claim was wrong. The owner's message is the only source and is not in
+the repo, so it could not be checked here. **The owner should confirm which violet is
+doubled and the array should be corrected.** Doing so changes which colour each splat
+gets, and with a fixed seed it shifts every splat after the first different pick.
+
+**Per splat** (drawn once onto its own offscreen canvas, in splat-local coordinates,
+origin at the centre, scale 0.7 to 1.4):
+
+- **Core:** 9 overlapping circles, radius 0.55 to 1.0 of a 30px base (times scale),
+  centres within 0.45 of that base radius of the origin so they merge into one mass.
+- **Rays:** 10 to 23, at random angles over the full circle. Each is a tapered streak
+  (5 to 11px wide at the base, narrowing to the tip) of 1.4 to 3.2 core radii, ending
+  in a **tip blob** of 2.5 to 6px radius. **35%** of rays also carry a **drip** hanging
+  straight down from the tip, 0.4 to 1.4 core radii long, drawn no wider than the tip
+  blob and ending in a bulb of 0.75 of the tip radius.
+- **Droplets:** 40 to 90, scattered from one core radius out to about 2.1, **decreasing
+  in size** along the list (radius from about 5.5px to 0.8px, times scale) and fading
+  from alpha 1 to 0.7 so the spray thins at its edge.
+- **Core drips:** 0 to 3, vertical, straight down from the core, 0.8 to 2.2 core radii
+  long, 3 to 6px wide, with an end blob.
+
+**Count and specks.** Splats on screen: `16 + 12 × √(W·H) / 1100`, rounded (28 at
+1440×900, 32 at 1920×1080, 37 at 2560×1440). Plus **320 specks** scattered over the
+viewport, each a small square (half-side 0.6 to 1.8px) in a palette colour, drawn
+straight onto the visible canvas rather than through an offscreen canvas.
+
+**Animation.**
+
+- **Landing:** 650ms. Scale runs from 0.35 to 1 along an **ease-out-back** curve
+  (overshoots, then settles) while alpha ramps from 0 to 1.
+- **Life:** 16 to 32 seconds per splat, chosen per splat. Start times are staggered
+  inside each splat's own life so they do not all land together.
+- **Drift:** linear over the splat's life, up to **±3px** on each axis.
+- **Rotation:** a **fixed** rotation per splat, **±0.25 rad**, not animated.
+- **Fade-out:** the last **2400ms** of life, alpha falling to 0. At the end of its life
+  a splat is re-placed at a new random position and lands again, reusing the same
+  offscreen canvas; nothing is rasterised again.
+- **Speck shimmer:** alpha oscillates between **0.55 and 0.9** (a sine, 700ms per
+  radian, so one cycle is about 4.4 seconds), with a random phase per speck.
+
+**Seed.** A fixed constant, `0x5ca77e5`, never `Date.now()`. The initial pattern is
+the same on every load.
+
+**Device pixel ratio.** `min(devicePixelRatio, 2)`. Offscreen canvases are painted at
+that ratio, so they are never upscaled. A resize rebuilds everything, **debounced
+150ms**, and only when the layer's size or the device pixel ratio actually changed.
+
+**Reduced motion.** With `prefers-reduced-motion: reduce`, or `motion="still"`, the
+component draws **one static frame** (every splat landed and fully opaque, specks at
+the middle of their shimmer) and **never calls `requestAnimationFrame`** or registers
+a visibility listener. Verified by counting calls, below.
+
+**Loop.** One `requestAnimationFrame` loop. Per frame it clears, then does one
+`drawImage` per visible splat and one `fillRect` per speck. No path construction, no
+gradients, no `shadowBlur` in the loop; all of that happens once, at build time.
+
+**Parameters.** `PaintSplatter` takes `strength` (`off | subtle | bold`), `palette`
+(`purple | orange`) and `motion` (`live | still`).
+
+#### Deviations from the owner's specification
+
+1. **The three settings ship as parameters with fixed production defaults and no UI.**
+   The design has them as three user settings. Production is fixed at `subtle`,
+   `purple`, `live`. A toggle nobody can reach is dead weight; a parameterised
+   component keeps the door open and costs nothing.
+2. **The loop pauses on a hidden tab.** Not in the spec. A loop burning CPU on a tab
+   nobody is looking at is a defect in anything shipped. On hide it cancels its frame;
+   on show it shifts every splat's start time by the time spent away, so returning does
+   not make every splat expire and land at the same instant.
+3. **`splat.radius` carries 1px of margin.** The painter sizes each offscreen canvas
+   from it. Without the margin the outermost blob is tangent to the canvas edge, so
+   faint antialiased pixels touched the border on 7 of 200 splats at DPR 1 (1 of 200
+   at DPR 2). Nothing visible was clipped, but a hard cut on a paint edge reads as a
+   rendering bug and this sits behind every screen. Costs about 1.5% more memory.
+4. **Splat scale is 0.7 to 1.4.** The spec gives no value, so this is a choice. It sets
+   the memory figure below: the bounding radius runs from 77 to 194px, wider than the
+   99 to 158px measured at scale 1 before this was chosen.
+5. **Re-placed splat positions after the first cycle are not reproducible across
+   loads.** The first placement is a pure function of the seed, which is what the spec
+   asks for. After a splat's first life it is re-placed from a random stream that has
+   consumed in the order splats happen to expire, which depends on when frames ran
+   (and on time spent on a hidden tab), so the second pattern can differ between loads
+   and between machines.
+
+#### What it costs
+
+Measured 2026-10-02 in Playwright Chromium 153 at 1440×900, DPR 2, on `/login`, with
+the page-side `requestAnimationFrame`, `drawImage` and `fillRect` instrumented from a
+temporary spec (deleted; no component code was touched). Run twice: headed on an Apple
+M4 Pro (Metal GPU raster), and headless (SwiftShader, **software raster**, which is
+also what a machine with no hardware acceleration gets).
+
+| | Headed, GPU | Headless, software |
+|---|---|---|
+| `drawImage` per frame | 28 (min 27) | 28 (min 27) |
+| Speck `fillRect` per frame | 320 | 320 |
+| JS time in the loop callback, median / worst | 0.3 / 0.8 ms (1500 frames) | 0.1 / 1.4 ms (1500 frames) |
+| Frame interval, median / worst | 6.9 / 7.9 ms (display ran at about 145 Hz) | 16.7 / 33.5 ms |
+| Frames over 20ms | 0 of 1500 | 581 of 1500 (39%) |
+| Same page with the draw calls suppressed | 0 over 20ms | 0 over 20ms of 280, twice |
+
+Read that as follows. The work per frame is a constant 28 composites and 320 fills; it
+does not spike when a splat lands or is re-placed (slow frames were 38% of
+landing-or-re-place frames and 40% of quiet frames headless, and 0 headed). The JavaScript is
+negligible. The cost is the raster of 28 alpha-blended images and 320 rects onto a
+2880×1800 canvas: on a GPU it holds a 145 Hz display with nothing dropped, in software
+it costs about 22ms a frame (measured by forcing a readback after each frame; the same
+readback on an empty canvas is 0.4ms) and the page runs at about 43 fps instead of 60.
+The loop is not throttled, so on a high-refresh display it redraws at the display rate.
+
+**Offscreen canvas memory** (`width × height × 4` summed over every splat canvas),
+1440×900 at DPR 2: **28 splats, 30,407,040 bytes = 29.0 MiB (30.4 MB)**. Canvas side
+min / median / max: 154 / 251 / 388 CSS px (308 / 502 / 776 device px), all square.
+Budget was about 40MB, so this is inside it. The figure scales with the splat count
+and the DPR:
+
+| Viewport | DPR 1 | DPR 1.5 | DPR 2 |
+|---|---|---|---|
+| 1440×900 (28 splats) | 7.2 MiB | 16.3 MiB | 29.0 MiB |
+| 1920×1080 (32) | | | 32.9 MiB |
+| 2560×1440 (37) | | | 37.0 MiB |
+| 3440×1440 (40) | | | 39.5 MiB (computed) |
+| 3840×2160 (47) | | | 47.7 MiB (computed) |
+
+The seed is fixed, so this is the real figure, not an estimate; across 500 other seeds
+the same layout ranged from 23.3 to 38.0 MiB. **The visible canvas is not in these
+numbers:** 2880×1800×4 is another 19.8 MiB at 1440×900 and DPR 2, so the whole layer
+is about 49 MiB. Anyone adding splats, raising the scale range or lifting the DPR cap
+is spending from that. The first lever is capping DPR at 1.5 for this layer, which
+takes the splats to 16.3 MiB.
+
+**The loop stops.** Counted on a patched `window.requestAnimationFrame`, with the
+caller of each call identified from its stack:
+
+- **Reduced motion:** **0** calls to `requestAnimationFrame` from any caller in the 4
+  seconds after load, none pending, and the canvas was not blank (23% of its pixels
+  painted). The same instrumentation without reduced motion counted 93 calls in 2
+  seconds headless (293 headed), every one from `PaintSplatter`.
+- **Hidden tab:** after the visibility change, 0 pending frames, one cancel, and 0
+  calls over the next 3 seconds. On return the loop resumed (36 calls in 0.8s
+  headless, 117 headed). A tab that is hidden at load starts no loop: 0 calls over 2
+  seconds. Caveat: the tab was hidden by overriding `document.hidden` and
+  `document.visibilityState` and dispatching `visibilitychange`, because neither a
+  second window nor minimising made Playwright's Chromium report hidden. That proves
+  the component's handler; it does not test the browser's own background throttling.
+
 ### Deferred, each needing its own plan
 
 - **Status pill, status popover, offline and syncing pills, toasts, presence
@@ -307,13 +495,6 @@ and a card is not left dimmed after a completed drop.
 - **⌘K palette and share sheet.** The nav's search field and Share button are
   rendered but deliberately inert until then. The Share button carries a real
   `disabled` attribute, not only `aria-disabled`.
-- **Paint-splatter canvas layer.** Specified by the owner after this handoff was
-  written: seeded generator, offscreen pre-rendered splats, a
-  `requestAnimationFrame` loop with per-splat lifecycles, debounced rebuild on
-  resize, device-pixel-ratio capping, and a static frame under reduced motion.
-  It is a feature with its own performance budget, not a restyle. **The full
-  specification is in the owner's message and is NOT in this handoff.** Whoever
-  plans it must get that text from the owner.
 
 ### Known limitations
 
