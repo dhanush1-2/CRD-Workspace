@@ -62,41 +62,67 @@ of which is real). Both rejected.
 - Viewers cannot restore. The existing role check covers it; the restore route must
   enforce `editor` or better rather than relying on the UI hiding the button.
 
-## Decision 3 — Offline edits survive a disconnect, not a tab close
+## Decision 3 — Offline edits survive a tab close (revised)
 
-**Chosen: keep today's behaviour. No `y-indexeddb`.**
+**Chosen: build local persistence. Match what Google Docs does.**
 
-Today, losing the network is already handled: edits accumulate in the page and sync on
-reconnect. What is *not* handled is closing the tab while offline, which discards them.
+This reverses an earlier decision in this same document. The first pass kept today's
+behaviour — edits survive a disconnect but die with the tab — on the grounds that a
+second source of truth creates conflicts with no obviously-correct answer. The owner
+asked what Google Docs does and to do the same, which settles it, and answering the
+question properly also corrected an error of mine.
 
-Adding browser-side persistence was considered and rejected for now, because it creates a
-second source of truth whose disagreements have no obviously-correct answer: a viewer
-whose cached edits replay after being downgraded to read-only; cached edits for a document
-deleted server-side; a week-stale copy resurrecting deliberately deleted content. Each is
-solvable, but each needs a decided answer, and the cost of guessing is text appearing or
-disappearing inexplicably — the failure mode that makes people stop trusting a writing
-tool.
+**What Google Docs does:** it persists offline edits locally, so they survive closing
+the tab, quitting the browser and a reboot, and it says so ("Working offline", "All
+changes saved offline"). It is opt-in — per document, or account-wide, and in Chrome via
+the Docs offline extension. For conflicts its pattern is *offer to save a copy*: lost
+edit permission while offline, or a document deleted while you were away, both end with
+"save your version as a separate file".
 
-### A consequence that contradicts the handoff, and must be resolved
+**The correction.** The earlier text warned that a stale local copy could "resurrect
+deliberately deleted content". That is a genuine hazard in Google's architecture, which
+replays offline operations against the server's current state. It is largely **not** a
+hazard here: Yjs records deletions as tombstones, so if a peer deleted a paragraph while
+this client was offline and this client never touched it, merging leaves it deleted.
+Resurrection happens only if the offline edits actually re-inserted that content, which
+is correct behaviour rather than a bug.
 
-`docs/design/glass-handoff.md:199` specifies this offline copy:
+So the hardest part of Google's offline system — rebasing operations against a moving
+server state — does not exist for us. The CRDT already handles it. This is materially
+cheaper than the first pass priced it.
 
-> "You're offline. Keep working, your changes are saved on this device."
-> With queued changes: "You're offline. N changes saved on this device will sync when
-> you're back."
+**What to build:** `y-indexeddb` alongside the existing websocket provider, so the Yjs
+document is backed by browser storage as well as the server. The handoff's copy at
+line 199 ("your changes are saved on this device") becomes true and stays as written.
 
-**Under this decision that copy is false.** Nothing is saved on the device; the edits live
-in the page and die with it. Shipping it would promise durability the system does not
-have, in the exact moment a user is deciding whether it is safe to close their laptop.
+**The two conflict cases that remain, and their answers, following Docs:**
 
-Two ways out, and this needs the owner's answer before the offline pill is built:
+1. **Edit permission lost while offline.** On reconnect the sync server rejects the
+   updates — the existing per-frame role enforcement already does this, which is why
+   this is a UI problem and not a protocol one. The client must detect the rejection,
+   stop trying, and offer to save the local version as a new document. Silently
+   discarding an hour of someone's writing is the one outcome that is not acceptable.
+2. **Document deleted while offline.** Same resolution: the document is gone, the local
+   copy is not, and the user is offered a copy. The sync server already logs "dropping
+   updates for a document that no longer exists", so the server side of this exists; the
+   client currently ignores it.
 
-1. **Change the copy** to what is true — "Keep working. Your changes will sync when you're
-   back." / "N changes will sync when you're back." Keeps the simpler architecture.
-2. **Keep the copy and build `y-indexeddb`**, which reverses this decision and requires
-   answers to the three conflict cases above.
+**One deliberate divergence from Docs, flagged for the owner.** Docs makes offline
+opt-in, because of storage quota on shared machines and because its offline mode needed
+an extension. Neither reason applies here: `y-indexeddb` is a few hundred KB of library
+and stores only documents the user actually opened. Always-on is simpler to build, has
+no settings surface, and means nobody loses work because they forgot to flip a switch.
+Recommendation: always-on. Say so if you want the toggle instead.
 
-Recommendation: option 1. The copy is a sentence; the persistence layer is a subsystem.
+**Consequences for the plans:**
+- A new dependency, `y-indexeddb`, and a provider composition change in
+  `hooks/use-doc.ts` — the one place that owns the provider lifecycle.
+- The "N changes waiting to sync" count can now come from persisted state rather than
+  only from memory, which makes the offline pill's number meaningful after a reload.
+- Two new client flows (permission-lost, document-deleted) that need the "save a copy"
+  path, which needs a create-document-from-state capability the app does not have yet.
+- This is the largest single item in the remaining work and should be its own plan,
+  separate from history and from the status telemetry.
 
 ## Derived: what the backend must expose
 
@@ -111,6 +137,7 @@ From the three decisions, the capabilities the UI plans need:
 | Queued-edit count | count of unsynced updates held in the page | Offline pill "N changes" |
 | Latency | round-trip measurement against the sync server | Status popover "Response time" |
 | Card notes | `description` plus an activity log on the card's `Y.Map` | Card detail sheet |
+| Local persistence | `y-indexeddb` beside the websocket provider, plus the two "save a copy" flows | Offline edits surviving a tab close |
 
 The version number and the queued count are **not** the same thing and must not be
 conflated: the version is server-assigned and shared, the queued count is per-client and
@@ -122,4 +149,5 @@ so they can be split out and shipped independently of the history work.
 
 ## Open question
 
-Only one: the offline copy above (option 1 or option 2).
+Only one: whether offline persistence is always-on (recommended) or an opt-in toggle,
+per the divergence noted in Decision 3.
