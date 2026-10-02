@@ -250,7 +250,8 @@ Buttons generally use `transition: transform .4s var(--ease), background .3s` an
 
 ## Implementation status
 
-Plan 1 (`docs/superpowers/plans/2026-10-01-glass-foundation-and-shell.md`) is
+Plan 1 (`docs/superpowers/plans/2026-10-01-glass-foundation-and-shell.md`) and
+the board plan (`docs/superpowers/plans/2026-10-02-board-and-cards.md`) are
 complete and visual only: no schema, route, API or behaviour change.
 
 **Where this file and the prototype disagree, this file wins.**
@@ -267,6 +268,28 @@ indicator, and the sign-in, dashboard and workspace screens. Plus the owner's
 post-handoff deltas: tab indicator, create tiles, tile text, the faint-text
 token and the background pill.
 
+**Board restyle and card peer ring** (board plan). Glass columns, cards, delete
+buttons, and the "+ Add a card" and "+ Add a list" controls, with the owner's
+add-button values verified character by character against the stylesheet (no
+drift). A remote peer on a card gets a ring and a named chip. Two small polish
+fixes from the owner's audit:
+
+- The GitHub sign-in button no longer darkens on hover; it lifts 1px
+  (`translateY(-1px)`, inside the `prefers-reduced-motion: no-preference` block)
+  with the fill unchanged. The Google button lifts the same way and keeps its
+  existing fill brightening. A pressed button wins over the lift, so it still
+  presses in under the pointer.
+- Buttons press in over `0.4s`, as designed, not `0.3s`. `.button`, `.tile`,
+  the sign-in provider buttons and the board add controls now all use the same
+  duration. There is no `0.4s` token (`--dur` is `0.55s`, `--dur-fast` is
+  `0.3s`), so it is a literal `0.4s`, matching the existing uses in
+  `ui.module.css`.
+
+**Test coverage note.** Card drag-and-drop had no test coverage before the board
+plan. It now has three committed Playwright tests in `e2e/board.spec.ts`: a card
+moves across columns, a card dropped on a sibling reorders within its column,
+and a card is not left dimmed after a completed drop.
+
 ### Deferred, each needing its own plan
 
 - **Status pill, status popover, offline and syncing pills, toasts, presence
@@ -274,14 +297,12 @@ token and the background pill.
   expose a version sequence and a latency ping.
 - **History button, history panel, version preview bar.** Need a snapshot list
   and fetch API, and authorship on updates.
-- **Board restyle, card sheet, card peer rings.** Need `description` and an
-  activity log on the card's `Y.Map`. The owner has supplied board add-button
-  styles that belong to that plan: the add tile is
-  `1.5px dashed rgba(40,40,60,.22)`, fill `rgba(255,255,255,.7)` with blur 20px,
-  text `#3d403b` weight 500, hover fill `rgba(255,255,255,.92)`, pressed
-  `scale(.97)`. "+ Add a card" is fill `rgba(255,255,255,.55)` with
-  `inset 0 0 0 1px rgba(40,40,60,.08)`, text `#3d403b` weight 500, hover fill
-  `rgba(255,255,255,.9)`.
+- **Card detail sheet.** Blocked on `description` and an activity log on the
+  card's `Y.Map`; neither exists in the CRDT shape today, and adding them is a
+  schema change this work barred. Two things were left ready or left out on
+  purpose: `.cardSelected` exists in `board.module.css` but is unused, waiting for
+  this sheet to give a card a selected state; and the "has notes" card meta was
+  deliberately not added, because there is no `description` field to drive it.
 - **⌘K palette and share sheet.** The nav's search field and Share button are
   rendered but deliberately inert until then. The Share button carries a real
   `disabled` attribute, not only `aria-disabled`.
