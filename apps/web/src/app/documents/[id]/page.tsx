@@ -6,6 +6,7 @@ import { getCurrentUser } from '@/lib/current-user'
 import { colorFor } from '@/lib/color'
 import { AppShell } from '@/components/AppShell'
 import { DocumentClient } from './DocumentClient'
+import ui from '@/components/ui/ui.module.css'
 
 export default async function DocumentPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
@@ -29,7 +30,7 @@ export default async function DocumentPage({ params }: { params: Promise<{ id: s
   // Display data only, and only after the role check has passed.
   const document = await prisma.document.findUnique({
     where: { id },
-    select: { workspace: { select: { id: true, name: true } } },
+    select: { title: true, workspace: { select: { id: true, name: true } } },
   })
   if (!document) notFound()
 
@@ -48,6 +49,8 @@ export default async function DocumentPage({ params }: { params: Promise<{ id: s
       documents={siblings}
       activeDocumentId={id}
     >
+      {/* The page's only heading: the nav shows the title as a tab, not a heading. */}
+      <h1 className={ui.labelHidden}>{document.title}</h1>
       <DocumentClient
         documentId={id}
         type={type}

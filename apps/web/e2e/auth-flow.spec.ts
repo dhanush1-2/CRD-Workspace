@@ -218,7 +218,7 @@ test('an unauthenticated visit to a document redirects to sign-in carrying the d
   // here, confirm the destination itself works once signed in.
   await signIn(page, owner.id)
   await page.goto(`/documents/${document.id}`)
-  await expect(page.locator('[role="tablist"] [data-active="true"]')).toHaveText('e2e board')
+  await expect(page.locator('[aria-current="page"]')).toHaveText('e2e board')
   await expect(page.getByTestId('workspace-link')).toHaveText(label)
   await expect(page.getByTestId('role')).toHaveText('owner')
 

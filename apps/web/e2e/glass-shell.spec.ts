@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test'
+import { test, expect, type Page } from '@playwright/test'
 import { cleanup, createDocument, seedWorkspace, signIn } from './fixtures.js'
 
 const LABEL = 'e2e-glass-shell'
@@ -81,6 +81,23 @@ test('account menu rows centre their labels vertically', async ({ page }) => {
   await cleanup(label)
 })
 
+/**
+ * How far the sliding indicator is from the given tab, in px (the larger of the
+ * horizontal offset and the width difference). The indicator is server-rendered
+ * at width 0 and sized at hydration, and it slides for 0.55s after a change, so
+ * callers poll this rather than read it once.
+ */
+async function indicatorGap(page: Page, tabTestId: string) {
+  return page.evaluate((testId) => {
+    const indicator = document.querySelector('[class*="indicator"]')
+    const tab = document.querySelector(`[data-testid="${testId}"]`)
+    if (!indicator || !tab) return Number.POSITIVE_INFINITY
+    const a = indicator.getBoundingClientRect()
+    const b = tab.getBoundingClientRect()
+    return Math.max(Math.abs(a.x - b.x), Math.abs(a.width - b.width))
+  }, tabTestId)
+}
+
 test('the nav shows a tab per document and marks the open one active', async ({ page }) => {
   const label = `${LABEL}-tabs`
   const { owner, workspace } = await seedWorkspace(label)
@@ -92,19 +109,18 @@ test('the nav shows a tab per document and marks the open one active', async ({ 
 
   await expect(page.getByTestId('tab-overview')).toBeVisible()
   await expect(page.getByTestId(`tab-${board.id}`)).toHaveAttribute('data-active', 'true')
+  await expect(page.getByTestId(`tab-${board.id}`)).toHaveAttribute('aria-current', 'page')
   await expect(page.getByTestId(`tab-${doc.id}`)).toHaveAttribute('data-active', 'false')
+  await expect(page.getByTestId(`tab-${doc.id}`)).not.toHaveAttribute('aria-current')
 
-  // The indicator is measured from the active tab, so a zero width means the
-  // measurement never ran, which is the bug this test exists to catch.
-  const width = await page
-    .locator('[class*="indicator"]')
-    .evaluate((el) => el.getBoundingClientRect().width)
-  expect(width).toBeGreaterThan(0)
+  // The indicator is measured from the active tab at hydration, so an unsized
+  // or misplaced pill means the measurement never ran: the bug this test is for.
+  await expect.poll(() => indicatorGap(page, `tab-${board.id}`)).toBeLessThanOrEqual(1)
 
   await cleanup(label)
 })
 
-test('switching documents moves the indicator', async ({ page }) => {
+test('the indicator tracks the active tab', async ({ page }) => {
   const label = `${LABEL}-slide`
   const { owner, workspace } = await seedWorkspace(label)
   const first = await createDocument(workspace.id, 'board')
@@ -112,16 +128,13 @@ test('switching documents moves the indicator', async ({ page }) => {
   await signIn(page, owner.id)
 
   await page.goto(`/documents/${first.id}`)
-  const indicator = page.locator('[class*="indicator"]')
-  const before = await indicator.evaluate((el) => el.getBoundingClientRect().x)
+  await expect.poll(() => indicatorGap(page, `tab-${first.id}`)).toBeLessThanOrEqual(1)
 
   await page.getByTestId(`tab-${second.id}`).click()
   await expect(page.getByTestId(`tab-${second.id}`)).toHaveAttribute('data-active', 'true')
-  // The slide is 0.55s; wait for it to settle rather than racing it.
-  await page.waitForTimeout(800)
-  const after = await indicator.evaluate((el) => el.getBoundingClientRect().x)
-
-  expect(after).not.toBe(before)
+  // Polled, not slept on: the slide takes 0.55s and the pill has to land on the
+  // new tab's box, width included.
+  await expect.poll(() => indicatorGap(page, `tab-${second.id}`)).toBeLessThanOrEqual(1)
 
   await cleanup(label)
 })

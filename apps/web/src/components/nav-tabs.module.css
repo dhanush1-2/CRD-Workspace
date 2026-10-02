@@ -46,6 +46,14 @@
   }
 }
 
+/*
+  The strip clips its overflow, so the global 2px-outside ring would be cut off
+  on every side. Draw it inside the tab instead.
+*/
+.tab:focus-visible {
+  outline-offset: -2px;
+}
+
 .tab:hover {
   color: var(--text);
   text-decoration: none;
@@ -91,7 +99,8 @@
 }
 
 @media (prefers-reduced-motion: no-preference) {
-  .indicator {
+  /* Added only after the first placement; see NavTabs. */
+  .indicatorAnimated {
     transition:
       transform var(--dur) var(--ease),
       width var(--dur) var(--ease),
