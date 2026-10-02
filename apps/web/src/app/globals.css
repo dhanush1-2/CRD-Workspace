@@ -233,15 +233,10 @@ textarea {
   }
 }
 
-/* Tiptap editor surface. Typography follows the Glass document spec. */
+/* Tiptap editor surface. Typography follows the Glass document spec. The page sheet
+   (documents/[id]/document.module.css) supplies the 56/56/96 padding. */
 .editor .ProseMirror {
   min-height: 60vh;
-  /*
-    Retained from the previous design. The Glass document page supplies its own
-    56/56/96 padding, but that page is restyled in a later plan — without this,
-    the editor renders flush to its edges in the meantime.
-  */
-  padding: 24px;
   outline: none;
   caret-color: var(--accent);
 }
@@ -265,6 +260,15 @@ textarea {
   margin: 0 0 12px;
 }
 
+/*
+  The remote caret is NOT positioned with left/top, so there is no 0.7s glide here.
+  y-tiptap renders it as an inline widget decoration (a <span>, position: relative,
+  no offsets) sitting in the text flow at the peer's position, with the label
+  absolute inside it. When a peer moves, ProseMirror reuses the node (keyed by
+  clientId) and re-inserts it elsewhere in the DOM. No left/top value ever changes,
+  so a transition on them would animate nothing. A real glide needs a different
+  mechanism (an overlay positioned from coordsAtPos), not a CSS property here.
+*/
 .collaboration-carets__caret {
   border-left: 1px solid;
   border-right: 1px solid;
@@ -276,7 +280,7 @@ textarea {
 }
 
 .collaboration-carets__label {
-  border-radius: 3px 3px 3px 0;
+  border-radius: var(--r-pill);
   color: #fff;
   font-size: 11px;
   font-weight: 500;

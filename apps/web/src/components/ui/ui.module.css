@@ -214,22 +214,6 @@
   color: var(--accent-text);
 }
 
-/*
-  Retained for call sites this plan does not rewrite — notably the document
-  page's role chip, which belongs to a later plan. New code should use .chip.
-*/
-.badge {
-  display: inline-flex;
-  align-items: center;
-  height: 22px;
-  padding: 0 10px;
-  border-radius: var(--r-pill);
-  background: rgba(0, 0, 0, 0.05);
-  font-size: 12px;
-  font-weight: 500;
-  color: var(--text-muted);
-}
-
 .segmented {
   display: inline-flex;
   padding: 3px;

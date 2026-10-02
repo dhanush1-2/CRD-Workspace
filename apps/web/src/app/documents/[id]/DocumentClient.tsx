@@ -6,6 +6,7 @@ import { useAnnouncePresence, usePresence } from '@/hooks/use-presence'
 import { Board } from '@/components/Board'
 import { Editor } from '@/components/Editor'
 import { clearDocState, publishDocState } from '@/lib/doc-state'
+import styles from './document.module.css'
 
 export function DocumentClient({
   documentId,
@@ -41,7 +42,9 @@ export function DocumentClient({
   useEffect(() => () => clearDocState(documentId), [documentId])
 
   return (
-    <div>
+    // The sheet is for the document only: the board is a horizontal scroller with its
+    // own gutters and would be crushed into a 780px column.
+    <div className={type === 'doc' ? styles.page : undefined}>
       {doc && provider && type === 'doc' && (
         <Editor doc={doc} provider={provider} user={user} readOnly={readOnly} />
       )}

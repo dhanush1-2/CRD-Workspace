@@ -425,3 +425,51 @@ test('the nav status pill shows Synced on a document and does not exist on the d
 
   await cleanup(label)
 })
+
+test('a document sits on the 780px glass sheet and a board does not', async ({ page }) => {
+  const label = `${LABEL}-sheet`
+  const { owner, workspace } = await seedWorkspace(label)
+  const doc = await createDocument(workspace.id, 'doc')
+  const board = await createDocument(workspace.id, 'board')
+  await signIn(page, owner.id)
+
+  // Reads max-width and radius for an element's whole ancestor chain, so the check does
+  // not depend on how many wrappers sit between the sheet and the content.
+  const sheetAbove = (selector: string) =>
+    page.locator(selector).evaluate((el) => {
+      for (let node = el.parentElement; node; node = node.parentElement) {
+        const style = getComputedStyle(node)
+        if (style.maxWidth === '780px') {
+          return {
+            radius: style.borderTopLeftRadius,
+            paddingTop: style.paddingTop,
+            paddingBottom: style.paddingBottom,
+            width: node.getBoundingClientRect().width,
+          }
+        }
+      }
+      return null
+    })
+
+  await page.goto(`/documents/${doc.id}`)
+  await expect(page.locator('.editor .ProseMirror')).toBeVisible()
+  const sheet = await sheetAbove('.editor')
+  expect(sheet).not.toBeNull()
+  expect(sheet!.radius).toBe('30px')
+  expect(sheet!.paddingTop).toBe('56px')
+  expect(sheet!.paddingBottom).toBe('96px')
+  expect(sheet!.width).toBeLessThanOrEqual(780)
+
+  // The temporary 24px editor padding is gone; the sheet owns the padding now.
+  const editorPadding = await page
+    .locator('.editor .ProseMirror')
+    .evaluate((el) => getComputedStyle(el).paddingLeft)
+  expect(editorPadding).toBe('0px')
+
+  // The board is a horizontal scroller with its own gutters: no 780px ancestor.
+  await page.goto(`/documents/${board.id}`)
+  await expect(page.getByTestId('add-column')).toBeVisible()
+  expect(await sheetAbove('[data-testid="add-column"]')).toBeNull()
+
+  await cleanup(label)
+})
