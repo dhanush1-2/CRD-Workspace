@@ -2,15 +2,15 @@
 
 import { useRouter } from 'next/navigation'
 import { useState, type FormEvent } from 'react'
-import type { Role } from '@crdt/shared/types'
 import { Button } from '@/components/ui/Button'
 import { TextField } from '@/components/ui/TextField'
 import { colorFor } from '@/lib/color'
+import type { WorkspaceMemberView } from '@/lib/members'
 import { ROLE_LABEL } from '@/lib/role-label'
 import styles from './workspace.module.css'
 import ui from '@/components/ui/ui.module.css'
 
-export type WorkspaceMemberView = { id: string; name: string; email: string; role: Role }
+export type { WorkspaceMemberView }
 
 export function MembersPanel({
   workspaceId,

@@ -7,6 +7,7 @@ import { HttpError, requireWorkspaceRole } from '@/lib/auth-guard'
 import { AppShell } from '@/components/AppShell'
 import { lastActivityByDocument } from '@/lib/document-activity'
 import { formatCount, formatRelativeTime } from '@/lib/format'
+import type { WorkspaceMemberView } from '@/lib/members'
 import { CreateDocumentForm } from './CreateDocumentForm'
 import { MembersPanel } from './MembersPanel'
 import styles from './workspace.module.css'
@@ -47,6 +48,14 @@ export default async function WorkspacePage({ params }: { params: Promise<{ id: 
   if (!workspace) notFound()
 
   const canCreate = role === 'owner' || role === 'editor'
+  // One mapping for both consumers (the nav's share sheet and the People panel).
+  // Only strings cross into client components: no Prisma rows.
+  const members: WorkspaceMemberView[] = workspace.members.map((member) => ({
+    id: member.user.id,
+    name: member.user.name,
+    email: member.user.email,
+    role: member.role,
+  }))
   const now = new Date()
   const lastActivity = await lastActivityByDocument(workspace.documents.map((d) => d.id))
 
@@ -59,6 +68,8 @@ export default async function WorkspacePage({ params }: { params: Promise<{ id: 
         title,
         type,
       }))}
+      members={members}
+      canManage={role === 'owner'}
     >
       <div className={styles.page}>
         <div className={styles.header}>
@@ -105,12 +116,7 @@ export default async function WorkspacePage({ params }: { params: Promise<{ id: 
           <div className={`${ui.glass} ${styles.people}`}>
             <MembersPanel
               workspaceId={id}
-              members={workspace.members.map((member) => ({
-                id: member.user.id,
-                name: member.user.name,
-                email: member.user.email,
-                role: member.role,
-              }))}
+              members={members}
               canManage={role === 'owner'}
             />
           </div>
