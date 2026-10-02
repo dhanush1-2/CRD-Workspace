@@ -134,24 +134,6 @@
   box-shadow: 0 0 0 5px var(--accent-ring);
 }
 
-.panel {
-  border-radius: var(--r-panel);
-  overflow: hidden;
-}
-
-.panelHeader {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  padding: 18px 22px;
-  border-bottom: 1px solid rgba(40, 40, 60, 0.08);
-}
-
-.panelBody {
-  padding: 18px 22px;
-}
-
 .tile {
   border-radius: var(--r-tile);
   padding: 22px;

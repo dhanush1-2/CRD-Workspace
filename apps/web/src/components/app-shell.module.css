@@ -37,6 +37,7 @@
 }
 
 .logo {
+  display: block;
   flex: none;
   width: 36px;
   height: 36px;

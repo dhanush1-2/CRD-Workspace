@@ -55,9 +55,19 @@
   }
 }
 
+.docText {
+  display: grid;
+  gap: 2px;
+}
+
 .docTitle {
   font-size: 18px;
   font-weight: 600;
+}
+
+.docUpdated {
+  font-size: 13.5px;
+  color: var(--text-faint);
 }
 
 .createTile {

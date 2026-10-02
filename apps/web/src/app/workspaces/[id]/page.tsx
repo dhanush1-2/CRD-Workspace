@@ -5,6 +5,7 @@ import type { Role } from '@crdt/shared/types'
 import { getCurrentUser } from '@/lib/current-user'
 import { HttpError, requireWorkspaceRole } from '@/lib/auth-guard'
 import { AppShell } from '@/components/AppShell'
+import { formatCount, formatRelativeTime } from '@/lib/format'
 import { CreateDocumentForm } from './CreateDocumentForm'
 import { MembersPanel } from './MembersPanel'
 import styles from './workspace.module.css'
@@ -33,7 +34,15 @@ export default async function WorkspacePage({ params }: { params: Promise<{ id: 
     select: {
       name: true,
       documents: {
-        select: { id: true, title: true, type: true },
+        // Documents carry no updatedAt column. Last activity is the newest stored
+        // update, falling back to creation for a document nobody has edited yet.
+        select: {
+          id: true,
+          title: true,
+          type: true,
+          createdAt: true,
+          updates: { select: { createdAt: true }, orderBy: { id: 'desc' }, take: 1 },
+        },
         orderBy: { createdAt: 'asc' },
       },
       members: {
@@ -45,19 +54,20 @@ export default async function WorkspacePage({ params }: { params: Promise<{ id: 
   if (!workspace) notFound()
 
   const canCreate = role === 'owner' || role === 'editor'
+  const now = new Date()
 
   return (
     <AppShell
       user={user}
       workspace={{ id, name: workspace.name }}
-      documents={workspace.documents}
+      documents={workspace.documents.map(({ id, title, type }) => ({ id, title, type }))}
     >
       <div className={styles.page}>
         <div className={styles.header}>
           <h1>{workspace.name}</h1>
           <p className={styles.meta}>
-            {workspace.documents.length} {workspace.documents.length === 1 ? 'document' : 'documents'} ·{' '}
-            {workspace.members.length} {workspace.members.length === 1 ? 'person' : 'people'}
+            {formatCount(workspace.documents.length, 'document')} ·{' '}
+            {formatCount(workspace.members.length, 'person', 'people')}
           </p>
         </div>
 
@@ -77,7 +87,12 @@ export default async function WorkspacePage({ params }: { params: Promise<{ id: 
                   <span className={`${ui.chip} ${ui.chipAccent}`}>
                     {document.type === 'board' ? 'Board' : 'Page'}
                   </span>
-                  <span className={styles.docTitle}>{document.title}</span>
+                  <span className={styles.docText}>
+                    <span className={styles.docTitle}>{document.title}</span>
+                    <span className={styles.docUpdated}>
+                      updated {formatRelativeTime(document.updates[0]?.createdAt ?? document.createdAt, now)}
+                    </span>
+                  </span>
                 </Link>
               ))}
               {canCreate && <CreateDocumentForm workspaceId={id} />}

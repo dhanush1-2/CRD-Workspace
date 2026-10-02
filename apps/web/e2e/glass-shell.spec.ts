@@ -81,6 +81,28 @@ test('account menu rows centre their labels vertically', async ({ page }) => {
   await cleanup(label)
 })
 
+test('the nav logo actually renders at 36px', async ({ page }) => {
+  const label = `${LABEL}-logo`
+  const { owner } = await seedWorkspace(label)
+  await signIn(page, owner.id)
+  await page.goto('/')
+
+  // The logo is an empty <span>. An inline non-replaced element ignores width and
+  // height, so a missing display:block collapses it to nothing while every locator,
+  // typecheck and unit test still passes. Measure the rendered box.
+  const box = await page
+    .getByRole('link', { name: 'All workspaces' })
+    .locator('span')
+    .evaluate((el) => {
+      const rect = el.getBoundingClientRect()
+      return { width: rect.width, height: rect.height }
+    })
+  expect(box.width).toBeCloseTo(36, 0)
+  expect(box.height).toBeCloseTo(36, 0)
+
+  await cleanup(label)
+})
+
 /**
  * How far the sliding indicator is from the given tab, in px (the larger of the
  * horizontal offset and the width difference). The indicator is server-rendered

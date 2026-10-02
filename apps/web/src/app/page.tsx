@@ -3,6 +3,7 @@ import { redirect } from 'next/navigation'
 import { prisma } from '@crdt/db'
 import { getCurrentUser } from '@/lib/current-user'
 import { AppShell } from '@/components/AppShell'
+import { formatCount } from '@/lib/format'
 import { CreateWorkspaceForm } from './CreateWorkspaceForm'
 import styles from './dashboard.module.css'
 import ui from '@/components/ui/ui.module.css'
@@ -17,9 +18,12 @@ export default async function HomePage() {
   const memberships = await prisma.workspaceMember.findMany({
     where: { userId: user.id },
     select: {
-      role: true,
       workspace: {
-        select: { id: true, name: true, _count: { select: { documents: true } } },
+        select: {
+          id: true,
+          name: true,
+          _count: { select: { documents: true, members: true } },
+        },
       },
     },
     orderBy: { workspace: { name: 'asc' } },
@@ -30,7 +34,7 @@ export default async function HomePage() {
       <div className={styles.page}>
         <h1>Workspaces</h1>
         <div className={styles.grid}>
-          {memberships.map(({ role, workspace }) => (
+          {memberships.map(({ workspace }) => (
             <Link
               key={workspace.id}
               href={`/workspaces/${workspace.id}`}
@@ -43,8 +47,8 @@ export default async function HomePage() {
               <span className={styles.tileText}>
                 <span className={styles.tileName}>{workspace.name}</span>
                 <span className={styles.tileMeta}>
-                  {workspace._count.documents}{' '}
-                  {workspace._count.documents === 1 ? 'document' : 'documents'} · {role}
+                  {formatCount(workspace._count.documents, 'document')} ·{' '}
+                  {formatCount(workspace._count.members, 'person', 'people')}
                 </span>
               </span>
             </Link>
