@@ -97,6 +97,26 @@
     0 6px 16px oklch(0.42 0.11 285 / 0.12);
 }
 
+/*
+  No backdrop-filter, so the translucent fill would leave the active label on a
+  near-transparent pill. Keep the accent tint and gradient, but sit them on a .92
+  white base. A second gradient layer carries the tint because only the final
+  layer of a background can be a plain colour.
+*/
+@supports not (backdrop-filter: blur(1px)) {
+  .indicator {
+    background:
+      linear-gradient(
+        180deg,
+        rgba(255, 255, 255, 0.55) 0%,
+        rgba(255, 255, 255, 0.08) 50%,
+        rgba(255, 255, 255, 0.3) 100%
+      ),
+      linear-gradient(oklch(0.42 0.11 285 / 0.14), oklch(0.42 0.11 285 / 0.14)),
+      rgba(255, 255, 255, 0.92);
+  }
+}
+
 @media (prefers-reduced-motion: no-preference) {
   /* Added only after the first placement; see NavTabs. */
   .indicatorAnimated {

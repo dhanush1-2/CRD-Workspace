@@ -35,6 +35,7 @@ export function AppShell({
               <Link
                 className={styles.workspaceName}
                 href={`/workspaces/${workspace.id}`}
+                title={workspace.name}
                 data-testid="workspace-link"
               >
                 {workspace.name}

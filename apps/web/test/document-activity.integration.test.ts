@@ -5,8 +5,15 @@ import { lastActivityByDocument } from '../src/lib/document-activity.js'
 let ownerId: string
 let workspaceId: string
 let editedId: string
+let otherEditedId: string
 let untouchedId: string
-let newestUpdateAt: Date
+
+// Each document's own newest row is its highest id. That row is deliberately NOT the
+// newest createdAt in its own log, and not the global newest createdAt either, so only
+// a per-document ORDER BY id DESC gives the right answer: returning the globally newest
+// row, or ordering by createdAt, both fail.
+const editedNewestAt = new Date('2026-09-10T10:00:00Z')
+const otherNewestAt = new Date('2026-09-05T10:00:00Z')
 
 beforeAll(async () => {
   ownerId = (
@@ -19,18 +26,28 @@ beforeAll(async () => {
   editedId = (
     await prisma.document.create({ data: { workspaceId, type: 'doc', title: 'edited' } })
   ).id
+  otherEditedId = (
+    await prisma.document.create({ data: { workspaceId, type: 'doc', title: 'other edited' } })
+  ).id
   untouchedId = (
     await prisma.document.create({ data: { workspaceId, type: 'doc', title: 'untouched' } })
   ).id
 
   const at = (iso: string) => new Date(iso)
-  newestUpdateAt = at('2026-09-30T10:00:00Z')
-  await prisma.documentUpdate.createMany({
-    data: [
-      { documentId: editedId, update: Buffer.from([1]), clientId: 'a', createdAt: at('2026-09-01T10:00:00Z') },
-      { documentId: editedId, update: Buffer.from([2]), clientId: 'a', createdAt: newestUpdateAt },
-    ],
-  })
+  // Inserted one at a time so ids alternate between the two documents.
+  const rows: [string, Date][] = [
+    [editedId, at('2026-09-01T10:00:00Z')],
+    [otherEditedId, at('2026-09-30T10:00:00Z')], // the global newest createdAt
+    [editedId, at('2026-09-20T10:00:00Z')], // newer createdAt than its own last insert
+    [otherEditedId, at('2026-09-02T10:00:00Z')],
+    [editedId, editedNewestAt],
+    [otherEditedId, otherNewestAt],
+  ]
+  for (const [documentId, createdAt] of rows) {
+    await prisma.documentUpdate.create({
+      data: { documentId, update: Buffer.from([1]), clientId: 'a', createdAt },
+    })
+  }
 })
 
 afterAll(async () => {
@@ -39,11 +56,13 @@ afterAll(async () => {
 })
 
 describe('lastActivityByDocument', () => {
-  it('returns the newest update per document and omits documents with none', async () => {
-    const activity = await lastActivityByDocument([editedId, untouchedId])
+  it('returns each document its own newest update and omits documents with none', async () => {
+    const activity = await lastActivityByDocument([editedId, otherEditedId, untouchedId])
 
-    expect(activity.get(editedId)).toEqual(newestUpdateAt)
+    expect(activity.get(editedId)).toEqual(editedNewestAt)
+    expect(activity.get(otherEditedId)).toEqual(otherNewestAt)
     expect(activity.has(untouchedId)).toBe(false)
+    expect(activity.size).toBe(2)
   })
 
   it('does no work for an empty id list', async () => {

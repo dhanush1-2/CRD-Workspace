@@ -248,3 +248,41 @@ test('a strip the user has scrolled by hand is not pulled back to the active tab
 
   await cleanup(label)
 })
+
+test('a 200-character single-word document title wraps inside its tile', async ({ page }) => {
+  const label = `${LABEL}-longtitle`
+  const { owner, workspace } = await seedWorkspace(label)
+  const document = await prisma.document.create({
+    data: { workspaceId: workspace.id, type: 'doc', title: 'W'.repeat(200) },
+  })
+  await signIn(page, owner.id)
+
+  await page.setViewportSize({ width: 1280, height: 800 })
+  await page.goto(`/workspaces/${workspace.id}`)
+
+  const tile = page.getByTestId(`document-${document.id}`)
+  await expect(tile).toBeVisible()
+
+  // An unbreakable word has a huge min-content width. Without overflow-wrap on the
+  // text column it stretches the tile (and the grid column with it), so the text
+  // runs past the tile's right edge and the page scrolls sideways.
+  const { textRight, tileRight, tileScroll, tileClient, pageOverflow } = await tile.evaluate(
+    (el) => {
+      const text = el.querySelector('span:last-child > span:first-child')!.getBoundingClientRect()
+      return {
+        textRight: text.right,
+        tileRight: el.getBoundingClientRect().right,
+        tileScroll: el.scrollWidth,
+        tileClient: el.clientWidth,
+        pageOverflow:
+          window.document.documentElement.scrollWidth -
+          window.document.documentElement.clientWidth,
+      }
+    },
+  )
+  expect(textRight).toBeLessThanOrEqual(tileRight)
+  expect(tileScroll).toBeLessThanOrEqual(tileClient)
+  expect(pageOverflow).toBeLessThanOrEqual(0)
+
+  await cleanup(label)
+})

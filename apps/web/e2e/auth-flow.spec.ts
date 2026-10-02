@@ -176,9 +176,21 @@ test('an owner sees the member list and can invite an existing user', async ({ p
 
   await page.goto(`/workspaces/${workspace.id}`)
   await expect(page.getByTestId(`member-${invitee.id}`)).toContainText('Can view')
+  await expect(page.getByTestId(`member-${owner.id}`)).toContainText('Owner')
+
+  // The invite options: visible labels, and the raw values the API receives. The
+  // values staying intact is what keeps selectOption('editor') working. An <option>
+  // has no .value that toHaveValue accepts (it is for inputs and selects), so read
+  // the attribute; the select's own value is asserted via toHaveValue below.
+  const options = page.getByTestId('member-role').locator('option')
+  await expect(options).toHaveText(['Can view', 'Can edit', 'Owner'])
+  await expect(options.nth(0)).toHaveAttribute('value', 'viewer')
+  await expect(options.nth(1)).toHaveAttribute('value', 'editor')
+  await expect(options.nth(2)).toHaveAttribute('value', 'owner')
 
   await page.getByTestId('member-email').fill(outsider.owner.email)
   await page.getByTestId('member-role').selectOption('editor')
+  await expect(page.getByTestId('member-role')).toHaveValue('editor')
   await page.getByTestId('add-member').click()
   await expect(page.getByTestId(`member-${outsider.owner.id}`)).toContainText('Can edit')
 

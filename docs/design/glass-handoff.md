@@ -111,7 +111,7 @@ Use it for the nav, workspace / doc tiles, board columns, the document page, the
   1. **Logo button:** a 36px accent circle (`aria-label="All workspaces"`). It goes to the dashboard. Hover: `rotate(-8deg) scale(1.05)`. Active: `scale(.92)`.
   2. **Workspace name button** (600 weight), which goes to the workspace overview, then a 1×22px divider.
   3. **Tabs strip:** Overview plus one tab per document. `flex:1 1 auto; min-width:120px; overflow-x:auto; scrollbar-width:none; padding:3px`. When it overflows, add a right-edge fade mask: `mask-image: linear-gradient(90deg,#000 82%,transparent)`.
-     - Each tab is 32px high with `0 14px` padding and pill shape, 14px text. Active tab: 600 weight, `--text`. Inactive: 500 weight, `--text-muted`. A green 6px dot shows when others are in that document.
+     - Each tab is 32px high with `0 14px` padding and pill shape, 14px text. Active tab: 600 weight, `oklch(0.36 0.11 285)`. Inactive: 500 weight, `--text-muted`. A green 6px dot shows when others are in that document.
   4. **Search field:** 36px high, min-width 170px (no min-width below 1100px, where the label hides and only ⌘K shows).
      - Fill `--field-bg`, border `--field-border`, `inset 0 1px 2px rgba(30,30,50,.06)`, text `#55585f`.
      - ⌘K key chip: white, 1px border, 6px radius.
@@ -127,12 +127,11 @@ Use it for the nav, workspace / doc tiles, board columns, the document page, the
 ### Sliding tab indicator (liquid glass)
 An absolutely positioned pill inside the tabs strip (top/bottom 3px). Its `transform:translateX(x)` and `width:w` are measured from the active tab's `offsetLeft` / `offsetWidth`. Transition: `transform .55s var(--ease), width .55s var(--ease), opacity .3s`. On the dashboard (no active tab) it goes to opacity 0.
 ```css
-background: linear-gradient(180deg,rgba(255,255,255,.35) 0%,rgba(255,255,255,0) 45%,rgba(255,255,255,0) 70%,rgba(255,255,255,.25) 100%), rgba(110,110,130,.07);
-backdrop-filter: blur(6px) saturate(240%) contrast(1.05);
-box-shadow: inset 0 1px 0 rgba(255,255,255,.95), inset 0 -1px 0 rgba(255,255,255,.6),
-  inset 1px 0 0 rgba(255,255,255,.45), inset -1px 0 0 rgba(255,255,255,.45),
-  inset 0 0 0 1px rgba(80,80,100,.08), inset 0 2px 6px rgba(80,80,100,.08),
-  inset 0 -3px 8px rgba(255,255,255,.35), 0 1px 2px rgba(40,40,60,.06), 0 4px 14px rgba(40,40,60,.06);
+background: linear-gradient(180deg,rgba(255,255,255,.55) 0%,rgba(255,255,255,.08) 50%,rgba(255,255,255,.3) 100%), oklch(0.42 0.11 285 / .14);
+backdrop-filter: blur(8px) saturate(220%);
+border: 1px solid oklch(0.42 0.11 285 / .28);
+box-shadow: inset 0 1px 0 rgba(255,255,255,.95), inset 0 -2px 6px rgba(255,255,255,.4),
+  inset 0 2px 5px oklch(0.42 0.11 285 / .12), 0 2px 6px oklch(0.42 0.11 285 / .16), 0 6px 16px oklch(0.42 0.11 285 / .12);
 pointer-events:none;
 ```
 Re-measure on route change, resize and tab-strip scroll (`ResizeObserver` is ideal). Keep the active tab visible by setting `scrollLeft`; don't use `scrollIntoView`.
@@ -150,13 +149,14 @@ Every screen root enters with `g-in .7s var(--ease)` (fade + 14px rise + 6px blu
 - Grid `repeat(auto-fill,minmax(250px,1fr))`, 16px gap.
 - Tile: glass, radius 24, padding 22, 32px gap. It holds a 44px accent initial square (radius 14), the name (18/600) and "N documents · N people".
 - Tile hover: `translateY(-2px)` + `0 10px 28px rgba(30,45,40,.08)`. Active: `scale(.98)`.
-- The last tile is dashed (`1.5px dashed rgba(0,0,0,.12)`) with a pill input "Name it, then press Enter".
+- The last tile is the create tile: `1.5px dashed rgba(40,40,60,.22)`, background `rgba(255,255,255,.7)` with `blur(20px) saturate(180%)`, shadow `inset 0 1px 0 rgba(255,255,255,.9), 0 4px 16px rgba(30,45,40,.06)`. Its pill input is `#fff` with `1px solid rgba(40,40,60,.14)` and the placeholder "Name it, then press Enter".
+- Tile text column (name and meta): `gap:4px; width:100%; min-width:0`, children `display:block`. Name `line-height:1.3; text-wrap:pretty`; meta `line-height:1.35`.
 
-**Workspace.** H1 = workspace name, then a muted line `N documents · N people`.
+**Workspace.** H1 = workspace name, then `N documents · N people` on its own frosted pill: `align-self:flex-start; padding:5px 14px`, pill radius, `rgba(255,255,255,.75)` with `blur(16px) saturate(180%)`, `1px solid rgba(255,255,255,.9)`, `0 2px 8px rgba(30,45,40,.06)`; text `--text-2`, 14px, 500. Any small text sitting directly on the painted background gets this pill; large headings stay bare.
 - **Documents:** tiles (minmax 230) with a kind chip (`Board` / `Page`: accent-tint bg, accent-text, pill) and the title plus "updated" line.
 - **Create tile** (editors only):
-  - Pill input.
-  - Page/Board segmented control: track `rgba(0,0,0,.05)`; the selected segment is white with `0 1px 3px rgba(30,45,40,.14)`.
+  - Same create-tile surface as the dashboard (dashed border, `.7` frosted fill); pill input `#fff` with `1px solid rgba(40,40,60,.14)`.
+  - Page/Board segmented control: track `rgba(40,40,60,.08)`; the selected segment is white with `0 1px 3px rgba(30,45,40,.14)`.
   - Create button (accent).
   - Enter submits.
 - **People:** a glass list (radius 22) with rows of a 34px avatar, name, email and role ("Owner / Can edit / Can view"). The header link "Manage" (owner) or "See who has access" opens Share.

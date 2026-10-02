@@ -178,6 +178,17 @@
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.9), 0 4px 16px rgba(30, 45, 40, 0.06);
 }
 
+/*
+  Without backdrop-filter nothing blurs the canvas behind these literal fills, so
+  raise them to the same .92 the --glass-* tokens get in globals.css. A module file
+  cannot extend that block (its class names are hashed), so the override sits here.
+*/
+@supports not (backdrop-filter: blur(1px)) {
+  .tileCreate {
+    background: rgba(255, 255, 255, 0.92);
+  }
+}
+
 /* Inputs on a create tile are solid white (design literal border). */
 .tileCreate .pillInput {
   background: #fff;
@@ -298,6 +309,13 @@
   color: var(--text-2);
   font-size: 14px;
   font-weight: 500;
+}
+
+/* No blur behind the pill, so make the fill near-opaque (see .tileCreate). */
+@supports not (backdrop-filter: blur(1px)) {
+  .bgPill {
+    background: rgba(255, 255, 255, 0.92);
+  }
 }
 
 .error {
