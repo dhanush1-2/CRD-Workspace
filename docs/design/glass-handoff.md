@@ -507,11 +507,49 @@ caller of each call identified from its stack:
   counts draws of the canvas over 2 seconds and requires more than 10 and fewer than
   36 a second. With the throttle removed it read 60.
 
+### Command palette, share sheet and viewer pill
+
+Built, on branch `glass-features` (the command palette and share sheet plan). No
+schema, route or API change: the share sheet reuses the existing members routes.
+
+- **⌘K palette.** Opens from Cmd or Ctrl+K and from the nav's search field, which is
+  now a real `<button data-testid="search">`. Lists the workspace's documents, the
+  user's workspaces (passed from the dashboard, where there is no current
+  workspace), Overview, All workspaces and Share. Arrow keys, Enter and Escape work;
+  it is a `combobox` over a `listbox` in a `dialog`, and never `role="menu"`. Focus
+  returns to whatever held it before, or to the search button when that was `<body>`
+  (the usual case after the shortcut), so a keyboard user's next Tab continues from
+  the nav instead of restarting at the top of the document.
+- **Share sheet.** The nav's Share button opens it, on the workspace and document
+  pages. Invite by email and role, change roles (owner only), and the member list.
+  **Invite and role editing live in the sheet only.**
+- **People panel.** `MembersPanel` is now a read-only list. Its link ("Manage" for
+  owners, "See who has access" for everyone else) opens the sheet. It no longer has
+  any editing controls.
+- **Toasts exist as a primitive** (`components/ui/Toast.tsx`: `ToastProvider` and
+  `useToast()`). The offline and syncing pills in the status-pill plan can reuse it
+  rather than building their own.
+- **Viewer pill.** `AppShell` takes a `role` prop; when it is `viewer` a "View only"
+  pill (`ui.chip`, `data-testid="view-only"`) renders after the tab strip. The
+  workspace and document pages pass it; the dashboard does not, having no single
+  role.
+
+**Both overlays must render outside `<nav>`.** The nav has a `backdrop-filter`, and
+that makes it the containing block for any `position: fixed` descendant. An overlay
+rendered inside the nav is clipped to the nav's 56px bar instead of covering the
+viewport. This cost real debugging time. `AppShell` renders the palette and the
+sheet as siblings of `<main>`, with a comment saying why; anyone adding a third
+overlay must do the same.
+
 ### Deferred, each needing its own plan
 
-- **Status pill, status popover, offline and syncing pills, toasts, presence
-  avatars in the nav, tab "others are here" dot.** Need the sync server to
-  expose a version sequence and a latency ping.
+- **Status pill, status popover, offline and syncing pills, presence avatars in
+  the nav, tab "others are here" dot.** Need the sync server to expose a version
+  sequence and a latency ping. (Toasts are built; see above.)
+- **The palette's "Go offline" and "Reconnect" items.** Deliberately left out, not
+  forgotten. They need the Yjs provider, which lives in `DocumentClient` and is not
+  reachable from the nav. They belong to the plan that lifts provider state, which
+  is also the status-pill plan.
 - **History button, history panel, version preview bar.** Need a snapshot list
   and fetch API, and authorship on updates.
 - **Card detail sheet.** Blocked on `description` and an activity log on the
@@ -520,9 +558,6 @@ caller of each call identified from its stack:
   purpose: `.cardSelected` exists in `board.module.css` but is unused, waiting for
   this sheet to give a card a selected state; and the "has notes" card meta was
   deliberately not added, because there is no `description` field to drive it.
-- **⌘K palette and share sheet.** The nav's search field and Share button are
-  rendered but deliberately inert until then. The Share button carries a real
-  `disabled` attribute, not only `aria-disabled`.
 
 ### Known limitations
 
