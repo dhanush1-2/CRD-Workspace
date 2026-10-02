@@ -80,7 +80,6 @@ export default async function DocumentPage({ params }: { params: Promise<{ id: s
       <DocumentClient
         documentId={id}
         type={type}
-        role={role}
         readOnly={role === 'viewer'}
         user={{ name: user.name, color: colorFor(user.id) }}
       />

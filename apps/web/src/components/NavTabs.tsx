@@ -2,6 +2,7 @@
 
 import Link from 'next/link'
 import { useLayoutEffect, useRef, useState } from 'react'
+import { useDocState } from '@/lib/doc-state'
 import type { NavDocument } from './AppShell'
 import styles from './nav-tabs.module.css'
 
@@ -25,6 +26,11 @@ export function NavTabs({
   documents: NavDocument[]
   activeDocumentId?: string
 }) {
+  // The store holds the open document only, so a dot can only ever appear on the active
+  // tab. Presence on other documents needs per-document awareness the client does not
+  // subscribe to.
+  const { documentId, peers } = useDocState()
+  const othersHere = peers.length > 0
   const strip = useRef<HTMLDivElement>(null)
   const [metrics, setMetrics] = useState<Metrics | null>(null)
   const [overflowing, setOverflowing] = useState(false)
@@ -89,6 +95,15 @@ export function NavTabs({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeDocumentId, documents])
 
+  // The dot widens the active tab, so the indicator must be re-measured when it
+  // appears or goes. The strip's own ResizeObserver does not fire: the strip does not
+  // change size, one tab inside it does.
+  useLayoutEffect(() => {
+    const element = strip.current
+    if (element) measureIndicator(element)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [documentId, othersHere])
+
   // Resize re-measures the indicator; scrolling only updates the edge fade.
   useLayoutEffect(() => {
     const element = strip.current
@@ -149,6 +164,13 @@ export function NavTabs({
             data-testid={`tab-${document.id}`}
           >
             {document.title}
+            {document.id === documentId && othersHere && (
+              <span
+                className={styles.presenceDot}
+                aria-hidden="true"
+                data-testid={`tab-dot-${document.id}`}
+              />
+            )}
           </Link>
         )
       })}

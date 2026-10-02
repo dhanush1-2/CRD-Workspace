@@ -236,7 +236,8 @@ test('an unauthenticated visit to a document redirects to sign-in carrying the d
   await page.goto(`/documents/${document.id}`)
   await expect(page.locator('[aria-current="page"]')).toHaveText('e2e board')
   await expect(page.getByTestId('workspace-link')).toHaveText(label)
-  await expect(page.getByTestId('role')).toHaveText('Owner')
+  // The design has no role indicator for owners; only viewers get the View only pill.
+  await expect(page.getByTestId('view-only')).toHaveCount(0)
 
   await cleanup(label)
 })

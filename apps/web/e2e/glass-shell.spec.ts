@@ -118,18 +118,19 @@ test('the splatter loop redraws at about 30 fps, not at the display rate', async
   expect(perSecond).toBeLessThan(36)
 })
 
-test('role and type chips are actually styled, not bare text', async ({ page }) => {
+test('type chips are actually styled, not bare text', async ({ page }) => {
   const label = `${LABEL}-chips`
   const { owner, workspace } = await seedWorkspace(label)
   const document = await createDocument(workspace.id, 'board')
   await signIn(page, owner.id)
 
-  await page.goto(`/documents/${document.id}`)
+  await page.goto(`/workspaces/${workspace.id}`)
 
   // A CSS-module class that no longer exists resolves to undefined and the chip
   // renders as plain text — invisible to every assertion that only locates it.
   const background = await page
-    .getByTestId('role')
+    .getByTestId(`document-${document.id}`)
+    .getByTestId('document-kind')
     .evaluate((el) => getComputedStyle(el).backgroundColor)
   expect(background).not.toBe('rgba(0, 0, 0, 0)')
 

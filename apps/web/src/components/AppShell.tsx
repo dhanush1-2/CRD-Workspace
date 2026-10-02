@@ -6,6 +6,7 @@ import type { Role } from '@crdt/shared/types'
 import type { SessionUser } from '@/lib/current-user'
 import type { WorkspaceMemberView } from '@/lib/members'
 import { CommandPalette } from './CommandPalette'
+import { NavPresence } from './NavPresence'
 import { NavTabs } from './NavTabs'
 import { ShareContext } from './share-context'
 import { ShareSheet } from './ShareSheet'
@@ -123,6 +124,7 @@ export function AppShell({
             </button>
 
             <SyncStatus />
+            <NavPresence />
 
             {workspace && (
               <Button variant="accent" onClick={openShare} data-testid="share">

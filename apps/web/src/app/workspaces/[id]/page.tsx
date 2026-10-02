@@ -95,7 +95,7 @@ export default async function WorkspacePage({ params }: { params: Promise<{ id: 
                     className={`${ui.glass} ${ui.tile} ${styles.docTile}`}
                     data-testid={`document-${document.id}`}
                   >
-                    <span className={`${ui.chip} ${ui.chipAccent}`}>
+                    <span className={`${ui.chip} ${ui.chipAccent}`} data-testid="document-kind">
                       {document.type === 'board' ? 'Board' : 'Page'}
                     </span>
                     <span className={styles.docText}>

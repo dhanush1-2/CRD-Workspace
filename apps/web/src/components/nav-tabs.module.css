@@ -126,3 +126,12 @@
       opacity var(--dur-fast) var(--ease);
   }
 }
+
+/* Others are in this document. aria-hidden: the status pill already says how many. */
+.presenceDot {
+  flex: none;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--ok);
+}

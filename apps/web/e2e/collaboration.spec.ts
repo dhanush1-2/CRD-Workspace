@@ -57,7 +57,7 @@ test('a viewer sees edits but cannot make them', async ({ browser }) => {
   const editorPage = await openAs(contextA, owner.id, document.id)
   const viewerPage = await openAs(contextB, viewer.id, document.id)
 
-  await expect(viewerPage.getByTestId('read-only')).toBeVisible()
+  await expect(viewerPage.getByTestId('view-only')).toBeVisible()
   await expect(viewerPage.getByTestId('add-column')).toHaveCount(0)
 
   await editorPage.getByTestId('add-column').click()
@@ -80,6 +80,92 @@ test('both users see each other in the presence bar', async ({ browser }) => {
   await openAs(contextB, editor.id, document.id)
 
   await expect(pageA.getByTestId('presence-Eddie')).toBeVisible()
+
+  await contextA.close()
+  await contextB.close()
+  await cleanup(label)
+})
+
+test('the nav shows who else is here and the active tab carries a dot', async ({ browser }) => {
+  const label = `${LABEL}-nav-presence`
+  const { owner, workspace } = await seedWorkspace(label)
+  const editor = await addMember(workspace.id, label, 'editor')
+  const document = await createDocument(workspace.id, 'doc')
+
+  const contextA = await browser.newContext()
+  const contextB = await browser.newContext()
+  const pageA = await openAs(contextA, owner.id, document.id)
+
+  // Alone: no avatars and no dot. A dot that always rendered would pass the check
+  // below, so assert its absence first.
+  await expect(pageA.getByTestId('presence')).toHaveCount(0)
+  await expect(pageA.getByTestId(`tab-dot-${document.id}`)).toHaveCount(0)
+
+  const pageB = await openAs(contextB, editor.id, document.id)
+
+  // The second user's nav shows the first user, by name, inside the nav.
+  const avatar = pageB.getByRole('navigation', { name: 'Primary' }).getByTestId('presence-Owner')
+  await expect(avatar).toBeVisible()
+  await expect(avatar).toHaveAttribute('title', 'Owner')
+  await expect(avatar).toHaveAccessibleName('Owner')
+  await expect(avatar).toHaveText('O')
+  await expect(pageB.getByTestId(`tab-dot-${document.id}`)).toBeVisible()
+  await expect(pageB.getByTestId(`tab-${document.id}`).getByTestId(`tab-dot-${document.id}`)).toHaveCount(1)
+
+  // And the first sees the second.
+  await expect(pageA.getByTestId('presence-Eddie')).toBeVisible()
+  await expect(pageA.getByTestId(`tab-dot-${document.id}`)).toBeVisible()
+
+  await contextA.close()
+  await contextB.close()
+  await cleanup(label)
+})
+
+test('the avatar and the dot go when the other person leaves', async ({ browser }) => {
+  const label = `${LABEL}-nav-leave`
+  const { owner, workspace } = await seedWorkspace(label)
+  const editor = await addMember(workspace.id, label, 'editor')
+  const document = await createDocument(workspace.id, 'doc')
+
+  const contextA = await browser.newContext()
+  const contextB = await browser.newContext()
+  const pageA = await openAs(contextA, owner.id, document.id)
+  await openAs(contextB, editor.id, document.id)
+  await expect(pageA.getByTestId('presence-Eddie')).toBeVisible()
+  await expect(pageA.getByTestId(`tab-dot-${document.id}`)).toBeVisible()
+
+  await contextB.close()
+
+  await expect(pageA.getByTestId('presence-Eddie')).toHaveCount(0)
+  await expect(pageA.getByTestId('presence')).toHaveCount(0)
+  await expect(pageA.getByTestId(`tab-dot-${document.id}`)).toHaveCount(0)
+
+  await contextA.close()
+  await cleanup(label)
+})
+
+test('below 1100px the avatars and the status label stay available to assistive tech', async ({
+  browser,
+}) => {
+  const label = `${LABEL}-nav-narrow`
+  const { owner, workspace } = await seedWorkspace(label)
+  const editor = await addMember(workspace.id, label, 'editor')
+  const document = await createDocument(workspace.id, 'doc')
+
+  const contextA = await browser.newContext({ viewport: { width: 1000, height: 800 } })
+  const contextB = await browser.newContext()
+  const pageA = await openAs(contextA, owner.id, document.id)
+  await openAs(contextB, editor.id, document.id)
+
+  // Found by role and name, which excludes display:none. Clipped, not removed.
+  await expect(pageA.getByRole('img', { name: 'Eddie' })).toHaveCount(1)
+  const avatars = await pageA.getByTestId('presence').boundingBox()
+  expect(avatars!.width).toBeLessThanOrEqual(1)
+
+  // boundingBox is null for display:none, so a box proves the label is still rendered.
+  const labelBox = await pageA.getByTestId('status').getByText('1 here').boundingBox()
+  expect(labelBox).not.toBeNull()
+  expect(labelBox!.width).toBeLessThanOrEqual(1)
 
   await contextA.close()
   await contextB.close()
