@@ -23,10 +23,12 @@ export function DocumentClient({
   const presence = usePresence(provider)
   useAnnouncePresence(provider, user)
 
-  // Deliberately no dependency array. `presence` is a new array on every render, so a
-  // dependency list would either lie or re-run anyway. The store's own equality gate
-  // (same() in doc-state.ts), not a dep list, is what stops redundant notifies.
-  // Adding deps here "to fix the lint" would silently stop peers from publishing.
+  // Deliberately no dependency array: this runs after every render, and the store's
+  // equality gate (same() in doc-state.ts) is what makes that cheap, because an
+  // identical publish returns before notifying anyone. [documentId, status, presence]
+  // would also be correct, since usePresence caches its snapshot by version and the
+  // reference only changes when awareness does. Either way it is the gate that keeps
+  // this safe, so keep it.
   useEffect(() => {
     publishDocState({
       documentId,

@@ -19,7 +19,7 @@ const LAYER_OPACITY = { subtle: 0.5, bold: 0.9 } as const
 const LANDING_MS = 650
 const FADE_OUT_MS = 2400
 const SPECK_PERIOD_MS = 700
-// Capped at 1.5, below the 2 the owner's spec names, for this layer only. The
+// Capped at 1, below the 2 the owner's spec names, for this layer only. The
 // splats sit at half opacity under the weave and behind translucent glass, so the
 // extra sharpness is not visible, and the cost is. Measured at 1440x900: the whole
 // layer is 11.4 MiB at this cap, against 27.4 at 1.5 and 48.8 at 2, with raster cost

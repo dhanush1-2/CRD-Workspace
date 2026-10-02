@@ -21,7 +21,8 @@ export function NavPresence() {
           title={peer.name}
           role="img"
           aria-label={peer.name}
-          data-testid={`presence-${peer.name}`}
+          // Keyed on clientId, not name: two people can share a display name.
+          data-testid={`presence-${peer.clientId}`}
         >
           {peer.name.slice(0, 1).toUpperCase()}
         </span>

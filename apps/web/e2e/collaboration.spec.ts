@@ -7,6 +7,12 @@ test.afterAll(async () => {
   await cleanup(LABEL)
 })
 
+// Identity is read from the accessible name, not a testid: two people can share a display
+// name, and the name is what a screen reader announces.
+function avatar(page: Page, name: string) {
+  return page.getByTestId('presence').getByRole('img', { name })
+}
+
 async function openAs(
   context: BrowserContext,
   userId: string,
@@ -79,7 +85,7 @@ test('both users see each other in the presence bar', async ({ browser }) => {
   const pageA = await openAs(contextA, owner.id, document.id)
   await openAs(contextB, editor.id, document.id)
 
-  await expect(pageA.getByTestId('presence-Eddie')).toBeVisible()
+  await expect(avatar(pageA, 'Eddie')).toBeVisible()
 
   await contextA.close()
   await contextB.close()
@@ -104,16 +110,16 @@ test('the nav shows who else is here and the active tab carries a dot', async ({
   const pageB = await openAs(contextB, editor.id, document.id)
 
   // The second user's nav shows the first user, by name, inside the nav.
-  const avatar = pageB.getByRole('navigation', { name: 'Primary' }).getByTestId('presence-Owner')
-  await expect(avatar).toBeVisible()
-  await expect(avatar).toHaveAttribute('title', 'Owner')
-  await expect(avatar).toHaveAccessibleName('Owner')
-  await expect(avatar).toHaveText('O')
+  const ownerAvatar = pageB.getByRole('navigation', { name: 'Primary' }).getByRole('img', { name: 'Owner' })
+  await expect(ownerAvatar).toBeVisible()
+  await expect(ownerAvatar).toHaveAttribute('title', 'Owner')
+  await expect(ownerAvatar).toHaveAccessibleName('Owner')
+  await expect(ownerAvatar).toHaveText('O')
   await expect(pageB.getByTestId(`tab-dot-${document.id}`)).toBeVisible()
   await expect(pageB.getByTestId(`tab-${document.id}`).getByTestId(`tab-dot-${document.id}`)).toHaveCount(1)
 
   // And the first sees the second.
-  await expect(pageA.getByTestId('presence-Eddie')).toBeVisible()
+  await expect(avatar(pageA, 'Eddie')).toBeVisible()
   await expect(pageA.getByTestId(`tab-dot-${document.id}`)).toBeVisible()
 
   await contextA.close()
@@ -131,12 +137,12 @@ test('the avatar and the dot go when the other person leaves', async ({ browser 
   const contextB = await browser.newContext()
   const pageA = await openAs(contextA, owner.id, document.id)
   await openAs(contextB, editor.id, document.id)
-  await expect(pageA.getByTestId('presence-Eddie')).toBeVisible()
+  await expect(avatar(pageA, 'Eddie')).toBeVisible()
   await expect(pageA.getByTestId(`tab-dot-${document.id}`)).toBeVisible()
 
   await contextB.close()
 
-  await expect(pageA.getByTestId('presence-Eddie')).toHaveCount(0)
+  await expect(avatar(pageA, 'Eddie')).toHaveCount(0)
   await expect(pageA.getByTestId('presence')).toHaveCount(0)
   await expect(pageA.getByTestId(`tab-dot-${document.id}`)).toHaveCount(0)
 
@@ -154,7 +160,7 @@ test('navigating away client-side clears the nav status and presence', async ({ 
   const contextB = await browser.newContext()
   const pageA = await openAs(contextA, owner.id, document.id)
   await openAs(contextB, editor.id, document.id)
-  await expect(pageA.getByTestId('presence-Eddie')).toBeVisible()
+  await expect(avatar(pageA, 'Eddie')).toBeVisible()
   await expect(pageA.getByTestId('status')).toBeVisible()
 
   // A full page load resets the module-level store whatever the code does, so
