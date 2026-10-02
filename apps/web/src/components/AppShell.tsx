@@ -50,7 +50,7 @@ export function AppShell({
 
           {/* Plan 2 fills this with the status pill. */}
 
-          <Button variant="accent" aria-disabled="true" title="Coming soon">
+          <Button variant="accent" aria-disabled="true" disabled title="Coming soon">
             Share
           </Button>
 
