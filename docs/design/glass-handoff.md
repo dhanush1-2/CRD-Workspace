@@ -251,10 +251,18 @@ Buttons generally use `transition: transform .4s var(--ease), background .3s` an
 
 ## Implementation status
 
-Plan 1 (`docs/superpowers/plans/2026-10-01-glass-foundation-and-shell.md`), the
-board plan (`docs/superpowers/plans/2026-10-02-board-and-cards.md`) and the
-paint-splatter plan (`docs/superpowers/plans/2026-10-02-paint-splatter.md`) are
-complete and visual only: no schema, route, API or behaviour change.
+Four plans are complete:
+`2026-10-01-glass-foundation-and-shell.md`, `2026-10-02-board-and-cards.md`,
+`2026-10-02-paint-splatter.md` and
+`2026-10-02-command-palette-and-share-sheet.md` (all under
+`docs/superpowers/plans/`).
+
+**None of them changed the schema, the sync server, or any API route.** The first
+three were visual only. The palette and share sheet plan added real behaviour —
+two overlays, keyboard shortcuts, toasts, and moving invite and role editing out
+of the People panel — but still reached for no new endpoint: it reuses the
+existing members route, which already upserts, so a role change needs no new
+backend.
 
 **Where this file and the prototype disagree, this file wins.**
 `docs/design/glass-prototype.html` is stale. It still uses the old `--text-faint`
