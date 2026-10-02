@@ -106,10 +106,17 @@ test('changing a role in the sheet raises a toast and saves the change', async (
   await page.getByTestId('share').click()
   const sheet = page.getByTestId('sheet')
   await expect(page.getByTestId('toast')).toHaveCount(0)
+  // The live region must already be in the page, empty, before the message lands:
+  // one inserted together with its text is unreliably announced.
+  const region = page.getByTestId('toast-region')
+  await expect(region).toHaveAttribute('role', 'status')
+  await expect(region).toHaveAttribute('aria-live', 'polite')
+  await expect(region).toBeEmpty()
   await sheet.getByTestId(`role-for-${viewer.id}`).selectOption('editor')
 
   // The toast renders in the provider, outside the sheet, so look on the page.
   await expect(page.getByTestId('toast')).toHaveText('Vera can edit now')
+  await expect(region.getByTestId('toast')).toHaveCount(1)
   // And the toast is not a lie: the role really changed, and the row shows it
   // once the refresh lands.
   await expect(sheet.getByTestId(`role-for-${viewer.id}`)).toHaveValue('editor')

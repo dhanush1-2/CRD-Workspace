@@ -28,16 +28,19 @@ export function ToastProvider({ children }: { children: ReactNode }) {
   return (
     <ToastContext.Provider value={show}>
       {children}
-      {toasts.length > 0 && (
-        <div className={styles.toastWrap} role="status" aria-live="polite">
-          {toasts.map((toast) => (
-            <div className={styles.toast} key={toast.id} data-testid="toast">
-              <span className={styles.toastDot} aria-hidden="true" />
-              {toast.message}
-            </div>
-          ))}
-        </div>
-      )}
+      {/* The live region is always in the DOM and only its children come and go. A
+          polite region inserted in the same tick as its text is unreliably announced,
+          often not at all, and this toast is the only confirmation a screen-reader
+          user gets that a role change saved. position: fixed, so empty it takes no
+          space. */}
+      <div className={styles.toastWrap} role="status" aria-live="polite" data-testid="toast-region">
+        {toasts.map((toast) => (
+          <div className={styles.toast} key={toast.id} data-testid="toast">
+            <span className={styles.toastDot} aria-hidden="true" />
+            {toast.message}
+          </div>
+        ))}
+      </div>
     </ToastContext.Provider>
   )
 }

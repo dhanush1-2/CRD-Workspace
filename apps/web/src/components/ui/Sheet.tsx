@@ -1,10 +1,8 @@
 'use client'
 
 import { useEffect, useId, useRef, type ReactNode } from 'react'
+import { containTab, FOCUSABLE } from './focus-trap'
 import styles from './sheet.module.css'
-
-const FOCUSABLE =
-  'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
 
 export function Sheet({
   title,
@@ -40,20 +38,7 @@ export function Sheet({
         closeRef.current()
         return
       }
-      if (event.key !== 'Tab') return
-      // Cycle focus inside the dialog: a modal that lets Tab walk into the page
-      // behind it is a modal only visually.
-      const items = [...(sheet.current?.querySelectorAll<HTMLElement>(FOCUSABLE) ?? [])]
-      if (items.length === 0) return
-      const first = items[0]!
-      const last = items[items.length - 1]!
-      if (!event.shiftKey && document.activeElement === last) {
-        event.preventDefault()
-        first.focus()
-      } else if (event.shiftKey && document.activeElement === first) {
-        event.preventDefault()
-        last.focus()
-      }
+      containTab(event, sheet.current)
     }
 
     document.addEventListener('keydown', onKeyDown)

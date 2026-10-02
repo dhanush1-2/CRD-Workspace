@@ -3,6 +3,7 @@
 import { useRouter } from 'next/navigation'
 import { useEffect, useMemo, useRef, useState, type RefObject } from 'react'
 import type { NavDocument } from './AppShell'
+import { containTab } from './ui/focus-trap'
 import styles from './command-palette.module.css'
 
 type Item = { id: string; label: string; kind: string; run: () => void }
@@ -30,6 +31,7 @@ export function CommandPalette({
   const [query, setQuery] = useState('')
   const [index, setIndex] = useState(0)
   const input = useRef<HTMLInputElement>(null)
+  const dialog = useRef<HTMLDivElement>(null)
 
   const items = useMemo<Item[]>(() => {
     const go = (href: string) => () => {
@@ -93,6 +95,16 @@ export function CommandPalette({
     }
   }, [fallbackFocus])
 
+  // aria-modal="true" is a promise to assistive tech, and nothing but this keeps it:
+  // without a trap one Tab from the input lands in the nav behind the overlay, where
+  // Share, the tabs and the user menu are still operable. Same helper as Sheet. On
+  // document, not the dialog, so it also catches Tab pressed while focus is on <body>.
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => containTab(event, dialog.current)
+    document.addEventListener('keydown', onKeyDown)
+    return () => document.removeEventListener('keydown', onKeyDown)
+  }, [])
+
   return (
     <div
       className={styles.overlay}
@@ -101,7 +113,14 @@ export function CommandPalette({
         if (event.target === event.currentTarget) onClose()
       }}
     >
-      <div className={styles.sheet} role="dialog" aria-modal="true" aria-label="Search" data-testid="palette">
+      <div
+        className={styles.sheet}
+        role="dialog"
+        aria-modal="true"
+        aria-label="Search"
+        data-testid="palette"
+        ref={dialog}
+      >
         <input
           className={styles.input}
           ref={input}
@@ -109,8 +128,8 @@ export function CommandPalette({
           placeholder="Search documents and actions"
           aria-label="Search documents and actions"
           role="combobox"
-          aria-expanded="true"
-          aria-controls="palette-list"
+          aria-expanded={shown.length > 0}
+          aria-controls={shown.length > 0 ? 'palette-list' : undefined}
           aria-activedescendant={shown[selected] ? `palette-item-${shown[selected]!.id}` : undefined}
           data-testid="palette-input"
           onChange={(event) => {

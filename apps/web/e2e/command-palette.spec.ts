@@ -130,6 +130,38 @@ test('Escape after the keyboard shortcut returns focus to the search button', as
   await cleanup(label)
 })
 
+test('Tab and Shift+Tab never leave the palette', async ({ page }) => {
+  const label = `${LABEL}-trap`
+  await seed(page, label)
+
+  await openWith(page, 'Control+k')
+  const insidePalette = () =>
+    page.getByTestId('palette').evaluate((el) => el.contains(document.activeElement))
+
+  // The input is the palette's only focusable control, and it is rendered after
+  // <main>, so without a trap one Tab lands in the nav behind the overlay, where
+  // Share, the tabs and the user menu are still operable. Press well past one lap.
+  for (let i = 0; i < 6; i++) {
+    await page.keyboard.press('Tab')
+    expect(await insidePalette(), `focus left the palette after ${i + 1} Tab presses`).toBe(true)
+  }
+  for (let i = 0; i < 6; i++) {
+    await page.keyboard.press('Shift+Tab')
+    expect(await insidePalette(), `focus left the palette after ${i + 1} Shift+Tab presses`).toBe(true)
+  }
+  await expect(page.getByTestId('palette-input')).toBeFocused()
+
+  // A click on the list's padding (not an option) drops focus to <body>. Tab from
+  // there must come back into the palette, not start from the top of the page behind.
+  await page.getByRole('listbox').click({ position: { x: 3, y: 3 } })
+  await expect(page.getByTestId('palette')).toBeVisible()
+  expect(await page.evaluate(() => document.activeElement === document.body)).toBe(true)
+  await page.keyboard.press('Tab')
+  await expect(page.getByTestId('palette-input')).toBeFocused()
+
+  await cleanup(label)
+})
+
 test('on the dashboard the palette lists the user\'s workspaces by name', async ({ page }) => {
   const label = `${LABEL}-dashboard`
   const { owner, workspace } = await seedWorkspace(label)
@@ -144,6 +176,31 @@ test('on the dashboard the palette lists the user\'s workspaces by name', async 
 
   await item.click()
   await expect(page).toHaveURL(new RegExp(`/workspaces/${workspace.id}$`))
+
+  await cleanup(label)
+})
+
+test('with no matches the combobox is collapsed and points at nothing', async ({ page }) => {
+  const label = `${LABEL}-empty`
+  await seed(page, label)
+
+  await openWith(page, 'Control+k')
+  const input = page.getByRole('combobox')
+  await expect(input).toHaveAttribute('aria-expanded', 'true')
+  await expect(input).toHaveAttribute('aria-controls', 'palette-list')
+
+  await input.fill('zzzzzz-no-such-thing')
+  await expect(page.getByText('No matches')).toBeVisible()
+  await expect(page.getByRole('listbox')).toHaveCount(0)
+  // The list is not rendered, so claiming it is expanded, or naming it as the
+  // controlled element, points assistive tech at nothing.
+  await expect(input).toHaveAttribute('aria-expanded', 'false')
+  await expect(input).not.toHaveAttribute('aria-controls')
+  await expect(input).not.toHaveAttribute('aria-activedescendant')
+
+  await input.fill('')
+  await expect(input).toHaveAttribute('aria-expanded', 'true')
+  await expect(input).toHaveAttribute('aria-controls', 'palette-list')
 
   await cleanup(label)
 })
