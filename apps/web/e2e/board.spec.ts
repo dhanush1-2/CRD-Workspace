@@ -1,5 +1,12 @@
 import { test, expect, type Locator, type Page } from '@playwright/test'
-import { cleanup, createDocument, seedWorkspace, signIn } from './fixtures.js'
+import {
+  addMember,
+  cleanup,
+  createDocument,
+  seedWorkspace,
+  sessionCookieFor,
+  signIn,
+} from './fixtures.js'
 
 const LABEL = 'e2e-board'
 
@@ -109,5 +116,69 @@ test('a card is not left dimmed after a completed drop', async ({ page }) => {
     .poll(() => card.evaluate((el) => getComputedStyle(el).opacity))
     .toBe('1')
 
+  await cleanup(label)
+})
+
+test('the column count chip reflects the number of cards', async ({ page }) => {
+  const label = `${LABEL}-count`
+  const [column] = await openBoard(page, label, 1)
+  const count = page.getByTestId(`column-${column}`).locator('h2 + span')
+
+  await expect(count).toHaveText('0')
+  await addCard(page, column!)
+  await addCard(page, column!)
+  await expect(count).toHaveText('2')
+
+  await cleanup(label)
+})
+
+test('a remote peer on a card gets the ring and a named chip', async ({ browser }) => {
+  const label = `${LABEL}-peer`
+  const { owner, workspace } = await seedWorkspace(label)
+  const editor = await addMember(workspace.id, label, 'editor')
+  const document = await createDocument(workspace.id, 'board')
+
+  const contextA = await browser.newContext()
+  const contextB = await browser.newContext()
+  await contextA.addCookies([await sessionCookieFor(owner.id)])
+  await contextB.addCookies([await sessionCookieFor(editor.id)])
+  const pageA = await contextA.newPage()
+  const pageB = await contextB.newPage()
+  // ?nobc=1 forces both tabs to sync through the server rather than BroadcastChannel.
+  for (const page of [pageA, pageB]) {
+    await page.goto(`/documents/${document.id}?nobc=1`)
+    await expect(page.getByTestId('status')).toHaveText('connected')
+  }
+
+  await pageA.getByTestId('add-column').click()
+  await expect(pageB.locator('[data-testid^="column-"]')).toHaveCount(1)
+  const columnId = (
+    await pageB.locator('[data-testid^="column-"]').first().getAttribute('data-testid')
+  )!.replace('column-', '')
+  const cardId = await addCard(pageA, columnId)
+  await expect(pageB.getByTestId(`card-${cardId}`)).toHaveCount(1)
+
+  await pageA.getByTestId(`card-${cardId}`).hover()
+
+  // The chip carries the peer's name as text, so presence is never colour alone.
+  const chip = pageB.getByTestId(`card-presence-${cardId}`)
+  await expect(chip).toBeVisible()
+  await expect(chip).toContainText('Owner')
+
+  // The ring is a box-shadow; its class name is hashed by CSS Modules, so read
+  // the computed value. The card also transitions box-shadow, hence the poll.
+  await expect
+    .poll(() =>
+      pageB.getByTestId(`card-${cardId}`).evaluate((el) => getComputedStyle(el).boxShadow),
+    )
+    .toContain('rgb(14, 165, 233)')
+
+  // The viewer's own page must not ring the card it is hovering: only remote peers do.
+  expect(
+    await pageA.getByTestId(`card-${cardId}`).evaluate((el) => getComputedStyle(el).boxShadow),
+  ).not.toContain('rgb(14, 165, 233)')
+
+  await contextA.close()
+  await contextB.close()
   await cleanup(label)
 })
