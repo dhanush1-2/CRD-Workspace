@@ -1,43 +1,63 @@
 import Link from 'next/link'
 import type { ReactNode } from 'react'
-import { colorFor } from '@/lib/color'
 import type { SessionUser } from '@/lib/current-user'
-import { SignOutButton } from './SignOutButton'
+import { UserMenu } from './UserMenu'
+import { Button } from './ui/Button'
 import styles from './app-shell.module.css'
+
+export type NavDocument = { id: string; title: string; type: 'doc' | 'board' }
 
 export function AppShell({
   user,
-  breadcrumb,
+  workspace,
   children,
 }: {
   user: SessionUser
-  breadcrumb?: ReactNode
+  /** Omitted on the dashboard, where there is no workspace in context. */
+  workspace?: { id: string; name: string }
+  documents?: NavDocument[]
+  activeDocumentId?: string
   children: ReactNode
 }) {
   return (
     <div className={styles.shell}>
-      <header className={styles.header}>
-        <Link className={styles.brand} href="/">
-          CRDT Workspace
-        </Link>
-        {breadcrumb && <nav className={styles.breadcrumb}>{breadcrumb}</nav>}
-        <div className={styles.spacer} />
-        {/*
-          colorFor is the same helper the presence cursors use, so the colour on
-          your avatar here is the colour collaborators see next to your edits.
-        */}
-        <span
-          className={styles.avatar}
-          style={{ background: colorFor(user.id) }}
-          aria-hidden="true"
-        >
-          {user.name.slice(0, 1).toUpperCase()}
-        </span>
-        <span className={styles.userName} data-testid="current-user">
-          {user.name}
-        </span>
-        <SignOutButton />
-      </header>
+      <div className={styles.navWrap}>
+        <nav className={styles.nav}>
+          <Link href="/" aria-label="All workspaces">
+            <span className={styles.logo} />
+          </Link>
+
+          {workspace && (
+            <>
+              <Link className={styles.workspaceName} href={`/workspaces/${workspace.id}`}>
+                {workspace.name}
+              </Link>
+              <span className={styles.divider} />
+            </>
+          )}
+
+          {/* Task 5 renders NavTabs here. */}
+          <div className={styles.tabsSlot} />
+
+          {/*
+            Rendered to spec but inert until Plan 5 builds the palette. Marked
+            aria-disabled so it does not advertise an action that does nothing.
+          */}
+          <div className={styles.search} aria-disabled="true" title="Coming soon">
+            <span className={styles.searchLabel}>Search</span>
+            <span className={styles.kbd}>⌘K</span>
+          </div>
+
+          {/* Plan 2 fills this with the status pill. */}
+
+          <Button variant="accent" aria-disabled="true" title="Coming soon">
+            Share
+          </Button>
+
+          <UserMenu user={user} />
+        </nav>
+      </div>
+
       <div className={styles.content}>{children}</div>
     </div>
   )

@@ -95,13 +95,17 @@ test('the dashboard lists the workspaces you belong to and can create another', 
   await signIn(page, owner.id)
 
   await page.goto('/')
+  // The signed-in identity moved into the account menu in the Glass nav.
+  await page.getByLabel('Account').click()
   await expect(page.getByTestId('current-user')).toHaveText('Owner')
+  await page.keyboard.press('Escape')
   await expect(page.getByTestId(`workspace-${workspace.id}`)).toContainText(label)
 
   await page.getByTestId('workspace-name').fill(`${label}-second`)
   await page.getByTestId('create-workspace').click()
   await expect(page.getByText(`${label}-second`)).toBeVisible()
 
+  await page.getByLabel('Account').click()
   await page.getByTestId('sign-out').click()
   await expect(page).toHaveURL('/login')
 
