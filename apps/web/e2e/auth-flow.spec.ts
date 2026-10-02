@@ -130,7 +130,7 @@ test('a workspace page lists its documents and can create a board', async ({ pag
   await expect(page.getByTestId(`document-${existing.id}`)).toContainText('e2e doc')
 
   await page.getByTestId('document-title').fill('Launch board')
-  await page.getByTestId('document-type').selectOption('board')
+  await page.getByRole('radio', { name: 'Board' }).check()
   await page.getByTestId('create-document').click()
   await expect(page.getByTestId('document-list')).toContainText('Launch board')
 

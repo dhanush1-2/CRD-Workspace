@@ -161,7 +161,8 @@
   .tile {
     transition:
       transform 0.4s var(--ease),
-      box-shadow 0.4s var(--ease);
+      box-shadow 0.4s var(--ease),
+      background var(--dur-fast) var(--ease);
   }
 }
 
@@ -212,6 +213,10 @@
 }
 
 .segment {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   height: 30px;
   padding: 0 14px;
   border: 0;
@@ -221,6 +226,27 @@
   font-weight: 500;
   color: var(--text-muted);
   cursor: pointer;
+}
+
+/*
+  A segment is a <label> around a real radio. The radio is invisible but stretched over
+  the whole segment (not clipped to 1px), so it is still the pointer target as well as the
+  focus target, and Playwright can click it. It shows no ring of its own, so draw one on
+  the segment instead.
+*/
+.segmentInput {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.segment:has(input:focus-visible) {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
 }
 
 .segmentOn {

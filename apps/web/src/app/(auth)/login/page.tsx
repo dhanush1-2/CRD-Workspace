@@ -4,6 +4,7 @@ import { safeNext } from '@/lib/safe-next'
 import { oauthErrorMessage } from '@/lib/oauth/errors'
 import { PROVIDERS, availableProviders } from '@/lib/oauth/providers'
 import styles from '../auth.module.css'
+import ui from '@/components/ui/ui.module.css'
 
 type SearchParams = Promise<Record<string, string | string[] | undefined>>
 
@@ -22,9 +23,12 @@ export default async function LoginPage({ searchParams }: { searchParams: Search
 
   return (
     <>
-      <p className={styles.lede}>Sign in to your workspaces.</p>
+      <div className={styles.intro}>
+        <h1 className={styles.heading}>Sign in</h1>
+        <p className={styles.lede}>Sign in to your workspaces.</p>
+      </div>
       {message && (
-        <p className={styles.error} role="alert" data-testid="auth-error">
+        <p className={ui.error} role="alert" data-testid="auth-error">
           {message}
         </p>
       )}
@@ -37,7 +41,9 @@ export default async function LoginPage({ searchParams }: { searchParams: Search
           {providers.map((id) => (
             <a
               key={id}
-              className={styles.provider}
+              className={`${styles.provider} ${
+                id === 'github' ? styles.providerAccent : styles.providerGlass
+              }`}
               href={`/api/auth/oauth/${id}?next=${encodeURIComponent(destination)}`}
               data-testid={`signin-${id}`}
             >

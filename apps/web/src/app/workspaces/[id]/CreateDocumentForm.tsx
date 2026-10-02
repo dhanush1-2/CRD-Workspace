@@ -7,10 +7,20 @@ import { TextField } from '@/components/ui/TextField'
 import styles from './workspace.module.css'
 import ui from '@/components/ui/ui.module.css'
 
+type DocumentType = 'doc' | 'board'
+
+const TYPES: { value: DocumentType; label: string }[] = [
+  { value: 'doc', label: 'Page' },
+  { value: 'board', label: 'Board' },
+]
+
 export function CreateDocumentForm({ workspaceId }: { workspaceId: string }) {
   const router = useRouter()
   const [error, setError] = useState<string | null>(null)
   const [pending, setPending] = useState(false)
+  // The segmented control is a radio group; React state decides which segment is
+  // drawn as selected, and the radio inputs carry the value into the form data.
+  const [type, setType] = useState<DocumentType>('doc')
 
   async function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -53,41 +63,64 @@ export function CreateDocumentForm({ workspaceId }: { workspaceId: string }) {
 
     setPending(false)
     form.reset()
+    // reset() puts the radios back to their defaults; the selected-segment styling
+    // follows state, so bring that back to the default too.
+    setType('doc')
     router.refresh()
   }
 
   return (
-    <>
+    <div className={styles.createTile}>
       <form className={styles.form} onSubmit={onSubmit}>
-        <div className={styles.formField}>
-          <TextField
-            label="Title"
-            name="title"
-            placeholder="Q3 roadmap"
-            maxLength={200}
-            required
-            data-testid="document-title"
-          />
+        <TextField
+          label="Document title"
+          hideLabel
+          name="title"
+          placeholder="New document name"
+          maxLength={200}
+          required
+          data-testid="document-title"
+        />
+        <div className={styles.formRow}>
+          <div
+            role="radiogroup"
+            aria-label="Document type"
+            className={`${ui.segmented} ${styles.typeGroup}`}
+            data-testid="document-type"
+          >
+            {TYPES.map((option) => (
+              <label
+                key={option.value}
+                className={[
+                  ui.segment,
+                  styles.typeSegment,
+                  type === option.value ? ui.segmentOn : '',
+                ]
+                  .filter(Boolean)
+                  .join(' ')}
+              >
+                <input
+                  type="radio"
+                  name="type"
+                  value={option.value}
+                  checked={type === option.value}
+                  onChange={() => setType(option.value)}
+                  className={ui.segmentInput}
+                />
+                {option.label}
+              </label>
+            ))}
+          </div>
+          <Button type="submit" disabled={pending} data-testid="create-document">
+            {pending ? 'Creating…' : 'Create'}
+          </Button>
         </div>
-        <select
-          name="type"
-          className={styles.select}
-          defaultValue="doc"
-          aria-label="Document type"
-          data-testid="document-type"
-        >
-          <option value="doc">Document</option>
-          <option value="board">Board</option>
-        </select>
-        <Button type="submit" disabled={pending} data-testid="create-document">
-          {pending ? 'Creating…' : 'Create'}
-        </Button>
       </form>
       {error && (
         <p className={ui.error} role="alert" data-testid="document-error">
           {error}
         </p>
       )}
-    </>
+    </div>
   )
 }

@@ -54,19 +54,24 @@ export function CreateWorkspaceForm() {
   }
 
   return (
-    <>
-      <form className={styles.inlineForm} onSubmit={onSubmit}>
-        <div className={styles.inlineFormField}>
-          <TextField
-            label="New workspace"
-            name="name"
-            placeholder="Design team"
-            maxLength={120}
-            required
-            data-testid="workspace-name"
-          />
-        </div>
-        <Button type="submit" disabled={pending} data-testid="create-workspace">
+    <div className={styles.createTile}>
+      <span className={styles.createTitle} aria-hidden="true">New workspace</span>
+      <form className={styles.createForm} onSubmit={onSubmit}>
+        <TextField
+          label="New workspace"
+          hideLabel
+          name="name"
+          placeholder="Name it, then press Enter"
+          maxLength={120}
+          required
+          data-testid="workspace-name"
+        />
+        <Button
+          type="submit"
+          className={styles.createButton}
+          disabled={pending}
+          data-testid="create-workspace"
+        >
           {pending ? 'Creating…' : 'Create'}
         </Button>
       </form>
@@ -75,6 +80,6 @@ export function CreateWorkspaceForm() {
           {error}
         </p>
       )}
-    </>
+    </div>
   )
 }

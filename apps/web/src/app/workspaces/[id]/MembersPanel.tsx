@@ -5,6 +5,7 @@ import { useState, type FormEvent } from 'react'
 import type { Role } from '@crdt/shared/types'
 import { Button } from '@/components/ui/Button'
 import { TextField } from '@/components/ui/TextField'
+import { colorFor } from '@/lib/color'
 import styles from './workspace.module.css'
 import ui from '@/components/ui/ui.module.css'
 
@@ -81,17 +82,25 @@ export function MembersPanel({
       <div>
         {members.map((member) => (
           <div key={member.id} className={styles.memberRow} data-testid={`member-${member.id}`}>
-            <span className={styles.itemName}>{member.name}</span>
-            <span className={styles.memberEmail}>{member.email}</span>
-            <span className={styles.spacer} />
-            <span className={ui.badge}>{member.role}</span>
+            <span
+              className={styles.avatar}
+              style={{ background: colorFor(member.id) }}
+              aria-hidden="true"
+            >
+              {(member.name || member.email).slice(0, 1).toUpperCase()}
+            </span>
+            <span className={styles.memberText}>
+              <span className={styles.memberName}>{member.name}</span>
+              <span className={styles.memberEmail}>{member.email}</span>
+            </span>
+            <span className={styles.memberRole}>{member.role}</span>
           </div>
         ))}
       </div>
 
       {canManage && (
-        <form className={`${styles.form} ${styles.memberForm}`} onSubmit={onSubmit}>
-          <div className={styles.formField}>
+        <form className={styles.memberForm} onSubmit={onSubmit}>
+          <div className={styles.memberField}>
             <TextField
               label="Invite by email"
               name="email"

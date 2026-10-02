@@ -5,7 +5,6 @@ import type { Role } from '@crdt/shared/types'
 import { getCurrentUser } from '@/lib/current-user'
 import { HttpError, requireWorkspaceRole } from '@/lib/auth-guard'
 import { AppShell } from '@/components/AppShell'
-import { Panel } from '@/components/ui/Panel'
 import { CreateDocumentForm } from './CreateDocumentForm'
 import { MembersPanel } from './MembersPanel'
 import styles from './workspace.module.css'
@@ -54,45 +53,53 @@ export default async function WorkspacePage({ params }: { params: Promise<{ id: 
       documents={workspace.documents}
     >
       <div className={styles.page}>
-        <Panel title="Documents" action={<span className={ui.badge}>{role}</span>}>
-          {workspace.documents.length === 0 ? (
-            <p className={ui.empty}>No documents yet.</p>
+        <div className={styles.header}>
+          <h1>{workspace.name}</h1>
+          <p className={styles.meta}>
+            {workspace.documents.length} {workspace.documents.length === 1 ? 'document' : 'documents'} ·{' '}
+            {workspace.members.length} {workspace.members.length === 1 ? 'person' : 'people'}
+          </p>
+        </div>
+
+        <section className={styles.section} aria-labelledby="documents-heading">
+          <h2 id="documents-heading">Documents</h2>
+          {workspace.documents.length === 0 && !canCreate ? (
+            <p className={ui.empty}>Nothing here yet.</p>
           ) : (
-            <div className={styles.list} data-testid="document-list">
+            <div className={styles.grid} data-testid="document-list">
               {workspace.documents.map((document) => (
                 <Link
                   key={document.id}
                   href={`/documents/${document.id}`}
-                  className={styles.item}
+                  className={`${ui.glass} ${ui.tile} ${styles.docTile}`}
                   data-testid={`document-${document.id}`}
                 >
-                  <span className={styles.itemName}>{document.title}</span>
-                  <span className={styles.spacer} />
-                  <span className={ui.badge}>{document.type}</span>
+                  <span className={`${ui.chip} ${ui.chipAccent}`}>
+                    {document.type === 'board' ? 'Board' : 'Page'}
+                  </span>
+                  <span className={styles.docTitle}>{document.title}</span>
                 </Link>
               ))}
+              {canCreate && <CreateDocumentForm workspaceId={id} />}
             </div>
           )}
-        </Panel>
+        </section>
 
-        {canCreate && (
-          <Panel title="New document">
-            <CreateDocumentForm workspaceId={id} />
-          </Panel>
-        )}
-
-        <Panel title="Members">
-          <MembersPanel
-            workspaceId={id}
-            members={workspace.members.map((member) => ({
-              id: member.user.id,
-              name: member.user.name,
-              email: member.user.email,
-              role: member.role,
-            }))}
-            canManage={role === 'owner'}
-          />
-        </Panel>
+        <section className={styles.section} aria-labelledby="people-heading">
+          <h2 id="people-heading">People</h2>
+          <div className={`${ui.glass} ${styles.people}`}>
+            <MembersPanel
+              workspaceId={id}
+              members={workspace.members.map((member) => ({
+                id: member.user.id,
+                name: member.user.name,
+                email: member.user.email,
+                role: member.role,
+              }))}
+              canManage={role === 'owner'}
+            />
+          </div>
+        </section>
       </div>
     </AppShell>
   )
