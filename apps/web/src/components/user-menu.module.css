@@ -56,10 +56,8 @@
 }
 
 .email {
-  /* --text-muted, not the handoff's --text-faint: #7b7e78 at this size is ~4.1:1
-     on white, under the 4.5:1 WCAG AA floor. Deliberate deviation. */
   font-size: 13px;
-  color: var(--text-muted);
+  color: var(--text-faint);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;

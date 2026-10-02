@@ -59,14 +59,17 @@
   text-decoration: none;
 }
 
-.tabActive {
+/* The design specifies this literal text colour for the active tab. */
+.tabActive,
+.tabActive:hover {
   font-weight: 600;
-  color: var(--text);
+  color: oklch(0.36 0.11 285);
 }
 
 /*
   The liquid-glass pill that slides between tabs. Positioned and sized from
-  JavaScript; everything visual lives here.
+  JavaScript; everything visual lives here. The design specifies these literals,
+  including the accent oklch values.
 */
 .indicator {
   position: absolute;
@@ -78,24 +81,20 @@
   background:
     linear-gradient(
       180deg,
-      rgba(255, 255, 255, 0.35) 0%,
-      rgba(255, 255, 255, 0) 45%,
-      rgba(255, 255, 255, 0) 70%,
-      rgba(255, 255, 255, 0.25) 100%
+      rgba(255, 255, 255, 0.55) 0%,
+      rgba(255, 255, 255, 0.08) 50%,
+      rgba(255, 255, 255, 0.3) 100%
     ),
-    rgba(110, 110, 130, 0.07);
-  backdrop-filter: blur(6px) saturate(240%) contrast(1.05);
-  -webkit-backdrop-filter: blur(6px) saturate(240%) contrast(1.05);
+    oklch(0.42 0.11 285 / 0.14);
+  backdrop-filter: blur(8px) saturate(220%);
+  -webkit-backdrop-filter: blur(8px) saturate(220%);
+  border: 1px solid oklch(0.42 0.11 285 / 0.28);
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.95),
-    inset 0 -1px 0 rgba(255, 255, 255, 0.6),
-    inset 1px 0 0 rgba(255, 255, 255, 0.45),
-    inset -1px 0 0 rgba(255, 255, 255, 0.45),
-    inset 0 0 0 1px rgba(80, 80, 100, 0.08),
-    inset 0 2px 6px rgba(80, 80, 100, 0.08),
-    inset 0 -3px 8px rgba(255, 255, 255, 0.35),
-    0 1px 2px rgba(40, 40, 60, 0.06),
-    0 4px 14px rgba(40, 40, 60, 0.06);
+    inset 0 -2px 6px rgba(255, 255, 255, 0.4),
+    inset 0 2px 5px oklch(0.42 0.11 285 / 0.12),
+    0 2px 6px oklch(0.42 0.11 285 / 0.16),
+    0 6px 16px oklch(0.42 0.11 285 / 0.12);
 }
 
 @media (prefers-reduced-motion: no-preference) {

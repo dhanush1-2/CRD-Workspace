@@ -35,7 +35,7 @@ High fidelity. Match the colors, radii, blur values and easing exactly.
 ```css
 /* surfaces */
 --canvas-base: #f1f1ef;
---text: #1c1d1b; --text-2: #3d403b; --text-muted: #5f625d; --text-faint: #7b7e78; --icon-faint: #a3a6a0;
+--text: #1c1d1b; --text-2: #3d403b; --text-muted: #5f625d; --text-faint: #6c6f6a; --icon-faint: #a3a6a0;
 --danger: #c4372b;
 
 /* accent: indigo-violet */
@@ -233,7 +233,7 @@ Buttons generally use `transition: transform .4s var(--ease), background .3s` an
 ## State & data (production wiring)
 - **Connection:** y-websocket `status` events (`connected` / `disconnected` / `connecting`) map to Synced / Offline / Syncing.
 - **Queued count:** local `doc.on('update')` while disconnected; reset on `sync`.
-- **Presence:** `provider.awareness`. Extend it with `{ user:{name,color}, cardId?, mode }` to drive avatars, card peer rings and the sidebar-dot equivalent (the tab dot).
+- **Presence:** `provider.awareness`. Extend it with `{ user:{name,color}, cardId?, mode }` to drive avatars, card peer rings and the tab dot.
 - **Version:** the server update sequence. **History:** a new API returning snapshot list + state; preview by applying a snapshot to a throwaway `Y.Doc`. Restore writes a **new** update.
 - **Roles:** come from the session / JWT. The UI hides affordances; the sync server still enforces them.
 - **⌘K:** a global `keydown` listener (Meta / Ctrl + K) in a client component.
