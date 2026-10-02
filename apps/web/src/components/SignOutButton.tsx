@@ -10,7 +10,7 @@ export function SignOutButton() {
 
   return (
     <Button
-      variant="secondary"
+      variant="glass"
       data-testid="sign-out"
       disabled={pending}
       onClick={async () => {

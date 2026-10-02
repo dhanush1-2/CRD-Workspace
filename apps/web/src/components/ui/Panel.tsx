@@ -11,7 +11,7 @@ export function Panel({
   children: ReactNode
 }) {
   return (
-    <section className={styles.panel}>
+    <section className={`${styles.glass} ${styles.panel}`}>
       {(title ?? action) && (
         <header className={styles.panelHeader}>
           {title ? <h2>{title}</h2> : <span />}

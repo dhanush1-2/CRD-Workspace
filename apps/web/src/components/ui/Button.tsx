@@ -3,10 +3,17 @@
 import type { ButtonHTMLAttributes } from 'react'
 import styles from './ui.module.css'
 
-type Variant = 'primary' | 'secondary' | 'danger'
+type Variant = 'accent' | 'glass' | 'ghost' | 'danger'
+
+const VARIANT_CLASS: Record<Variant, string> = {
+  accent: styles.accent!,
+  glass: styles.glassButton!,
+  ghost: styles.ghost!,
+  danger: styles.danger!,
+}
 
 export function Button({
-  variant = 'primary',
+  variant = 'accent',
   className,
   type = 'button',
   ...props
@@ -15,7 +22,7 @@ export function Button({
     <button
       {...props}
       type={type}
-      className={[styles.button, styles[variant], className].filter(Boolean).join(' ')}
+      className={[styles.button, VARIANT_CLASS[variant], className].filter(Boolean).join(' ')}
     />
   )
 }
