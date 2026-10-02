@@ -234,6 +234,12 @@ textarea {
 /* Tiptap editor surface. Typography follows the Glass document spec. */
 .editor .ProseMirror {
   min-height: 60vh;
+  /*
+    Retained from the previous design. The Glass document page supplies its own
+    56/56/96 padding, but that page is restyled in a later plan — without this,
+    the editor renders flush to its edges in the meantime.
+  */
+  padding: 24px;
   outline: none;
   caret-color: var(--accent);
 }
