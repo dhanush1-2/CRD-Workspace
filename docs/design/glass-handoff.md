@@ -245,3 +245,95 @@ Buttons generally use `transition: transform .4s var(--ease), background .3s` an
 ## Files
 - `Workspace D - Glass.dc.html`: interactive prototype (source of truth)
 - `support.js`: runtime needed to open it
+
+---
+
+## Implementation status
+
+Plan 1 (`docs/superpowers/plans/2026-10-01-glass-foundation-and-shell.md`) is
+complete and visual only: no schema, route, API or behaviour change.
+
+**Where this file and the prototype disagree, this file wins.**
+`docs/design/glass-prototype.html` is stale. It still uses the old `--text-faint`
+value `#7b7e78` throughout and predates the owner's other deltas below. Do not
+treat it as the visual authority where this handoff is silent without checking
+with the owner.
+
+### Built
+
+Design tokens and keyframes, the painted canvas background, the glass UI
+primitives, the sticky glass nav, document tabs with a measured sliding
+indicator, and the sign-in, dashboard and workspace screens. Plus the owner's
+post-handoff deltas: tab indicator, create tiles, tile text, the faint-text
+token and the background pill.
+
+### Deferred, each needing its own plan
+
+- **Status pill, status popover, offline and syncing pills, toasts, presence
+  avatars in the nav, tab "others are here" dot.** Need the sync server to
+  expose a version sequence and a latency ping.
+- **History button, history panel, version preview bar.** Need a snapshot list
+  and fetch API, and authorship on updates.
+- **Board restyle, card sheet, card peer rings.** Need `description` and an
+  activity log on the card's `Y.Map`. The owner has supplied board add-button
+  styles that belong to that plan: the add tile is
+  `1.5px dashed rgba(40,40,60,.22)`, fill `rgba(255,255,255,.7)` with blur 20px,
+  text `#3d403b` weight 500, hover fill `rgba(255,255,255,.92)`, pressed
+  `scale(.97)`. "+ Add a card" is fill `rgba(255,255,255,.55)` with
+  `inset 0 0 0 1px rgba(40,40,60,.08)`, text `#3d403b` weight 500, hover fill
+  `rgba(255,255,255,.9)`.
+- **⌘K palette and share sheet.** The nav's search field and Share button are
+  rendered but deliberately inert until then. The Share button carries a real
+  `disabled` attribute, not only `aria-disabled`.
+- **Paint-splatter canvas layer.** Specified by the owner after this handoff was
+  written: seeded generator, offscreen pre-rendered splats, a
+  `requestAnimationFrame` loop with per-splat lifecycles, debounced rebuild on
+  resize, device-pixel-ratio capping, and a static frame under reduced motion.
+  It is a feature with its own performance budget, not a restyle. **The full
+  specification is in the owner's message and is NOT in this handoff.** Whoever
+  plans it must get that text from the owner.
+
+### Known limitations
+
+- **No phone layout.** At 375px the account avatar sits about 17px off screen, so
+  the account menu, and therefore sign-out, is unreachable on a phone. The
+  handoff defines one breakpoint (1100px) and nothing below it, so this is a
+  design gap, not an implementation defect. The owner has decided to ship
+  desktop-only for now. Candidate fixes: shed the workspace name and search field
+  below about 700px (extends the pattern already used at 1100px), or let the nav
+  scroll horizontally.
+- **The tab indicator does not animate across navigations.** It is positioned
+  correctly on every route and animates on resize, but each page renders its own
+  `AppShell` and no layout sits above the dynamic segment, so the whole nav
+  remounts on navigation and the pill appears at its destination. Measured:
+  sampling its x after a document-to-document click gives the old position on the
+  old node, then the destination on a new DOM node, with no intermediate values.
+  Fixes: put `AppShell` in the root layout (it cannot see a deeper segment's
+  params, so nav data would have to flow through a client store), or nest
+  documents under workspaces as `/workspaces/[id]/documents/[docId]` with a layout
+  at the workspace segment. The second is the better long-term shape, but it
+  rewrites every document URL, every link, the OAuth `next=` targets and several
+  tests.
+- **The document page carries a transitional row.** Its old header was trimmed to
+  the role badge, presence, status and the read-only flag, which this design
+  expects in the nav. The plan that builds the status pill and nav presence
+  should absorb that row and delete it.
+- **The "updated" line on document tiles shows time only, with no author.** The
+  prototype's mock reads "Grace · 2 min ago". Per-update authorship does not
+  exist in the schema, so the author half waits for the history and authorship
+  plan.
+- **Last-activity query efficiency is planner-dependent.** It is a lateral join.
+  Its normal plan is one index seek per document (EXPLAIN: Index Scan Backward on
+  `DocumentUpdate_documentId_id_idx` inside the Limit, 0.040 ms). On heavily
+  skewed data Postgres may instead pick a backward primary-key scan with a filter,
+  measured at 11.9 ms per loop. Postgres has no query hints, so this cannot be
+  forced. Durable fixes are a `(documentId, id DESC)` index or a denormalised
+  `updatedAt` column on `Document`; both need schema changes this plan barred.
+- **`@supports not (backdrop-filter)` fallbacks compile but have never been
+  exercised** in a browser lacking backdrop-filter support.
+
+### Deliberate deviation from the design
+
+The nav's workspace name is capped at `max-width: 240px` with an ellipsis and a
+`title` attribute. The design caps nothing, but without the cap a 120-character
+workspace name forces the whole document to scroll horizontally.
