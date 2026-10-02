@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test'
+import { test, expect, type Page } from '@playwright/test'
 import { prisma } from '@crdt/db'
 import { cleanup, seedWorkspace, signIn } from './fixtures.js'
 
@@ -8,7 +8,7 @@ test.afterAll(async () => {
   await cleanup(LABEL)
 })
 
-async function seed(page: import('@playwright/test').Page, label: string) {
+async function seed(page: Page, label: string) {
   const { owner, workspace } = await seedWorkspace(label)
   const alpha = await prisma.document.create({
     data: { workspaceId: workspace.id, type: 'doc', title: 'Quarterly roadmap' },
@@ -21,19 +21,44 @@ async function seed(page: import('@playwright/test').Page, label: string) {
   return { workspace, alpha, beta }
 }
 
-test('Meta+K opens the palette, and so does Control+K', async ({ page }) => {
-  const label = `${LABEL}-shortcut`
+/**
+ * Presses the shortcut until the palette appears. The page is server-rendered, so a
+ * key pressed before hydration reaches no listener; retrying is safe because opening
+ * an already-open palette is a no-op.
+ */
+async function openWith(page: Page, shortcut: string) {
+  await expect(async () => {
+    await page.keyboard.press(shortcut)
+    await expect(page.getByTestId('palette')).toBeVisible({ timeout: 500 })
+  }).toPass({ timeout: 10_000 })
+}
+
+/** The click path, retried for the same hydration reason as openWith. */
+async function openByClick(page: Page) {
+  await expect(async () => {
+    await page.getByTestId('search').click()
+    await expect(page.getByTestId('palette')).toBeVisible({ timeout: 500 })
+  }).toPass({ timeout: 10_000 })
+}
+
+test('Meta+K opens the palette', async ({ page }) => {
+  const label = `${LABEL}-meta`
   await seed(page, label)
   await expect(page.getByTestId('palette')).toHaveCount(0)
 
-  await page.keyboard.press('Meta+k')
-  await expect(page.getByTestId('palette')).toBeVisible()
+  await openWith(page, 'Meta+k')
   await expect(page.getByTestId('palette-input')).toBeFocused()
-  await page.keyboard.press('Escape')
+
+  await cleanup(label)
+})
+
+test('Control+K opens the palette', async ({ page }) => {
+  const label = `${LABEL}-control`
+  await seed(page, label)
   await expect(page.getByTestId('palette')).toHaveCount(0)
 
-  await page.keyboard.press('Control+k')
-  await expect(page.getByTestId('palette')).toBeVisible()
+  await openWith(page, 'Control+k')
+  await expect(page.getByTestId('palette-input')).toBeFocused()
 
   await cleanup(label)
 })
@@ -42,7 +67,7 @@ test('typing filters the list', async ({ page }) => {
   const label = `${LABEL}-filter`
   const { alpha, beta } = await seed(page, label)
 
-  await page.keyboard.press('Control+k')
+  await openWith(page, 'Control+k')
   await expect(page.getByTestId(`palette-item-doc-${alpha.id}`)).toBeVisible()
   await expect(page.getByTestId(`palette-item-doc-${beta.id}`)).toBeVisible()
 
@@ -57,7 +82,7 @@ test('ArrowDown then Enter navigates to the selected document', async ({ page })
   const label = `${LABEL}-navigate`
   const { alpha, beta } = await seed(page, label)
 
-  await page.keyboard.press('Control+k')
+  await openWith(page, 'Control+k')
   // Documents come first in the list, so the first two options are the two seeded ones.
   const options = page.getByRole('option')
   await expect(options.first()).toHaveAttribute('aria-selected', 'true')
@@ -82,8 +107,7 @@ test('Escape closes the palette and returns focus to the search control', async 
   const label = `${LABEL}-escape`
   await seed(page, label)
 
-  await page.getByTestId('search').click()
-  await expect(page.getByTestId('palette')).toBeVisible()
+  await openByClick(page)
 
   await page.keyboard.press('Escape')
   await expect(page.getByTestId('palette')).toHaveCount(0)
@@ -96,8 +120,7 @@ test('the search button opens the palette as a combobox over a listbox', async (
   const label = `${LABEL}-button`
   await seed(page, label)
 
-  await page.getByTestId('search').click()
-  await expect(page.getByTestId('palette')).toBeVisible()
+  await openByClick(page)
 
   const input = page.getByRole('combobox')
   const list = page.getByRole('listbox')
