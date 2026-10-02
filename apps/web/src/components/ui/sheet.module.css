@@ -1,0 +1,85 @@
+/*
+  Overlay and sheet, shared by the share sheet now and the card sheet later.
+  The handoff specifies these literals: overlay rgba(30,40,35,.16) + blur(8px),
+  sheet shadow 0 40px 90px rgba(30,45,40,.22).
+*/
+.overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: grid;
+  place-items: start center;
+  padding: 72px 16px 16px;
+  overflow-y: auto;
+  background: rgba(30, 40, 35, 0.16);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+
+.sheet {
+  width: 100%;
+  border-radius: var(--r-sheet);
+  padding: 26px 26px 22px;
+  background: var(--glass-bg-sheet);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+  border: 1px solid var(--glass-border);
+  box-shadow: var(--glass-highlight), 0 40px 90px rgba(30, 45, 40, 0.22);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .overlay {
+    animation: g-fade 0.35s var(--ease);
+  }
+  .sheet {
+    animation: g-sheet var(--dur-slow) var(--ease);
+  }
+}
+
+.title {
+  margin: 0 0 18px;
+  font-size: 21px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+}
+
+/* Dark variant per the handoff: rgba(28,29,27,.82) + blur(24px). */
+.toastWrap {
+  position: fixed;
+  left: 50%;
+  bottom: 28px;
+  z-index: 60;
+  display: grid;
+  gap: 8px;
+  justify-items: center;
+  transform: translateX(-50%);
+  pointer-events: none;
+}
+
+.toast {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 18px;
+  border-radius: var(--r-pill);
+  background: rgba(28, 29, 27, 0.82);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  color: #fff;
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.toastDot {
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: oklch(0.78 0.12 300);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .toast {
+    animation: g-up 0.55s var(--ease);
+  }
+}
