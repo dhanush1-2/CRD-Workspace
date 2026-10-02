@@ -132,7 +132,7 @@ test('a workspace page lists its documents and can create a board', async ({ pag
   await page.getByTestId('document-title').fill('Launch board')
   await page.getByTestId('document-type').selectOption('board')
   await page.getByTestId('create-document').click()
-  await expect(page.getByText('Launch board')).toBeVisible()
+  await expect(page.getByTestId('document-list')).toContainText('Launch board')
 
   await cleanup(label)
 })
@@ -218,7 +218,7 @@ test('an unauthenticated visit to a document redirects to sign-in carrying the d
   // here, confirm the destination itself works once signed in.
   await signIn(page, owner.id)
   await page.goto(`/documents/${document.id}`)
-  await expect(page.getByTestId('document-title')).toHaveText('e2e board')
+  await expect(page.locator('[role="tablist"] [data-active="true"]')).toHaveText('e2e board')
   await expect(page.getByTestId('workspace-link')).toHaveText(label)
   await expect(page.getByTestId('role')).toHaveText('owner')
 

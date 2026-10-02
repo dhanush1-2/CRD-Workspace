@@ -1,6 +1,5 @@
 'use client'
 
-import Link from 'next/link'
 import type { Role } from '@crdt/shared/types'
 import { useCollaborativeDoc } from '@/hooks/use-doc'
 import { useAnnouncePresence, usePresence } from '@/hooks/use-presence'
@@ -15,16 +14,12 @@ export function DocumentClient({
   type,
   role,
   readOnly,
-  title,
-  workspace,
   user,
 }: {
   documentId: string
   type: 'doc' | 'board'
   role: Role
   readOnly: boolean
-  title: string
-  workspace: { id: string; name: string }
   user: { name: string; color: string }
 }) {
   const { doc, provider, status } = useCollaborativeDoc(documentId)
@@ -34,12 +29,6 @@ export function DocumentClient({
   return (
     <main>
       <header className={styles.header}>
-        <Link className={styles.back} href={`/workspaces/${workspace.id}`} data-testid="workspace-link">
-          {workspace.name}
-        </Link>
-        <h1 className={styles.title} data-testid="document-title">
-          {title}
-        </h1>
         <span className={ui.badge} data-testid="role">
           {role}
         </span>

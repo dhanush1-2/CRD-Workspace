@@ -48,13 +48,17 @@ export default async function WorkspacePage({ params }: { params: Promise<{ id: 
   const canCreate = role === 'owner' || role === 'editor'
 
   return (
-    <AppShell user={user} workspace={{ id, name: workspace.name }}>
+    <AppShell
+      user={user}
+      workspace={{ id, name: workspace.name }}
+      documents={workspace.documents}
+    >
       <div className={styles.page}>
         <Panel title="Documents" action={<span className={ui.badge}>{role}</span>}>
           {workspace.documents.length === 0 ? (
             <p className={ui.empty}>No documents yet.</p>
           ) : (
-            <div className={styles.list}>
+            <div className={styles.list} data-testid="document-list">
               {workspace.documents.map((document) => (
                 <Link
                   key={document.id}

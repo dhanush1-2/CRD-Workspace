@@ -4,6 +4,7 @@ import type { Role } from '@crdt/shared/types'
 import { requireDocumentRole, HttpError } from '@/lib/auth-guard'
 import { getCurrentUser } from '@/lib/current-user'
 import { colorFor } from '@/lib/color'
+import { AppShell } from '@/components/AppShell'
 import { DocumentClient } from './DocumentClient'
 
 export default async function DocumentPage({ params }: { params: Promise<{ id: string }> }) {
@@ -28,19 +29,32 @@ export default async function DocumentPage({ params }: { params: Promise<{ id: s
   // Display data only, and only after the role check has passed.
   const document = await prisma.document.findUnique({
     where: { id },
-    select: { title: true, workspace: { select: { id: true, name: true } } },
+    select: { workspace: { select: { id: true, name: true } } },
   })
   if (!document) notFound()
 
+  // Sibling documents for the nav's tab strip. Display data only, after the
+  // role check above.
+  const siblings = await prisma.document.findMany({
+    where: { workspaceId: document.workspace.id },
+    select: { id: true, title: true, type: true },
+    orderBy: { createdAt: 'asc' },
+  })
+
   return (
-    <DocumentClient
-      documentId={id}
-      type={type}
-      role={role}
-      readOnly={role === 'viewer'}
-      title={document.title}
+    <AppShell
+      user={user}
       workspace={document.workspace}
-      user={{ name: user.name, color: colorFor(user.id) }}
-    />
+      documents={siblings}
+      activeDocumentId={id}
+    >
+      <DocumentClient
+        documentId={id}
+        type={type}
+        role={role}
+        readOnly={role === 'viewer'}
+        user={{ name: user.name, color: colorFor(user.id) }}
+      />
+    </AppShell>
   )
 }

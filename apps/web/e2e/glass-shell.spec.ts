@@ -80,3 +80,48 @@ test('account menu rows centre their labels vertically', async ({ page }) => {
 
   await cleanup(label)
 })
+
+test('the nav shows a tab per document and marks the open one active', async ({ page }) => {
+  const label = `${LABEL}-tabs`
+  const { owner, workspace } = await seedWorkspace(label)
+  const board = await createDocument(workspace.id, 'board')
+  const doc = await createDocument(workspace.id, 'doc')
+  await signIn(page, owner.id)
+
+  await page.goto(`/documents/${board.id}`)
+
+  await expect(page.getByTestId('tab-overview')).toBeVisible()
+  await expect(page.getByTestId(`tab-${board.id}`)).toHaveAttribute('data-active', 'true')
+  await expect(page.getByTestId(`tab-${doc.id}`)).toHaveAttribute('data-active', 'false')
+
+  // The indicator is measured from the active tab, so a zero width means the
+  // measurement never ran, which is the bug this test exists to catch.
+  const width = await page
+    .locator('[class*="indicator"]')
+    .evaluate((el) => el.getBoundingClientRect().width)
+  expect(width).toBeGreaterThan(0)
+
+  await cleanup(label)
+})
+
+test('switching documents moves the indicator', async ({ page }) => {
+  const label = `${LABEL}-slide`
+  const { owner, workspace } = await seedWorkspace(label)
+  const first = await createDocument(workspace.id, 'board')
+  const second = await createDocument(workspace.id, 'doc')
+  await signIn(page, owner.id)
+
+  await page.goto(`/documents/${first.id}`)
+  const indicator = page.locator('[class*="indicator"]')
+  const before = await indicator.evaluate((el) => el.getBoundingClientRect().x)
+
+  await page.getByTestId(`tab-${second.id}`).click()
+  await expect(page.getByTestId(`tab-${second.id}`)).toHaveAttribute('data-active', 'true')
+  // The slide is 0.55s; wait for it to settle rather than racing it.
+  await page.waitForTimeout(800)
+  const after = await indicator.evaluate((el) => el.getBoundingClientRect().x)
+
+  expect(after).not.toBe(before)
+
+  await cleanup(label)
+})

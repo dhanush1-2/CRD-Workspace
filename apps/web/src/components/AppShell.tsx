@@ -1,6 +1,7 @@
 import Link from 'next/link'
 import type { ReactNode } from 'react'
 import type { SessionUser } from '@/lib/current-user'
+import { NavTabs } from './NavTabs'
 import { UserMenu } from './UserMenu'
 import { Button } from './ui/Button'
 import styles from './app-shell.module.css'
@@ -10,6 +11,8 @@ export type NavDocument = { id: string; title: string; type: 'doc' | 'board' }
 export function AppShell({
   user,
   workspace,
+  documents,
+  activeDocumentId,
   children,
 }: {
   user: SessionUser
@@ -29,15 +32,26 @@ export function AppShell({
 
           {workspace && (
             <>
-              <Link className={styles.workspaceName} href={`/workspaces/${workspace.id}`}>
+              <Link
+                className={styles.workspaceName}
+                href={`/workspaces/${workspace.id}`}
+                data-testid="workspace-link"
+              >
                 {workspace.name}
               </Link>
               <span className={styles.divider} />
             </>
           )}
 
-          {/* Task 5 renders NavTabs here. */}
-          <div className={styles.tabsSlot} />
+          {workspace && documents ? (
+            <NavTabs
+              workspaceId={workspace.id}
+              documents={documents}
+              activeDocumentId={activeDocumentId}
+            />
+          ) : (
+            <div className={styles.tabsSlot} />
+          )}
 
           {/*
             Rendered to spec but inert until Plan 5 builds the palette. Marked
