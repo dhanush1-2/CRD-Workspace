@@ -25,7 +25,7 @@ export function AppShell({
   return (
     <div className={styles.shell}>
       <div className={styles.navWrap}>
-        <nav className={styles.nav} aria-label="Main">
+        <nav className={styles.nav} aria-label="Primary">
           <Link href="/" aria-label="All workspaces">
             <span className={styles.logo} />
           </Link>

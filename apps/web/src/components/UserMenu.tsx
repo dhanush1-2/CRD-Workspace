@@ -43,7 +43,6 @@ export function UserMenu({ user }: { user: SessionUser }) {
         className={styles.avatar}
         style={{ background: colorFor(user.id) }}
         ref={button}
-        aria-haspopup="true"
         aria-expanded={open}
         aria-label="Account"
         onClick={() => setOpen((value) => !value)}
@@ -52,7 +51,7 @@ export function UserMenu({ user }: { user: SessionUser }) {
       </button>
 
       {open && (
-        <div className={styles.popover}>
+        <div className={styles.popover} data-testid="account-menu">
           <div className={styles.identity}>
             {/*
               current-user keeps its test id and its exact text: the e2e suite

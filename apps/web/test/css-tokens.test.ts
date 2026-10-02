@@ -19,18 +19,30 @@ function cssFiles(dir: string): string[] {
 describe('css custom properties', () => {
   it('every var(--x) used in app CSS is defined in globals.css', () => {
     const globals = readFileSync(join(SRC, 'app/globals.css'), 'utf8')
-    const defined = new Set([...globals.matchAll(/(--[\w-]+)\s*:/g)].map((m) => m[1]))
+    // Comments stripped first: a name that appears only in a comment is not defined.
+    const globalsCss = globals.replace(/\/\*[\s\S]*?\*\//g, '')
+    const defined = new Set([...globalsCss.matchAll(/(--[\w-]+)\s*:/g)].map((m) => m[1]))
     expect(defined.size).toBeGreaterThan(10)
 
+    const files = cssFiles(SRC)
+    // Floors against a silent no-op: a broken walk or a moved src directory would
+    // otherwise find nothing and pass. Today: 10 files, 142 references.
+    expect(files.length).toBeGreaterThan(5)
+
+    let references = 0
     const dangling: string[] = []
-    for (const file of cssFiles(SRC)) {
+    for (const file of files) {
       const css = readFileSync(file, 'utf8').replace(/\/\*[\s\S]*?\*\//g, '')
-      // A reference with a fallback, var(--x, 1px), degrades on purpose; skip it.
+      // LIMITATION: only the bare form var(--x) is checked. A reference with a fallback,
+      // var(--x, 1px), is NOT covered, because it degrades on purpose. There are none in
+      // the repo today; if they appear, this test will not catch a dangling one.
       for (const match of css.matchAll(/var\(\s*(--[\w-]+)\s*\)/g)) {
+        references += 1
         if (!defined.has(match[1])) dangling.push(`${match[1]} in ${relative(SRC, file)}`)
       }
     }
 
+    expect(references).toBeGreaterThan(50)
     expect(
       dangling,
       `var() references with no definition in globals.css:\n  ${dangling.join('\n  ')}`,

@@ -62,7 +62,7 @@ test('account menu rows centre their labels vertically', async ({ page }) => {
   // a button's label even at display:block but top-aligns a link's, so the rows
   // drift apart unless the row is a flex container. That passes typecheck and
   // every unit test, so measure it: each label's centre must sit on its row's.
-  const offsets = await page.locator('[class*="popover"]').evaluate((menu) => {
+  const offsets = await page.getByTestId('account-menu').evaluate((menu) => {
     const rows = [
       menu.querySelector('a[href="/"]'),
       menu.querySelector('button[data-testid="sign-out"]'),

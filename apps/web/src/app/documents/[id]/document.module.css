@@ -17,7 +17,7 @@
 }
 
 .status[data-status='connected'] {
-  color: var(--ok);
+  color: var(--ok-text);
 }
 
 .status[data-status='disconnected'],

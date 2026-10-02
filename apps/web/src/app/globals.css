@@ -18,6 +18,8 @@
 
   /* status */
   --ok: oklch(0.62 0.13 150);
+  /* Text-safe variant of --ok, derived for contrast on the canvas; mirrors --accent-text. */
+  --ok-text: oklch(0.5 0.13 150);
   --warn: oklch(0.72 0.15 65);
   --sync: oklch(0.42 0.11 285);
 
