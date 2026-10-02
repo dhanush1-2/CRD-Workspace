@@ -121,7 +121,7 @@ textarea {
   outline-offset: 2px;
 }
 
-/* Screen and surface entrances. Every one is motion-gated below. */
+/* Screen and surface entrances. Each consumer gates its own use behind prefers-reduced-motion. */
 @keyframes g-in {
   from {
     opacity: 0;
