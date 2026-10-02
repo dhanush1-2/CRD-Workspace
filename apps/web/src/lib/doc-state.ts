@@ -1,8 +1,10 @@
 import { useSyncExternalStore } from 'react'
 import type { DocStatus } from '@/lib/doc-session'
 
-// Mirrors PresenceUser in @/hooks/use-presence field for field.
-export type DocPeer = { clientId: number; name: string; color: string; cardId: string | null }
+// The subset of PresenceUser the nav needs. cardId is deliberately absent: this store's
+// equality gate does not compare it, so a copy here could be stale. Read cardId from
+// usePresence directly.
+export type DocPeer = { clientId: number; name: string; color: string }
 export type DocState = { documentId: string | null; status: DocStatus; peers: DocPeer[] }
 
 const EMPTY: DocState = { documentId: null, status: 'connecting', peers: [] }
@@ -10,8 +12,8 @@ const EMPTY: DocState = { documentId: null, status: 'connecting', peers: [] }
 let state: DocState = EMPTY
 const listeners = new Set<() => void>()
 
-// cardId is deliberately not compared: the nav shows who is here, not which card
-// they are on, and comparing it would re-render the nav on every card focus change.
+// Compares exactly the fields DocPeer carries: the nav shows who is here, so a
+// change to anything else must not re-render it.
 function same(a: DocState, b: DocState): boolean {
   return (
     a.documentId === b.documentId &&
