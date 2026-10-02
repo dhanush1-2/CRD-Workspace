@@ -170,7 +170,8 @@ Every screen root enters with `g-in .7s var(--ease)` (fade + 14px rise + 6px blu
   - Selected: `0 0 0 2px var(--accent)`.
   - A remote peer on the card: `0 0 0 2px #0ea5e9, 0 4px 14px rgba(14,165,233,.18)` plus a peer chip (avatar + name, `rgba(14,165,233,.1)`, text `#0b6e99`).
   - "Has notes" meta when there is a description. A delete × (24px circle) for editors.
-- "+ Add a card": a ghost pill. "+ Add a list": a 230×54 dashed pill.
+- **"+ Add a card":** a ghost pill — fill `rgba(255,255,255,.55)`, `inset 0 0 0 1px rgba(40,40,60,.08)`, text `#3d403b` (= `--text-2`) at weight 500, hover fill `rgba(255,255,255,.9)`.
+- **"+ Add a list":** a 230×54 dashed pill — `1.5px dashed rgba(40,40,60,.22)`, fill `rgba(255,255,255,.7)` with `blur(20px) saturate(180%)`, shadow `inset 0 1px 0 rgba(255,255,255,.9), 0 4px 16px rgba(30,45,40,.06)`, text `#3d403b` at weight 500, hover fill `rgba(255,255,255,.92)`, pressed `scale(.97)`.
 
 **Card sheet.** A fixed overlay `rgba(30,40,35,.16)` + `blur(8px)`, `g-fade .35s`.
 - Sheet: max-width 580, radius 30, `--glass-bg-sheet`, shadow `0 40px 90px rgba(30,45,40,.22)`, entrance `g-sheet .6s`.
