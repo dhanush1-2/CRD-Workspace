@@ -10,6 +10,15 @@ test('the canvas background never intercepts a click', async ({ page }) => {
   })
   expect(String(tag)).not.toContain('canvas')
 
+  // Pinned directly, because nothing observable depends on it yet: on screens
+  // whose content fills the viewport the content wrapper's z-index already wins,
+  // so removing pointer-events:none changes nothing visible. It stops being
+  // redundant the moment a screen is shorter than the viewport.
+  const pointerEvents = await page
+    .locator('[class*="canvas-background_canvas"]')
+    .evaluate((el) => getComputedStyle(el).pointerEvents)
+  expect(pointerEvents).toBe('none')
+
   // And the sign-in button is still genuinely clickable.
   await expect(page.getByTestId('signin-github')).toBeVisible()
   await page.getByTestId('signin-github').click({ trial: true })
