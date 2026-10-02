@@ -130,6 +130,24 @@ test('Escape after the keyboard shortcut returns focus to the search button', as
   await cleanup(label)
 })
 
+test('on the dashboard the palette lists the user\'s workspaces by name', async ({ page }) => {
+  const label = `${LABEL}-dashboard`
+  const { owner, workspace } = await seedWorkspace(label)
+  await signIn(page, owner.id)
+  await page.goto('/')
+
+  await openWith(page, 'Control+k')
+  // No current workspace here, so this entry is the palette's only way to one.
+  const item = page.getByTestId(`palette-item-ws-${workspace.id}`)
+  await expect(item).toBeVisible()
+  await expect(item).toContainText(label)
+
+  await item.click()
+  await expect(page).toHaveURL(new RegExp(`/workspaces/${workspace.id}$`))
+
+  await cleanup(label)
+})
+
 test('the search button opens the palette as a combobox over a listbox', async ({ page }) => {
   const label = `${LABEL}-button`
   await seed(page, label)

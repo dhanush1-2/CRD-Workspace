@@ -30,7 +30,10 @@ export default async function HomePage() {
   })
 
   return (
-    <AppShell user={user}>
+    <AppShell
+      user={user}
+      workspaces={memberships.map(({ workspace }) => ({ id: workspace.id, name: workspace.name }))}
+    >
       <div className={styles.page}>
         <h1>Workspaces</h1>
         <div className={styles.grid}>

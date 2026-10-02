@@ -1,6 +1,6 @@
 import { test, expect, type Page } from '@playwright/test'
 import { prisma } from '@crdt/db'
-import { cleanup, createDocument, seedWorkspace, signIn } from './fixtures.js'
+import { addMember, cleanup, createDocument, seedWorkspace, signIn } from './fixtures.js'
 
 const LABEL = 'e2e-glass-shell'
 
@@ -249,6 +249,37 @@ test('the nav shows a tab per document and marks the open one active', async ({ 
   // The indicator is measured from the active tab at hydration, so an unsized
   // or misplaced pill means the measurement never ran: the bug this test is for.
   await expect.poll(() => indicatorGap(page, `tab-${board.id}`)).toBeLessThanOrEqual(1)
+
+  await cleanup(label)
+})
+
+test('a viewer sees the View only pill after the tabs and an editor does not', async ({ page }) => {
+  const label = `${LABEL}-view-only`
+  const { workspace } = await seedWorkspace(label)
+  const doc = await createDocument(workspace.id, 'doc')
+  const viewer = await addMember(workspace.id, label, 'viewer')
+  const editor = await addMember(workspace.id, label, 'editor')
+
+  // Both pages compute the role, and both pass it down.
+  await signIn(page, viewer.id)
+  for (const path of [`/workspaces/${workspace.id}`, `/documents/${doc.id}`]) {
+    await page.goto(path)
+    const pill = page.getByTestId('view-only')
+    await expect(pill).toBeVisible()
+    await expect(pill).toHaveText('View only')
+    const tabs = await page.getByTestId('tab-overview').boundingBox()
+    const box = await pill.boundingBox()
+    expect(box!.x).toBeGreaterThan(tabs!.x + tabs!.width)
+  }
+
+  // The other half: a pill that rendered for everyone would pass the above.
+  await page.context().clearCookies()
+  await signIn(page, editor.id)
+  for (const path of [`/workspaces/${workspace.id}`, `/documents/${doc.id}`]) {
+    await page.goto(path)
+    await expect(page.getByTestId('tab-overview')).toBeVisible()
+    await expect(page.getByTestId('view-only')).toHaveCount(0)
+  }
 
   await cleanup(label)
 })

@@ -114,6 +114,12 @@
   min-width: 120px;
 }
 
+/* A flex item that would otherwise shrink and wrap its label when the nav is tight. */
+.viewOnly {
+  flex: none;
+  white-space: nowrap;
+}
+
 .search {
   flex: none;
   display: flex;

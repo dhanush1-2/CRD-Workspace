@@ -70,6 +70,7 @@ export default async function WorkspacePage({ params }: { params: Promise<{ id: 
       }))}
       members={members}
       canManage={role === 'owner'}
+      role={role}
     >
       <div className={styles.page}>
         <div className={styles.header}>

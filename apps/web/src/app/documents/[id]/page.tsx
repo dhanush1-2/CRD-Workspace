@@ -73,6 +73,7 @@ export default async function DocumentPage({ params }: { params: Promise<{ id: s
       activeDocumentId={id}
       members={members}
       canManage={role === 'owner'}
+      role={role}
     >
       {/* The page's only heading: the nav shows the title as a tab, not a heading. */}
       <h1 className={ui.labelHidden}>{document.title}</h1>

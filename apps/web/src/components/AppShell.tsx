@@ -2,6 +2,7 @@
 
 import Link from 'next/link'
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
+import type { Role } from '@crdt/shared/types'
 import type { SessionUser } from '@/lib/current-user'
 import type { WorkspaceMemberView } from '@/lib/members'
 import { CommandPalette } from './CommandPalette'
@@ -11,6 +12,7 @@ import { ShareSheet } from './ShareSheet'
 import { UserMenu } from './UserMenu'
 import { Button } from './ui/Button'
 import styles from './app-shell.module.css'
+import ui from './ui/ui.module.css'
 
 export type NavDocument = { id: string; title: string; type: 'doc' | 'board' }
 
@@ -25,6 +27,7 @@ export function AppShell({
   activeDocumentId,
   members = [],
   canManage = false,
+  role,
   children,
 }: {
   user: SessionUser
@@ -38,6 +41,8 @@ export function AppShell({
   members?: WorkspaceMemberView[]
   /** Whether the viewer may invite people and change roles (workspace owners). */
   canManage?: boolean
+  /** The viewer's role here. Omitted on the dashboard, which has no single role. */
+  role?: Role
   children: ReactNode
 }) {
   // Which overlay is open, if any. One slot rather than a boolean per overlay, so
@@ -95,6 +100,12 @@ export function AppShell({
               />
             ) : (
               <div className={styles.tabsSlot} />
+            )}
+
+            {role === 'viewer' && (
+              <span className={`${ui.chip} ${styles.viewOnly}`} data-testid="view-only">
+                View only
+              </span>
             )}
 
             <button
