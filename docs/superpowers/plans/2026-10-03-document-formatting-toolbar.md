@@ -8,7 +8,7 @@
 
 **Tech Stack:** Tiptap 3.31.3 (`@tiptap/react`, StarterKit, Collaboration, CollaborationCaret), `@tiptap/extension-text-style` (new), Yjs 13.6, CSS Modules, Playwright.
 
-**Spec:** The design owner's decisions of 2026-10-03, recorded below. `docs/design/glass-handoff.md` is the binding visual spec and has no toolbar in it; this plan adds one and Task 6 records it there.
+**Spec:** `docs/design/glass-handoff.md` **§12**, which specifies the toolbar completely — container, tabs, every control, the dropdown shell, the link popover and the page. **Read §12 before any task here.** This plan deliberately does not restate its values: the handoff is in the repository, it is the authority, and a transcription of it in a second file is a second thing to keep right. Each task names the section it implements and adds only what §12 does not say — file paths, test cases, traps and decisions.
 
 ## Global Constraints
 
@@ -253,196 +253,295 @@ git commit -m "feat(editor): curated font families and the design's size scale"
 
 ---
 
-### Task 3: The toolbar
+### Task 3: Lift the editor, and build the toolbar shell
+
+**Implements:** §12.1 (container, tab rows, tool button), §18 (viewer and preview rules).
 
 **Files:**
+- Create: `apps/web/src/components/DocumentEditor.tsx` (owns `useEditor`, renders toolbar + content)
 - Create: `apps/web/src/components/EditorToolbar.tsx`
 - Create: `apps/web/src/components/editor-toolbar.module.css`
-- Modify: `apps/web/src/components/Editor.tsx`
+- Modify: `apps/web/src/components/Editor.tsx` (becomes the content surface only, or is absorbed — decide and say which)
+- Modify: `apps/web/src/app/documents/[id]/DocumentClient.tsx`
 - Test: `apps/web/e2e/editor-toolbar.spec.ts`
 
 **Interfaces:**
-- Consumes: `FONT_FAMILIES`, `FONT_SIZES`, `DEFAULT_FONT_SIZE` (Task 2); `useEditorState` from `@tiptap/react`.
-- Produces: `<EditorToolbar editor={editor} />`
+- Produces: `<DocumentEditor doc provider user readOnly />`, `<EditorToolbar editor readOnly />`
+- The toolbar's active tab is local state: `'home' | 'insert' | 'view'`.
 
-**Re-rendering on selection.** Tiptap 3 does not re-render on every transaction by default — `useEditor` takes `shouldRerenderOnTransaction` and `@tiptap/react` exports `useEditorState`. Use `useEditorState` with a selector returning exactly the flags the bar shows, so moving the caret re-renders the toolbar and nothing else. **Verify the selector's shape against the installed types** before writing it, and report the signature you found.
+**The refactor is the point of this task.** §12.1 puts the toolbar above the page as a
+separate panel, so it cannot live inside the component that renders the page. `useEditor`
+moves up into `DocumentEditor`, which renders the toolbar and then the sheet.
 
 - [ ] **Step 1: Write the failing test**
 
-Create `apps/web/e2e/editor-toolbar.spec.ts` covering:
+Cover, in `editor-toolbar.spec.ts`:
 
 ```
- 1. an editor sees the toolbar on a document; it is role="toolbar"
- 2. a viewer sees no toolbar at all (count 0, not disabled)
- 3. a board shows no toolbar
- 4. Bold: select a word, click Bold, the word is wrapped in <strong>; the button is
-    aria-pressed; clicking again unwraps it
- 5. the Bold button reflects the caret: it is not pressed in plain text and pressed
-    when the caret sits inside bold text
- 6. the heading select turns a paragraph into an <h2> and back
- 7. bullet list wraps the line in <ul><li>
- 8. the font select puts font-family on a span around the selection
- 9. the size select puts font-size on a span, and the select shows 18 for plain text
-10. the link button turns the selection into an <a> with the typed href
-11. formatting made in one browser appears in the other  <-- the one that matters
-12. the toolbar is reachable by keyboard: Tab into it, arrow keys move along it
+1. an editor sees the toolbar above the document sheet (compare bounding boxes)
+2. it has the three tabs, Home active by default
+3. clicking Insert shows the Insert row; clicking View shows the View row
+4. the word count matches the document's words and updates as you type
+5. a viewer sees the View tab only, plus a "View only" chip, and no Home or Insert
+6. a board shows no toolbar at all
+7. keyboard: the tabs are reachable and operable
 ```
 
-Case 11 is why this is an e2e suite and not a unit test: a mark that does not survive the CRDT round trip is worthless, and nothing else in the plan would catch it. Use two contexts, as `collaboration.spec.ts` does, with `?nobc=1` so the two tabs sync through the server rather than BroadcastChannel.
+Case 4 needs a debounce-tolerant assertion — `expect.poll`, not an immediate read.
 
-Case 12 is the ARIA toolbar pattern: one tab stop for the whole bar, arrow keys between controls. If that is more than a day's work, implement plain tab stops instead, drop the arrow-key half of the case, and **say so** — do not leave the test asserting something that is not built.
+- [ ] **Step 2: Build the shell**
+
+Follow §12.1 for every value. Two things it does not say:
+
+- **`position: sticky; top: 80px` assumes the unshrunk nav.** Our nav condenses on
+  scroll (56→46px) — check what the toolbar does when it does, and report. Leave 80px
+  unless it visibly collides.
+- **The tool button's `preventDefault()` on mousedown is not optional.** §12.1 calls it
+  out: without it, clicking a button blurs the editor and the selection is lost, so
+  every command then applies to nothing. This is the single most likely way for this
+  task to look finished and be broken.
+
+- [ ] **Step 3: Prove it discriminates, gate, commit**
+
+Remove the mousedown `preventDefault` and confirm a formatting case fails once Task 4
+exists; until then, assert the selection survives a tab click. Report which.
+
+```bash
+git commit -m "feat(editor): the toolbar shell, above the page"
+```
+
+---
+
+### Task 4: Home tab — the controls that need no menu
+
+**Implements:** §12.2, every row except the Colour group.
+
+**Files:**
+- Modify: `EditorToolbar.tsx`, `editor-toolbar.module.css`
+- Modify: `apps/web/src/components/editor-schema.ts` (TextAlign)
+- Modify: `apps/web/package.json` (`@tiptap/extension-text-align`)
+- Test: `apps/web/e2e/editor-toolbar.spec.ts`
+
+**New dependency:** `@tiptap/extension-text-align`, pinned exactly. Underline, strike,
+lists, blockquote and code block are already in the schema from Task 1.
+
+- [ ] **Step 1: Write the failing test**
+
+```
+1. Bold wraps the selection in <strong>; clicking again unwraps
+2. the button reflects the caret: unpressed in plain text, pressed inside bold
+3. Italic, Underline, Strikethrough likewise
+4. bullet and numbered lists wrap the line
+5. each alignment sets the paragraph's alignment and marks itself active
+6. Clear formatting removes marks and returns the block to a paragraph
+7. Undo and Redo move through collaborative history (y-prosemirror's manager)
+8. formatting made in one browser appears in the other   <-- the one that matters
+```
+
+Case 8 is why this is e2e. Two contexts with `?nobc=1`, as `collaboration.spec.ts` does.
 
 - [ ] **Step 2: Build it**
 
-Groups in order, separated by a 1px divider: heading select · font select · size select · bold italic underline strike · bullet numbered · link quote code divider.
+§12.2 gives the order, tooltips and commands; §12.1 gives the button and separator
+styling. Active state is `--accent-soft` with `--accent`, both of which now exist.
 
-```tsx
-'use client'
+**Re-read the format on selection change.** §12.2 says so explicitly. `useEditorState`
+from `@tiptap/react` with a selector returning exactly the flags the bar shows —
+verify its signature against the installed types and report it.
 
-import type { Editor } from '@tiptap/react'
-import { useEditorState } from '@tiptap/react'
-import { DEFAULT_FONT_SIZE, FONT_FAMILIES, FONT_SIZES } from './editor-type'
-import styles from './editor-toolbar.module.css'
+- [ ] **Step 3: Prove it discriminates, gate, commit**
 
-/**
- * The document's formatting bar.
- *
- * Most of what it exposes was already in the schema and reachable only by keyboard,
- * which is the problem it solves: the formatting existed and nobody could find it.
- *
- * Not rendered for a viewer at all, rather than disabled — the board does the same,
- * and the sync server rejects a viewer's update frames regardless, so a disabled bar
- * would be decoration over an enforcement that already exists.
- */
-export function EditorToolbar({ editor }: { editor: Editor }) {
-```
-
-Each toggle is a `<button type="button" aria-pressed={active}>`. The three dropdowns are native `<select>` with an `aria-label`. Every control gets a `data-testid` the test names.
-
-**The link control needs a popover, not a `window.prompt`.** A prompt is blocking, unstyled and untestable. A small input beside the button, Enter to apply and Escape to cancel, following the share sheet's field styling.
-
-**Guard the empty selection.** Bold with no selection should toggle the stored mark so the next typed character is bold — Tiptap does this already. The font and size selects with no selection should do the same and must not throw.
-
-- [ ] **Step 3: Style it**
-
-Inside the sheet, above the content, below the title. A light band rather than a second glass surface: the sheet is already glass, and glass on glass reads as a mistake.
-
-```css
-.bar {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 2px;
-  margin: 0 0 20px;
-  padding: 6px;
-  border-radius: var(--r-pill);
-  background: rgba(40, 40, 60, 0.04);
-}
-```
-
-Buttons 30px, pill radius, `--text-2`, `aria-pressed` state in `--accent-tint` with `--accent-text`, hover white. Use the global focus ring. Wrapping rather than scrolling, because the sheet is only 668px wide inside its padding and a scrolling toolbar hides controls.
-
-- [ ] **Step 4: Run, prove it discriminates, commit**
-
-Discrimination, one at a time: render the toolbar for viewers and watch case 2 fail; drop `aria-pressed` and watch case 5 fail; remove `TextStyle` and watch cases 8 and 9 fail. Then **break the round trip deliberately** — apply the mark to the throwaway editor state rather than through `editor.chain()` — and confirm case 11 fails. Restore each.
+Break the round trip deliberately (apply a mark to a throwaway state rather than
+through `editor.chain()`) and confirm case 8 fails.
 
 ```bash
-git add apps/web
-git commit -m "feat(editor): a formatting toolbar in the document sheet"
+git commit -m "feat(editor): the Home tab's direct controls"
 ```
 
 ---
 
-### Task 4: Does it still look like the design?
+### Task 5: The dropdown shell, the Style menu, and colour
 
-A toolbar and six sizes can wreck a carefully set page. This task is a look, not a change — change something only if you find a defect.
-
-**Files:** none expected.
-
-- [ ] **Step 1: Look at it**
-
-At the dev server, on a document: type a few paragraphs and a heading. Apply each family and each size. Make a list, a quote, a code block, a link. Then answer, in the report:
-
-1. Does the sheet still read as the design's document page, or does the bar dominate it?
-2. At 14px and at 32px inside a paragraph, is the line spacing acceptable?
-3. Does Serif or Mono at 32px overflow the 668px measure?
-4. With the toolbar present, is the title still the first thing you see?
-5. At 760px and at 1000px wide, does the bar wrap sensibly?
-
-- [ ] **Step 2: Report, and fix only real defects**
-
-If the bar dominates, the cheapest fix is lowering its contrast, not restructuring. If a size and the heading line-height fight, Task 2 Step 4 already flagged where to fix it. **Do not redesign on your own judgement** — report with specifics and let the owner decide, unless something is plainly broken (overflow, clipping, an unreachable control).
-
----
-
-### Task 5: Shortcuts that come free, and a cheatsheet
-
-StarterKit already binds ⌘B, ⌘I, ⌘U, ⌘⇧S, ⌘E, ⌘⌥1-6, ⌘⇧8, ⌘⇧7, ⌘⇧B and ⌘⇧C, and `Collaboration` binds ⌘Z and ⇧⌘Z through `yUndoPlugin`. None of this is documented anywhere the user can see, which is the same discoverability problem the toolbar fixes.
+**Implements:** §12.5 in full, and the Colour group of §12.2.
 
 **Files:**
-- Modify: `apps/web/src/components/EditorToolbar.tsx`
+- Create: `apps/web/src/components/EditorMenu.tsx` (the shared shell)
+- Modify: `EditorToolbar.tsx`, `editor-toolbar.module.css`
+- Modify: `editor-schema.ts` (Highlight)
+- Modify: `apps/web/package.json` (`@tiptap/extension-highlight`)
 - Test: `apps/web/e2e/editor-toolbar.spec.ts`
 
-- [ ] **Step 1: Verify which bindings actually exist**
+**New dependency:** `@tiptap/extension-highlight`, pinned. Text colour is `Color` from
+`@tiptap/extension-text-style`, already installed in Task 2.
 
-Do not take the list above on trust. For each, in a browser: put the caret in a word, press the key, and check the document. **Report a table of what worked and what did not.** Tiptap's defaults move between versions.
+**One shell, three menus.** §12.5 gives one container spec and three contents (style,
+colour, highlight). Build the shell once and pass it contents, or the three will drift.
 
-- [ ] **Step 2: Put them where they can be found**
+- [ ] **Step 1: Write the failing test**
 
-Every toolbar control gains the real shortcut in its `title`, so hovering Bold says "Bold ⌘B". Use the verified list, and omit the shortcut for anything Step 1 showed is not bound — a tooltip that lies is worse than no tooltip.
+```
+ 1. the Style trigger shows the current block's name and changes with the caret
+ 2. choosing Title/Heading/Subheading/Normal/Quote/Code sets that block type
+ 3. each row previews in its own style and shows its shortcut
+ 4. the colour menu applies a colour to the selection and marks the swatch selected
+ 5. the highlight menu likewise; "None" removes it
+ 6. the A and marker buttons show a bar in the last colour used
+ 7. a menu closes on Esc, on an outside click and on choosing an item
+ 8. opening one menu closes any other
+ 9. focus returns to the trigger on Esc
+10. the selection survives opening and using a menu
+```
 
-Platform: ⌘ on a Mac, Ctrl elsewhere. `navigator.platform` is deprecated; use `navigator.userAgent.includes('Mac')` and say in a comment that it is a cosmetic label, so a wrong guess costs a wrong glyph in a tooltip and nothing else.
+Case 10 is the mousedown trap from Task 3, in the place it bites hardest.
 
-- [ ] **Step 3: Test and commit**
+- [ ] **Step 2: Build it**
 
-Assert one tooltip contains the modifier glyph, and that pressing ⌘B with a selection bolds it — which proves the binding as well as the label.
+§12.5 gives every value. Keyboard: arrow keys within a menu, Enter to choose, Esc to
+close — the ARIA listbox pattern for the style menu, a grid for the swatches.
+
+- [ ] **Step 3: Prove it discriminates, gate, commit**
 
 ```bash
-git add apps/web
-git commit -m "feat(editor): label the shortcuts that already work"
+git commit -m "feat(editor): the dropdown shell, style menu, colour and highlight"
 ```
 
 ---
 
-### Task 6: Record it
+### Task 6: Insert tab
+
+**Implements:** §12.3 and §12.6.
 
 **Files:**
+- Create: `apps/web/src/components/EditorLinkPopover.tsx`
+- Modify: `EditorToolbar.tsx`, `editor-toolbar.module.css`, `editor-schema.ts`, `package.json`
+- Test: `apps/web/e2e/editor-toolbar.spec.ts`
+
+**New dependency:** `@tiptap/extension-table` (with its row/cell/header extensions),
+pinned. **Isolated here on purpose:** it brings node views and the largest surface of
+anything in this plan. If it fights the collaborative schema, drop Table, ship the other
+five Insert tools, and report — do not let one tool hold the tab hostage.
+
+- [ ] **Step 1: Write the failing test**
+
+```
+1. Link opens the popover focused; Enter applies; the selection becomes an <a>
+2. a URL without a scheme gets https://
+3. Esc closes the popover and restores the selection
+4. Remove strips the link
+5. Divider, Code block and Quote each insert or toggle correctly
+6. Date inserts today's date in the handoff's format
+7. Table inserts a 3x3 with an empty paragraph after it, and it survives a round trip
+   to a second browser
+```
+
+§12.6 is explicit that the selection is saved when the popover opens and restored
+before applying. A popover that applies to a collapsed selection is the failure here.
+
+- [ ] **Step 2: Build it, prove it, gate, commit**
+
+```bash
+git commit -m "feat(editor): the Insert tab"
+```
+
+---
+
+### Task 7: View tab
+
+**Implements:** §12.4, plus the page's two widths from §12.7.
+
+**Files:**
+- Modify: `EditorToolbar.tsx`, `editor-toolbar.module.css`, `DocumentEditor.tsx`
+- Modify: `apps/web/src/app/documents/[id]/document.module.css`
+- Test: `apps/web/e2e/editor-toolbar.spec.ts`
+
+- [ ] **Step 1: Write the failing test**
+
+```
+1. zoom starts at 100%; + and - step by 10%; clicking the value resets to 100%
+2. zoom clamps at 70% and 150%
+3. Narrow and Wide change the sheet's max-width to 780 and 1040
+4. the width change animates rather than jumping
+5. a viewer can use both: View is the tab they get, and it must do something
+```
+
+**Check remote cursors under zoom.** §12.4 claims they stay correct. CSS `zoom` and
+ProseMirror coordinate maths disagree in some browsers. Verify with two browsers and
+**report what you see** — if they drift, say so rather than quietly shipping it.
+
+- [ ] **Step 2: Build it, prove it, gate, commit**
+
+```bash
+git commit -m "feat(editor): the View tab"
+```
+
+---
+
+### Task 8: Element styles, and look at the whole thing
+
+**Implements:** §12.7's element table.
+
+**Files:**
+- Modify: `apps/web/src/app/globals.css`
 - Modify: `docs/design/glass-handoff.md`
 - Modify: `docs/superpowers/plans/2026-10-03-history-and-authorship-backend.md`
 
-- [ ] **Step 1: The handoff**
+- [ ] **Step 1: The element styles**
 
-The handoff's document screen has no toolbar in it. Add one: its position in the sheet, its groups, that it is absent for viewers, the three families and six sizes with the reason they are curated, and that System is stored as `var(--font)`. Record Task 4's answers, including anything that looked wrong and was left.
+§12.7 gives h1/h2/h3, p, blockquote, pre, lists, hr, table, td and a. Our `globals.css`
+already styles some under `.editor .ProseMirror`. Reconcile them against the table and
+report every value that differed.
 
-Also correct the type section: it says paragraphs are 18px, which is now the *default* rather than the only size.
+**Note the conflict:** §12.7 says the body is 17px. Ours is 18px, by a later decision
+recorded in the handoff's Precedence section. **Keep 18.**
 
-- [ ] **Step 2: The history plan**
+- [ ] **Step 2: Look at it**
 
-Its Task 5 Step 6 creates `editor-schema.ts`. That module now exists. Rewrite the step to consume it, and add a line to that plan's constraints: `restoreEditor` builds its schema from `editorExtensions`, so **a document containing a `textStyle` mark can only be restored by a schema that includes it** — the two must not drift, which is the whole reason the module is shared.
+Two browsers, a document with every element in it. Answer: does the page still read as
+the design's? Does the toolbar dominate? At 760px and 1000px, does the bar wrap? Do
+remote cursors still land correctly with formatting applied?
 
-- [ ] **Step 3: Commit**
+- [ ] **Step 3: Record it**
+
+In the handoff's build record: what was built, every deviation, and anything §12 asked
+for that was not built, with the reason. In the history backend plan, Task 5 Step 6 now
+consumes `editor-schema.ts` rather than creating it — and that plan gains a constraint:
+**a document can only be restored by a schema that includes every mark it carries**, so
+the toolbar's marks and `restoreEditor` must never drift.
+
+- [ ] **Step 4: Commit**
 
 ```bash
-git add docs
-git commit -m "docs: record the formatting toolbar and the curated type scale"
+git commit -m "docs: record the document toolbar as built"
 ```
 
 ---
 
 ## Self-Review
 
-**1. Spec coverage.** The owner's three answers: a fixed bar inside the sheet (Task 3), curated families and sizes (Task 2), and all four control groups — core text, font and size, headings and lists, link/quote/code/divider (Task 3). Task 1 is the shared schema both the toolbar and the history plan's restore need. Task 5 surfaces the bindings that already worked and nobody could see.
+**1. Spec coverage.** §12.1 (Task 3), §12.2 (Tasks 4–5), §12.3 and §12.6 (Task 6),
+§12.4 (Task 7), §12.5 (Task 5), §12.7 (Task 8), §18's viewer and preview rules (Task 3).
+Tasks 1 and 2 are done and are the schema both the toolbar and the history plan's
+restore need.
 
-Deliberately **not** here: colour, highlight and alignment, which the owner did not pick and which are a later addition to the same bar; and the app-level shortcuts (⌘⇧[, ⌘⇧H, ⌘S and so on), which are a separate proposal awaiting the owner's yes and touch the shell rather than the editor.
+Deliberately **not** here: the history preview's "toolbar hidden" state beyond rendering
+nothing when read-only, since the preview itself belongs to the history panel plan.
 
-**2. Placeholder scan.** Three places require finding out rather than assuming, each with an instruction for either outcome: what `@tiptap/extension-text-style` exports (Task 2 Step 1, with the fallback spelled out), `useEditorState`'s selector signature (Task 3), and which keyboard bindings actually exist (Task 5 Step 1, which explicitly says not to trust the list in the plan). Task 1 Step 1 ships a deliberately failing expectation and names the choice to make about it. Task 3 Step 1 gives twelve numbered cases rather than code, because they depend on the suite's existing fixtures, and names case 11 as the one that carries the weight.
+**2. Placeholder scan.** This plan points at §12 instead of restating it, on purpose:
+the handoff is in the repository and is the authority, and a copy is a second thing to
+keep right. Four places require finding out and reporting rather than assuming: the
+sticky offset under a condensed nav (Task 3), `useEditorState`'s signature (Task 4),
+whether Table fights the collaborative schema (Task 6), and whether remote cursors
+survive CSS zoom (Task 7). Each says what to do with either answer.
 
-**3. Type consistency.** `editorExtensions` and `getEditorSchema()` are defined once in Task 1 and consumed by `Editor.tsx`, by Task 2's additions and by the history plan's `restoreEditor`. `FONT_FAMILIES` entries are `{ label, value }` in the module, the test and the select. `FONT_SIZES` is `readonly number[]` and `DEFAULT_FONT_SIZE` is one of its members, asserted. `EditorToolbar` takes `editor` and nothing else.
+**3. Type consistency.** `editorExtensions` and `getEditorSchema()` from Task 1 are
+extended in Tasks 4, 5 and 6 and consumed unchanged by `restoreEditor`. `EditorToolbar`
+takes `editor` and `readOnly`. `EditorMenu` is one shell with three contents.
 
-**4. Greenness between tasks.** Task 1 is the exception and says so: it lands with one failing expectation that Task 2 closes, or splits the list to stay green — the implementer chooses and records which. Every other task ends on a green full gate. Task 3 changes no existing test; Task 5 only adds to its own.
+**4. Greenness between tasks.** Every task ends on a green full gate. Task 3 moves
+`useEditor` and updates `DocumentClient` in one commit, because a half-moved editor does
+not compile.
 
-**5. The risk worth stating.** Six sizes and three families can make a document stop looking like the design, which is exactly what the curation is for and exactly what Task 4 exists to check. If Task 4 finds the bar dominating the page, that is a finding for the owner rather than licence to redesign the sheet.
-
-## Execution Handoff
-
-Plan complete and saved to `docs/superpowers/plans/2026-10-03-document-formatting-toolbar.md`. Independent of every other outstanding plan except that it supersedes one step of the history backend plan.
+**5. The risk worth stating.** The mousedown `preventDefault` in §12.1 is the one thing
+that makes a finished-looking toolbar silently useless: without it every click blurs the
+editor and every command applies to an empty selection. It is called out in Tasks 3 and
+5 and is the first thing to check if a control "does nothing".
