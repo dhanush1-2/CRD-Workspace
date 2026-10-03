@@ -251,12 +251,12 @@ Buttons generally use `transition: transform .4s var(--ease), background .3s` an
 
 ## Implementation status
 
-Five plans are complete:
+Six plans are complete:
 `2026-10-01-glass-foundation-and-shell.md`, `2026-10-02-board-and-cards.md`,
 `2026-10-02-paint-splatter.md`,
-`2026-10-02-command-palette-and-share-sheet.md` and
-`2026-10-02-document-page-and-nav-consolidation.md` (all under
-`docs/superpowers/plans/`).
+`2026-10-02-command-palette-and-share-sheet.md`,
+`2026-10-02-document-page-and-nav-consolidation.md` and
+`2026-10-02-glass-visual-corrections.md` (all under `docs/superpowers/plans/`).
 
 **None of them changed the schema, the sync server, or any API route.** The first
 three were visual only. The palette and share sheet plan added real behaviour —
@@ -302,6 +302,44 @@ plan. It now has three committed Playwright tests in `e2e/board.spec.ts`: a card
 moves across columns, a card dropped on a sibling reorders within its column,
 and a card is not left dimmed after a completed drop.
 
+**Visual corrections** (`2026-10-02-glass-visual-corrections.md`), from the owner's
+screenshot review:
+
+- **Splats resized and the rays re-tapered.** Values and re-measured memory are in
+  the Paint splatter section above; the taper was a real defect, not just a size.
+- **Nav exclusion zone**, also in that section. Measured before the fix: 7,874 opaque
+  pixels inside the top 90px. After: zero, with paint still present below — the half
+  of the test that stops a canvas which never drew from passing.
+- **Document page gap and title.** `.page` carries `margin: 28px auto 64px`; the
+  board needed nothing, because it is not wrapped in `.page` and its scroller already
+  has 28px of top padding, and the dashboard and workspace pages already had the
+  review's 40px. The title is the **same** `<h1>` that was screen-reader-only, moved
+  from `page.tsx` into `DocumentClient` so it sits inside `.page`, and styled by
+  document type: visible on a document, still clipped on a board, where the design has
+  no title slot but the page still needs an accessible name. `data-testid`
+  `document-heading`; the sheet itself is `document-page`. Size, weight and
+  letter-spacing come from the global `h1` rule, which already carries 32px / 600 /
+  −0.025em — only the bottom margin, line-height and wrapping are local.
+- **Tile and People-card glass raised to .7.** The `.55` the owner saw was never on
+  `.tile`, which sets only radius and padding: it came from `--glass-bg` through
+  `ui.glass`. **`--glass-bg` is deliberately unchanged at .55**, because the nav, the
+  sign-in card, the sheets and the popovers all read it and none of them was asked to
+  change; a test asserts the token's value for exactly that reason. The three surfaces
+  named in the review carry their own fill instead: `.tile` (dashboard), `.docTile` and
+  `.people` (workspace). The selectors are doubled (`.tile.tile`) to beat `ui.glass`
+  deterministically — measured, a single class does win today, but the import graph
+  decides that order and moving a route file is enough to change it. Contrast over the
+  composited result: `--text-faint` 4.827 → 4.916:1, `--text-muted` 5.862 → 5.971:1.
+- **The column drag-over outline was never broken.** The owner reported no violet
+  outline when dragging over a column. Probed with a held mid-drag, the target column
+  gains `oklch(0.42 0.11 285) 0px 0px 0px 2px inset` and the `columnOver` class, and
+  loses both after the drop. None of the suspected causes applies: `.columnOver` is
+  declared after `.column` in the same stylesheet so it wins on source order, and
+  `dragover` bubbles from the cards so crossing a child does not strip the state. No
+  code changed. It is now covered by a test, which it never was — `dragTo()` completes
+  atomically and never exposes the state, which is why the report could stand
+  unanswered.
+
 ### Paint splatter
 
 Built, on branch `glass-features`: `components/PaintSplatter.tsx` (client island),
@@ -319,8 +357,9 @@ absolutely positioned (`inset: 0`, 100% by 100%) inside the fixed, full-viewport
 `pointer-events: none`, and a test reads it on the element itself. `CanvasBackground`
 stays a server component; `PaintSplatter` is its only client child.
 
-**Strength.** Layer opacity, set inline from one prop: `subtle` 0.5, `bold` 0.9,
-`off` renders nothing. Production ships `subtle`.
+**Strength.** Layer opacity, set inline from one prop: `subtle` 0.32, `bold` 0.9,
+`off` renders nothing. Production ships `subtle`. The owner lowered `subtle` from 0.5
+to 0.32 in the 2026-10-02 review, in the same pass that resized the splats.
 
 **Palettes** (raw hex, artwork rather than tokens, one exported constant `PALETTES` in
 `lib/splatter/geometry.ts`). Each splat takes one colour from the chosen palette with
@@ -343,26 +382,52 @@ over-represented by having three family members in it (`#7b3fe4`, `#9d5cf0`,
 appears twice" describes that over-representation. Do not add a duplicate and do not
 remove any of the three.
 
-**Per splat** (drawn once onto its own offscreen canvas, in splat-local coordinates,
-origin at the centre, scale 0.7 to 1.4):
+**OPEN QUESTION for the design owner.** The 2026-10-04 spec restates this as
+"`#7b3fe4` (twice, so it appears more often)", which reads as an actual duplicate
+entry rather than the family over-representation above. The two readings disagree and
+only the owner can settle it. Nothing has been changed on a guess: duplicating the
+entry would shift every `random.pick` after it and therefore change the seeded pattern
+on every screen. A code comment in `geometry.ts` did claim violet appeared twice, which
+was false of the array; it now describes what is actually there and points here.
 
-- **Core:** 9 overlapping circles, radius 0.55 to 1.0 of a 30px base (times scale),
+**Per splat** (drawn once onto its own offscreen canvas, in splat-local coordinates,
+origin at the centre, scale 0.6 to 1.2). **These magnitudes are the 2026-10-02
+review's; the structure is unchanged from the original spec.**
+
+- **Core:** 9 overlapping circles, radius 0.55 to 1.0 of an 11px base (times scale),
   centres within 0.45 of that base radius of the origin so they merge into one mass.
 - **Rays:** 10 to 23, at random angles over the full circle. Each is a tapered streak
-  (5 to 11px wide at the base, narrowing to the tip) of 1.4 to 3.2 core radii, ending
-  in a **tip blob** of 2.5 to 6px radius. **35%** of rays also carry a **drip** hanging
-  straight down from the tip, 0.4 to 1.4 core radii long, drawn no wider than the tip
-  blob and ending in a bulb of 0.75 of the tip radius.
-- **Droplets:** 40 to 90, scattered from one core radius out to about 2.1, **decreasing
-  in size** along the list (radius from about 5.5px to 0.8px, times scale) and fading
+  of 1.5 to 5 core radii, **1.5 to 4px wide at the base and narrowing to 15% of that
+  at the tip**, ending in a **tip blob** of 1 to 2.5px radius. **35%** of rays also
+  carry a **drip** hanging straight down from the tip, 0.4 to 1.4 core radii long,
+  drawn no wider than the tip blob and ending in a bulb of 0.75 of the tip radius.
+  - The 15% taper is load-bearing and was a defect, not just a number. The tip
+    half-width used to be derived from the tip blob's radius (`tipR * 0.6`), which
+    left the tip at roughly 60% of the base with a blob as wide as the base on the
+    end. That is the "spider legs" the owner reported, and resizing alone preserved
+    the ratio. It is now derived from the ray's own width.
+- **Droplets:** 40 to 90, scattered from one core radius out to about 5.2, **decreasing
+  in size** along the list (radius from about 2.5px to 0.4px, times scale) and fading
   from alpha 1 to 0.7 so the spray thins at its edge.
 - **Core drips:** 0 to 3, vertical, straight down from the core, 0.8 to 2.2 core radii
-  long, 3 to 6px wide, with an end blob.
+  long, 1 to 2.5px wide, with an end blob.
 
-**Count and specks.** Splats on screen: `16 + 12 × √(W·H) / 1100`, rounded (28 at
-1440×900, 32 at 1920×1080, 37 at 2560×1440). Plus **320 specks** scattered over the
+**Count and specks.** Splats on screen: `10 + 8 × √(W·H) / 1100`, rounded (18 at
+1440×900, 20 at 1920×1080, 24 at 2560×1440). Plus **320 specks** scattered over the
 viewport, each a small square (half-side 0.6 to 1.8px) in a palette colour, drawn
 straight onto the visible canvas rather than through an offscreen canvas.
+
+**Nav exclusion zone.** Nothing is painted in the **top 90px** of the viewport —
+neither splats nor specks. Added in the 2026-10-02 review: splat colour read straight
+through the nav's `backdrop-filter` as coloured streaks inside the bar. The zone is
+viewport space, not document space, which is sound because the canvas is absolutely
+positioned inside a fixed, full-viewport parent, so canvas y is viewport y. It is
+sized for the **unshrunk** nav (12px gap + 56px bar = 68px, plus margin); a condensed
+nav occupies less and is still inside it, and the splatter does not react to scroll.
+A splat's y is drawn uniformly over the band below `90 + radius` rather than
+rejection-sampled or clamped: it consumes one PRNG value as the unconstrained
+placement did, cannot loop, and does not pile splats along the boundary. One constant,
+`NAV_EXCLUSION_PX`.
 
 **Animation.**
 
@@ -417,9 +482,9 @@ an arc is path construction.
    faint antialiased pixels touched the border on 7 of 200 splats at DPR 1 (1 of 200
    at DPR 2). Nothing visible was clipped, but a hard cut on a paint edge reads as a
    rendering bug and this sits behind every screen. Costs about 1.5% more memory.
-4. **Splat scale is 0.7 to 1.4.** The spec gives no value, so this is a choice. It sets
-   the memory figure below: the bounding radius runs from 77 to 194px, wider than the
-   99 to 158px measured at scale 1 before this was chosen.
+4. **Splat scale is 0.6 to 1.2**, set by the owner in the 2026-10-02 review (it was
+   0.7 to 1.4, chosen here when the spec gave no value). It sets the memory figure
+   below: the bounding radius now runs from 39 to 84px, against 77 to 194px before.
 5. **Re-placed splat positions after the first cycle are not reproducible across
    loads.** The first placement is a pure function of the seed, which is what the spec
    asks for. After a splat's first life it is re-placed from a random stream that has
@@ -428,9 +493,11 @@ an arc is path construction.
    and between machines.
 6. **Device pixel ratio is capped at 1, not 2.** The spec names 2. The splats sit at
    half opacity under the weave and behind translucent glass, so the sharpness is not
-   visible; the memory and raster cost are. Measured at 1440×900 and DPR 2: splat
-   canvases 29.0 to 16.3 MiB, visible canvas 19.8 to 11.1 MiB, and the raster cost per
-   draw in software fell from about 22 to about 12 ms. The cap lives in one named
+   visible; the memory and raster cost are. Measured at 1440×900 and DPR 2, **at the
+   pre-2026-10-02 splat sizes**: splat canvases 29.0 to 16.3 MiB, visible canvas 19.8
+   to 11.1 MiB, and the raster cost per draw in software fell from about 22 to about
+   12 ms. The resize has since cut the splat side of that by roughly 85%, so these
+   figures now overstate the cost of raising the cap — but not the conclusion. The cap lives in one named
    constant, `MAX_DPR`, with that reasoning beside it. Re-measure before raising it.
 7. **The loop redraws at about 30 fps.** The spec names no frame rate. `requestAnimationFrame`
    is still the clock, so the browser's throttling and the hidden-tab pause still
@@ -482,24 +549,36 @@ owner later chose a DPR cap of **1** over 1.5, so these are the figures at cap 1
 obtained by replaying the real generator with the real fixed seed in Node — the geometry
 is deterministic, so these are exact rather than sampled:
 
+Re-measured after the 2026-10-02 resize, by the same method:
+
 | Viewport | Splats | Splat canvases | Visible canvas | Layer total | At cap 1.5 | At cap 2 |
 |---|---|---|---|---|---|---|
-| 1440×900 | 28 | 6.4 MiB | 4.9 MiB | **11.4 MiB** | 27.4 MiB | 48.8 MiB |
-| 1920×1080 | 32 | 7.7 | 7.9 | 15.6 | 36.3 | 64.5 |
-| 2560×1440 | 37 | 8.8 | 14.1 | 22.8 | 52.5 | 93.3 |
-| 3440×1440 | 40 | 9.3 | 18.9 | 28.2 | 64.8 | 115.1 |
-| 3840×2160 | 47 | 11.4 | 31.6 | **43.0** | 98.0 | 174.3 |
+| 1440×900 | 18 | 1.0 MiB | 4.9 MiB | **5.9 MiB** | 13.3 MiB | 23.6 MiB |
+| 1920×1080 | 20 | 1.0 | 7.9 | 9.0 | 20.1 | 35.8 |
+| 2560×1440 | 24 | 1.2 | 14.1 | 15.3 | 34.4 | 61.2 |
+| 3440×1440 | 26 | 1.3 | 18.9 | 20.2 | 45.5 | 80.8 |
+| 3840×2160 | 31 | 1.6 | 31.6 | **33.2 MiB** | 74.7 | 132.9 |
 
-Canvas sides at cap 1, min / median / max: 178 / 236 / 348 CSS px at 1440×900, rising to
-156 / 240 / 388 at 4K. Budget was about 40 MB and every size is now inside it except a
-4K viewport, where the **visible canvas** — unavoidable for any viewport-sized layer —
-is 31.6 of the 43.0 MiB. The splat canvases themselves never exceed 12 MiB. Anyone
-adding splats, widening the scale range or lifting the cap is spending from this.
+Before the resize these were 11.4 MiB at 1440×900 and 43.0 MiB at 4K, with the splat
+canvases alone at 6.4 and 11.4 MiB.
 
-**Raster cost at cap 1 is projected, not measured.** Raster scales with pixel count, so
-the 12.3 ms per draw measured at cap 1.5 should fall to roughly 5.5 ms, taking a
-no-GPU machine from about 37% of a core to about 16%. That figure has NOT been verified
-in a browser; the memory figures above have. Re-measure before relying on it.
+Canvas sides at cap 1, min / median / max: 78 / 116 / 158 CSS px at 1440×900 and
+74 / 110 / 168 at 4K (they were 178 / 236 / 348 and 156 / 240 / 388). The median span
+of 116px is what the owner's "at most about 120px across" asked for; the largest is
+158px, so the tail runs about 30% over that sentence while the typical splat matches
+it. Budget was about 40 MB and **every size is now inside it, including 4K**, where it
+was 43.0 MiB before. The splat canvases themselves never exceed 2 MiB, so the layer is
+now dominated entirely by the **visible canvas**, which is unavoidable for any
+viewport-sized layer. Anyone adding splats, widening the scale range or lifting the cap
+is spending from this.
+
+**Raster cost is projected, not measured, and the projection is now two steps old.**
+Raster scales with pixel count, so the 12.3 ms per draw measured at cap 1.5 was
+projected to roughly 5.5 ms at cap 1 — taking a no-GPU machine from about 37% of a
+core to about 16%. The 2026-10-02 resize then cut the splat canvas area by about 85%
+and the splat count by a third, so the real figure should be well below that again.
+**None of this has been verified in a browser**; the memory figures above have. Treat
+the 5.5 ms as an upper bound at best and re-measure before relying on any of it.
 
 **The loop stops.** Counted on a patched `window.requestAnimationFrame`, with the
 caller of each call identified from its stack:

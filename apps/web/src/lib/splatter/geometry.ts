@@ -1,7 +1,13 @@
 import type { Random } from './random'
 
-// Violet appears twice in the purple set on purpose: `pick` chooses it more
-// often. Do not deduplicate.
+// Eleven entries, all distinct. Violet is over-represented by having three family
+// members in the set (#7b3fe4, #9d5cf0, #b794f6 -- hues 262, 266 and 261), not by a
+// repeated entry, so `pick` chooses the violet family more often than any other.
+//
+// OPEN with the design owner: the 2026-10-04 spec says "#7b3fe4 (twice, so it appears
+// more often)", while the handoff's Palettes section says eleven distinct entries and
+// "do not add a duplicate". Duplicating it would change the seeded pattern, so it is
+// not being done on a guess. See the note in docs/design/glass-handoff.md.
 export const PALETTES = {
   purple: [
     '#7b3fe4', '#5b4ee8', '#9d5cf0', '#c13ea6', '#e8559b', '#3d8fdc',
