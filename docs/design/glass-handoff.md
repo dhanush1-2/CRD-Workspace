@@ -1,265 +1,702 @@
 # Handoff: CRDT Workspace, "Glass" redesign (Direction D)
 
-## Overview
-A full visual redesign of `apps/web` covering sign-in, dashboard, workspace, Kanban board, rich-text document, viewer (read-only) state and offline / reconnecting state. It adds a sticky glass top nav with document tabs, a ⌘K search palette, presence avatars, a status popover, a version-history panel, a card detail sheet and a share / invite sheet.
+**Source of truth:** `Workspace D - Glass.dc.html` in this folder. Open it in a browser with `support.js` next to it. Every value below is taken from that file; if this README and the prototype disagree, the prototype wins.
 
-Look: a soft neutral "painted canvas" background, frosted liquid-glass surfaces, one indigo-violet accent and the system font. Motion is a smooth Apple-style ease.
+---
 
-## About the design files
-`Workspace D - Glass.dc.html` is an **HTML design reference**: a working prototype with mocked data, not production code. Recreate it in the existing stack: Next.js App Router, React, CSS Modules plus `globals.css` custom properties, and Yjs / y-websocket / y-prosemirror. Follow the repo's patterns (server components for data, `'use client'` islands, `components/ui/*`).
+## 0. How to use this document
+- **Prototype only:** the HTML file is a **design reference**. Its data is mocked, the collaborator "Grace" is simulated, and the version number, latency and history are fake.
+- **Target stack:** Next.js App Router + React + CSS Modules + `globals.css` custom properties + Yjs / y-websocket / y-prosemirror. Recreate the design in that stack, following the repo's patterns (server components for data, `'use client'` islands, `components/ui/*`).
+- **Fidelity:** high. Match colours, radii, blur, spacing and easing exactly.
+- **Prototype settings:** the props `canvas`, `splashes`, `splashColor`, `splashMotion`, `role`, `startScreen` and `peers` are for previewing only. In production, fix them to **neutral, subtle, purple, live**, and take role from the session.
 
-To view it, open the file in a browser with `support.js` beside it. Tweak props: `canvas` (`neutral|dusk|ocean|meadow|sunset|stone`), `role` (`owner|editor|viewer`), `startScreen` (`login|dashboard|workspace|board|doc`) and `peers`.
+---
 
-## Fidelity
-High fidelity. Match the colors, radii, blur values and easing exactly.
+## 1. Codebase map
 
-## Codebase mapping
-| Design | Files |
+| Area | Files |
 |---|---|
-| Tokens, fonts, body background, keyframes | `app/globals.css`, `app/layout.tsx` |
-| Painted canvas background | new `components/CanvasBackground.tsx` (+ `.module.css`), mounted once in `layout.tsx` |
-| Sticky glass nav (replaces the sidebar) | `components/AppShell.tsx`, `app-shell.module.css` |
-| Doc tabs + sliding glass indicator | new `components/NavTabs.tsx` (client) |
-| ⌘K palette | new `components/CommandPalette.tsx` (client) |
-| Status pill + popover | new `components/SyncStatus.tsx` (client; reads provider status) |
-| Buttons / inputs / sheets | `components/ui/*` |
-| Sign-in | `app/(auth)/login/page.tsx`, signup |
-| Dashboard | dashboard route + CSS |
+| Tokens, fonts, keyframes, body | `app/globals.css`, `app/layout.tsx` |
+| Painted canvas (blobs + weave) | `components/CanvasBackground.tsx`, `canvas-background.module.css` |
+| Paint splatter | `components/PaintSplatter.tsx`, `lib/splatter/geometry.ts`, `lib/splatter/paint.ts`, `lib/splatter/random.ts` |
+| Sticky glass nav | `components/AppShell.tsx`, `app-shell.module.css` |
+| Doc tabs + sliding indicator | `components/NavTabs.tsx`, `nav-tabs.module.css` |
+| Status pill + popover | `components/SyncStatus.tsx` |
+| Presence avatars | `components/NavPresence.tsx` (replaces the pill-style `Presence.tsx`) |
+| ⌘K palette | new `components/CommandPalette.tsx` |
+| Share sheet | new `components/ShareSheet.tsx`, wired to the members server actions |
+| Sheet primitive | `components/ui/Sheet.tsx` |
+| Sign-in | `app/(auth)/login/page.tsx`, `signup/page.tsx`, `auth.module.css` |
+| Dashboard | `app/page.tsx` (+ CSS) |
 | Workspace | `app/workspaces/[id]/page.tsx`, `workspace.module.css`, `CreateDocumentForm.tsx`, `MembersPanel.tsx` |
-| Board + card sheet | `components/Board.tsx` (+ new `CardSheet.tsx`) |
-| Document | `app/documents/[id]/DocumentClient.tsx` + editor |
-| History panel | new `HistoryPanel.tsx` + snapshot API route |
-| Share sheet | new `ShareSheet.tsx`, wired to the existing members actions |
+| Board + card sheet | `components/Board.tsx`, `board.module.css`, new `CardSheet.tsx` |
+| Document page + toolbar | `app/documents/[id]/DocumentClient.tsx`, `document.module.css`, new `EditorToolbar.tsx` |
+| History | new `HistoryPanel.tsx` + API (see §16) |
 
-## Design tokens (put these in `:root`)
+**Architecture decision (agreed):** keep the current per-page `AppShell` for now and make the tab indicator remember its last position at module level (§5.4). Moving the nav into a single shared layout, with routes like `/workspaces/[id]/documents/[docId]`, is planned as a separate change.
+
+---
+
+## 2. Design tokens (`:root`)
+
 ```css
-/* surfaces */
---canvas-base: #f1f1ef;
---text: #1c1d1b; --text-2: #3d403b; --text-muted: #5f625d; --text-faint: #6c6f6a; --icon-faint: #a3a6a0;
+/* text */
+--text: #1c1d1b;          /* headings, strong */
+--text-2: #3d403b;        /* body, toolbar icons */
+--text-muted: #5f625d;    /* secondary  — 6.2:1 on white */
+--text-faint: #6c6f6a;    /* meta       — 5.1:1 white, 4.5:1 canvas */
+--icon-faint: #a3a6a0;    /* × glyphs only, never text */
 --danger: #c4372b;
 
-/* accent: indigo-violet */
+/* accent (indigo-violet, hue 285) */
 --accent: oklch(0.42 0.11 285);
 --accent-hover: oklch(0.37 0.11 285);
---accent-text: oklch(0.38 0.1 285);
+--accent-text: oklch(0.36 0.11 285);
 --accent-tint: oklch(0.95 0.02 285);
+--accent-soft: oklch(0.42 0.11 285 / .12);   /* toolbar active bg */
+--accent-ring: oklch(0.42 0.11 285 / .12);   /* focus halo */
 --accent-shadow: oklch(0.42 0.11 285 / .22);
---accent-ring: oklch(0.42 0.11 285 / .1);
 
 /* status */
---ok: oklch(0.62 0.13 150); --warn: oklch(0.72 0.15 65); --sync: oklch(0.42 0.11 285);
+--ok: oklch(0.62 0.13 150);
+--warn: oklch(0.72 0.15 65);
+--sync: var(--accent);
+--toast-dot: oklch(0.78 0.12 300);
+
+/* canvas */
+--canvas-base: #f1f1ef;
 
 /* glass */
---glass-bg: rgba(255,255,255,.55);
---glass-bg-strong: rgba(255,255,255,.72);
---glass-bg-sheet: rgba(255,255,255,.82);
+--glass-light: rgba(255,255,255,.55);     /* tiles, People card */
+--glass-col: rgba(255,255,255,.42);       /* board columns */
+--glass-mid: rgba(255,255,255,.72);       /* nav, popovers */
+--glass-tool: rgba(255,255,255,.76);      /* editor toolbar */
+--glass-page: rgba(255,255,255,.78);      /* document page */
+--glass-sheet: rgba(255,255,255,.82);     /* sheets */
+--glass-menu: rgba(255,255,255,.88);      /* toolbar dropdowns */
 --glass-border: rgba(255,255,255,.85);
---glass-blur: blur(28px) saturate(190%);
---glass-highlight: inset 0 1px 0 rgba(255,255,255,.95);
+--glass-hl: inset 0 1px 0 rgba(255,255,255,.95);
+--blur-1: blur(20px) saturate(180%);
+--blur-2: blur(28px) saturate(190%);
+--blur-3: blur(30px) saturate(190%);
+
+/* fields & lines */
 --field-bg: rgba(240,240,244,.9);
 --field-border: rgba(40,40,60,.12);
+--line: rgba(40,40,60,.07);
+--sep: rgba(40,40,60,.12);
+--dash: rgba(40,40,60,.22);
+--track: rgba(40,40,60,.08);
 
 /* motion */
---ease: cubic-bezier(.32,.72,0,1);   /* used everywhere */
---dur-fast: .3s; --dur: .55s; --dur-slow: .7s;
+--ease: cubic-bezier(.32,.72,0,1);
 
 /* radii */
---r-pill: 999px; --r-card: 18px; --r-tile: 24px; --r-column: 26px; --r-sheet: 30px; --r-panel: 28px;
+--r-pill: 999px; --r-tool: 10px; --r-item: 12px; --r-card: 18px;
+--r-menu: 18px; --r-pop: 22px; --r-tile: 24px; --r-col: 26px;
+--r-panel: 28px; --r-sheet: 30px;
 ```
-User colors (unchanged, from `lib/color.ts`): `#e11d48 #0ea5e9 #16a34a #f59e0b #8b5cf6 #14b8a6`.
 
-Font: `-apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", system-ui, sans-serif`. Base size **16px** (raised from 15 by the owner on 2026-10-04), line-height 1.47,
-letter-spacing −0.01em, antialiased. Only text without a size of its own inherits it:
-the nav, tabs, meta lines and chips all set their own and were deliberately left.
-- Page H1: 32px / 600 / −0.025em
-- Section H2: 21px / 600 / −0.02em
-- Card title: 18px / 600
-- Body: 16px; small text 13–13.5px
+**User colours** (`lib/color.ts`, unchanged): `#e11d48 #0ea5e9 #16a34a #f59e0b #8b5cf6 #14b8a6`.
 
-## Painted canvas background
-A fixed, full-viewport layer (`pointer-events:none; z-index:0`) behind everything, with bg `var(--canvas-base)`:
-- **5 blobs.** Each is `position:absolute; filter: blur(90px); opacity:.55`, with an organic border-radius `42% 58% 63% 37% / 41% 44% 56% 59%` and the animation `g-paint {52|60|68|76|84}s ease-in-out infinite` (alternate blobs reversed).
-  - Sizes and positions: 620×520 at left −140 / top −160; 520×460 at right −120 / top −60; 480×420 at right 18% / bottom −180; 520×440 at left 12% / bottom −200; 360×320 at left 44% / top 22%.
-  - Neutral palette, in blob order: `oklch(0.86 0.012 260)`, `oklch(0.9 0.015 80)`, `oklch(0.83 0.01 240)`, `oklch(0.92 0.012 60)`, `oklch(0.88 0.008 200)`.
-- **Canvas weave overlay**, with `mix-blend-mode:multiply`:
-  `repeating-linear-gradient(0deg,rgba(60,50,30,.018) 0 1px,transparent 1px 3px), repeating-linear-gradient(90deg,rgba(60,50,30,.015) 0 1px,transparent 1px 4px)`
-- **Keyframes:**
+**Font:** `-apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", system-ui, sans-serif`. Base 15px / 1.47, letter-spacing −0.01em, antialiased. Use `text-wrap: pretty` on titles and body text.
+
+| Role | Size / weight / line-height | Tracking |
+|---|---|---|
+| Page H1 | 32 / 600 | −0.025em |
+| Sign-in H1 | 30 / 600 | −0.025em |
+| Card sheet title | 26 / 600 / 1.22 | −0.025em |
+| Section H2 | 21 / 600 | −0.02em |
+| Panel title | 18 / 600 | −0.02em |
+| Tile title | 18 / 600 / 1.3 | |
+| Doc H1 / H2 / H3 | 32/600/1.2 · 21/600/1.3 · 17/600/1.35 | −0.025 · −0.02 · 0 |
+| Doc body | 17 / 400 / 1.65 | |
+| UI | 14–15 / 500 | |
+| Small / meta | 12.5–13.5 | |
+
+---
+
+## 3. Glass recipe
+
+```css
+.glass {
+  background: var(--glass-mid);
+  backdrop-filter: var(--blur-2); -webkit-backdrop-filter: var(--blur-2);
+  border: 1px solid var(--glass-border);
+  box-shadow: var(--glass-hl), 0 10px 30px rgba(30,45,40,.08);
+}
+@supports not (backdrop-filter: blur(1px)) { .glass { background: rgba(255,255,255,.92); } }
+```
+- **Dark glass** (version pill, toasts): `rgba(28,29,27,.82)` with `blur(24px)` and white text.
+- **Overlay behind sheets:** `rgba(30,40,35,.16)` with `blur(8px)`. Behind the palette: `rgba(30,40,35,.1)`, no blur.
+- **Small text on the canvas:** any small text sitting directly on the painted background goes on a frosted pill, e.g. the workspace meta line (§9). Big headings (32px) may sit directly on the canvas.
+
+---
+
+## 4. Background
+
+### 4.1 Canvas (`CanvasBackground`)
+`position:fixed; inset:0; z-index:0; pointer-events:none; overflow:hidden; background: var(--canvas-base)`.
+
+**Blobs:** five absolutely positioned blobs, `filter: blur(90px); opacity:.55`, with organic radii `42% 58% 63% 37% / 41% 44% 56% 59%`.
+
+| # | Size | Position | Colour | Loop |
+|---|---|---|---|---|
+| 1 | 620×520 | left −140, top −160 | `oklch(0.86 0.012 260)` | 52s |
+| 2 | 520×460 | right −120, top −60 | `oklch(0.9 0.015 80)` | 60s reverse |
+| 3 | 480×420 | right 18%, bottom −180 | `oklch(0.83 0.01 240)` | 68s |
+| 4 | 520×440 | left 12%, bottom −200 | `oklch(0.92 0.012 60)` | 76s reverse |
+| 5 | 360×320 | left 44%, top 22% | `oklch(0.88 0.008 200)` | 84s |
+
 ```css
 @keyframes g-paint{
-  0%,100%{transform:translate(0,0) rotate(0) scale(1);border-radius:42% 58% 63% 37%/41% 44% 56% 59%}
-  33%{transform:translate(50px,-30px) rotate(12deg) scale(1.08);border-radius:63% 37% 44% 56%/55% 62% 38% 45%}
-  66%{transform:translate(-30px,40px) rotate(-8deg) scale(.95);border-radius:38% 62% 56% 44%/48% 36% 64% 52%}}
+ 0%,100%{transform:translate(0,0) rotate(0) scale(1);border-radius:42% 58% 63% 37%/41% 44% 56% 59%}
+ 33%{transform:translate(50px,-30px) rotate(12deg) scale(1.08);border-radius:63% 37% 44% 56%/55% 62% 38% 45%}
+ 66%{transform:translate(-30px,40px) rotate(-8deg) scale(.95);border-radius:38% 62% 56% 44%/48% 36% 64% 52%}}
 ```
-- Respect `prefers-reduced-motion`: pause the blob animation.
-- Other palettes (optional theme setting) are listed in `CANVAS` in the prototype logic.
+**Weave overlay** (`mix-blend-mode:multiply`):
+`repeating-linear-gradient(0deg,rgba(60,50,30,.018) 0 1px,transparent 1px 3px), repeating-linear-gradient(90deg,rgba(60,50,30,.015) 0 1px,transparent 1px 4px)`.
 
-## Glass recipe (shared)
+### 4.2 Paint splatter (`PaintSplatter`), agreed live values
+- **Placement:** a `<canvas>` above the blobs and below the weave. **Exclude the top 90px** so nothing shows through the nav.
+- **Opacity:** layer opacity **0.32**.
+- **Purple palette:** `#7b3fe4` ×2, `#5b4ee8 #9d5cf0 #c13ea6 #e8559b #3d8fdc #22b8c9 #f0b429 #f2843a #4cc38a #b794f6`.
+- **Seed:** use a seeded random generator, so the pattern is the same on every load.
+- **Geometry** (`geometry.ts`):
+
+| Constant | Value |
+|---|---|
+| `BASE_CORE_RADIUS` | 11 |
+| per-splat scale | `range(0.6, 1.2)` |
+| core | 9 overlapping circles around the centre |
+| rays | 10–23; `length = coreR × range(1.5, 5)`; `width = scale × range(1.5, 4)`, **tapering to 15%** at the tip |
+| ray tip blob | `scale × range(1, 2.5)` |
+| drips | on 35% of rays, plus 0–3 from the core; `width = scale × range(1, 2.5)` |
+| droplets | 40–90; distance `coreR × (1 + t×4 …)`; radius `scale × (2.5 − 2.1t)` (mostly tiny) |
+| count | `splatCount = 10 + 8 × √(W·H)/1100` |
+| min spacing | 120px between centres |
+| specks | ~320, 0.5–3.5px, opacity shimmer .55–.9 on a sine wave |
+
+- **Life cycle:**
+  - Landing: scales from 0.35 to 1 over 650ms with an ease-out-back, fading in.
+  - Life: 16–32s, drifting up to ±3px, with a fixed rotation of ±0.25 rad.
+  - End: a 2.4s fade-out, then a new splat lands somewhere else.
+  - First load: three splats land at +0.3s, +1.0s and +1.7s.
+- **Performance:**
+  - Pre-render each splat once to an offscreen canvas, then `drawImage` it inside one rAF loop.
+  - Device pixel ratio is capped at 2.
+  - Rebuild on resize with a 150ms debounce.
+- **Reduced motion:** with `prefers-reduced-motion: reduce`, draw one frame and stop the loop.
+
+---
+
+## 5. Nav
+
+### 5.1 Wrapper
 ```css
-background: var(--glass-bg);
-backdrop-filter: var(--glass-blur); -webkit-backdrop-filter: var(--glass-blur);
-border: 1px solid var(--glass-border);
-box-shadow: var(--glass-highlight), 0 10px 30px rgba(30,45,40,.08);
+.navWrap { position:sticky; top:0; z-index:30; padding:12px 16px 0;
+           display:flex; flex-direction:column; align-items:center; }
 ```
-Use it for the nav, workspace / doc tiles, board columns, the document page, the history panel, popovers, the palette, sheets and toasts (toasts use a dark variant: `rgba(28,29,27,.82)` + `blur(24px)`).
 
-## Layout
-- The page itself scrolls (`height:100vh; overflow:auto`). There is **no sidebar**.
-- **Sticky nav wrapper:** `position:sticky; top:0; z-index:30; padding:12px 16px 0`,
-  plus `display:flex; flex-direction:column; align-items:center` so the bar and the
-  floating pills beneath it are all centred.
-- **Nav bar:** 56px high, pill radius, padding `0 8px 0 10px`, 10px gap, and
-  `width:fit-content; max-width:100%` so it is a pill in the middle of the page rather
-  than an edge-to-edge strip. Its width animates (`transition: width .55s var(--ease)`)
-  and needs `interpolate-size: allow-keywords` on `:root` to interpolate against
-  `fit-content`.
-  - Background `rgba(255,255,255,.72)` + glass blur, border `1px solid rgba(40,40,60,.1)`.
-  - Shadow `inset 0 1px 0 #fff, 0 12px 32px rgba(30,30,50,.12), 0 2px 6px rgba(30,30,50,.08)`.
-  - Entrance animation: `g-pop .6s var(--ease)`.
-- **Nav contents, left to right:**
-  1. **Logo button:** a 36px accent circle (`aria-label="All workspaces"`). It goes to the dashboard. Hover: `rotate(-8deg) scale(1.05)`. Active: `scale(.92)`.
-  2. **Workspace name button** (600 weight), which goes to the workspace overview, then a 1×22px divider.
-  3. **Tabs strip:** Overview plus one tab per document. `flex:0 1 auto; min-width:120px; overflow-x:auto; scrollbar-width:none; padding:3px`. When it overflows, add a right-edge fade mask: `mask-image: linear-gradient(90deg,#000 82%,transparent)`.
-     - Each tab is 32px high with `0 14px` padding and pill shape, 14px text. Active tab: 600 weight, `oklch(0.36 0.11 285)`. Inactive: 500 weight, `--text-muted`. A green 6px dot shows when others are in that document.
-  4. **Search field:** 36px high, min-width 170px (no min-width below 1100px, where the label hides and only ⌘K shows).
-     - Fill `--field-bg`, border `--field-border`, `inset 0 1px 2px rgba(30,30,50,.06)`, text `#55585f`.
-     - ⌘K key chip: white, 1px border, 6px radius.
-     - Hover: white fill and a darker border. Opens the palette.
-  5. **On documents:**
-     - Presence avatars: 28px, overlapping at −7px, white 2px ring; hover `translateY(-3px) scale(1.06)`; hidden below 1100px.
-     - History button: field style; white when open.
-  6. **Status pill:** field style, 8px dot plus label (`3 here` / `Synced` / `Offline` / `Syncing`). The label hides below 1100px. Clicking opens the status popover.
-  7. **Share:** accent pill button, 36px high, padding 0 18px.
-  8. **Avatar:** 36px, opens a user menu (name / email, All workspaces, Sign out in danger color).
-- **Under the nav:** centered floating pills for the offline band and the version-preview bar (see below).
-
-### Sliding tab indicator (liquid glass)
-An absolutely positioned pill inside the tabs strip (top/bottom 3px). Its `transform:translateX(x)` and `width:w` are measured from the active tab's `offsetLeft` / `offsetWidth`. Transition: `transform .55s var(--ease), width .55s var(--ease), opacity .3s`. On the dashboard (no active tab) it goes to opacity 0.
+### 5.2 Bar
 ```css
-background: linear-gradient(180deg,rgba(255,255,255,.55) 0%,rgba(255,255,255,.08) 50%,rgba(255,255,255,.3) 100%), oklch(0.42 0.11 285 / .14);
+.nav {
+  display:flex; align-items:center; gap:10px; height:56px; padding:0 8px 0 10px;
+  width:fit-content; max-width:100%; min-width:0;
+  interpolate-size: allow-keywords; transition: width .55s var(--ease);
+  border-radius:999px; background:var(--glass-mid);
+  backdrop-filter:var(--blur-2); -webkit-backdrop-filter:var(--blur-2);
+  border:1px solid rgba(40,40,60,.1);
+  box-shadow: inset 0 1px 0 #fff, 0 12px 32px rgba(30,30,50,.12), 0 2px 6px rgba(30,30,50,.08);
+  animation: g-pop .6s var(--ease);
+}
+```
+The bar is centred and only as wide as its contents, with **no flexible spacer** in it.
+
+### 5.3 Contents, left to right
+
+| # | Element | Spec | Action |
+|---|---|---|---|
+| 1 | Logo | 36px circle, `--accent`, `inset 0 1px 0 rgba(255,255,255,.4), 0 4px 10px var(--accent-shadow)`; `aria-label="All workspaces"`. Hover `rotate(-8deg) scale(1.05)`; pressed `scale(.92)` | → dashboard |
+| 2 | Workspace name | 36px high, pill, padding 0 12px, 600 weight; hover `rgba(255,255,255,.7)`. On the dashboard, show a plain "Workspaces" label instead | → Overview |
+| — | Divider | 1×22px, `rgba(0,0,0,.08)` | |
+| 3 | Tabs strip | `position:relative; display:flex; gap:2px; flex:0 1 auto; min-width:120px; overflow-x:auto; scrollbar-width:none; padding:3px; border-radius:999px`. When it overflows: `mask-image: linear-gradient(90deg,#000 82%,transparent)` | |
+| 3a | Tab | 32px high, padding 0 14px, pill, 14px text. Active: 600 weight in `--accent-text`. Inactive: 500 weight in `--text-muted`; `transition: color .3s`. **No background of its own** | opens the page |
+| 3b | Presence dot | 6px circle, `--ok`, 7px after the label. Shown only when connected and others are in that doc; never on Overview | |
+| 4 | Search | 36px high, `min-width:170px` (0 below 1100px, where the label hides), padding 0 10px 0 14px, `--field-bg`, 1px `--field-border`, `inset 0 1px 2px rgba(30,30,50,.06)`, text `#55585f`. ⌘K chip: white, 1px border, 6px radius, 11.5px. Hover: white fill and a darker border | opens the palette |
+| 5 | Presence avatars | document pages only. 28px circles at −7px overlap with a 2px white ring. Hover `translateY(-3px) scale(1.06)`. Offline peers at opacity .35. Hidden below 1100px | tooltip "Name · editing" |
+| 6 | History | document pages only. Field style; white while open | toggles the panel |
+| 7 | Status pill | field style, 8px dot + label: `{n} here` (**you included**) / `Offline` / `Syncing` (the syncing dot pulses). Label hidden below 1100px | opens the status popover |
+| 8 | Share | accent pill, 36px high, padding 0 18px, `inset 0 1px 0 rgba(255,255,255,.3), 0 4px 12px var(--accent-shadow)`. Hidden on the dashboard | opens the Share sheet |
+| 9 | Avatar | 36px, 2px white ring | opens the user menu |
+| — | "View only" pill | viewers only, beside the tabs | |
+
+### 5.4 Sliding tab indicator
+An absolute pill inside the strip, `top:3px; bottom:3px; left:0`. Set `transform: translateX(offsetLeft)` and `width: offsetWidth` from the active tab.
+```css
+background: linear-gradient(180deg,rgba(255,255,255,.55) 0%,rgba(255,255,255,.08) 50%,rgba(255,255,255,.3) 100%),
+            oklch(0.42 0.11 285 / .14);
 backdrop-filter: blur(8px) saturate(220%);
 border: 1px solid oklch(0.42 0.11 285 / .28);
 box-shadow: inset 0 1px 0 rgba(255,255,255,.95), inset 0 -2px 6px rgba(255,255,255,.4),
   inset 0 2px 5px oklch(0.42 0.11 285 / .12), 0 2px 6px oklch(0.42 0.11 285 / .16), 0 6px 16px oklch(0.42 0.11 285 / .12);
 pointer-events:none;
+transition: transform .55s var(--ease), width .55s var(--ease), opacity .3s;
 ```
-Re-measure on route change, resize and tab-strip scroll (`ResizeObserver` is ideal). Keep the active tab visible by setting `scrollLeft`; don't use `scrollIntoView`.
+- **Re-measuring:** on route change, tab resize (`ResizeObserver`) and strip scroll.
+- **Keeping the tab visible:** use `scrollTo({behavior:'smooth'})`, never `scrollIntoView`.
+- **No active tab:** opacity 0.
+- **Surviving remounts:** remember the last position at module level, so the highlight still slides even though the nav is rebuilt per page:
+```ts
+let lastMetrics: Metrics | null = null
+const [metrics, setMetrics] = useState(lastMetrics)
+const [animated, setAnimated] = useState(lastMetrics !== null)
+// in measureIndicator: lastMetrics = next
+```
+- **Nav width across remounts:** do the same with `lastNavWidth`. Set the old width inline, force a reflow, transition to `scrollWidth`, and clear the inline styles on `transitionend`.
 
-## Screens
-Every screen root enters with `g-in .7s var(--ease)` (fade + 14px rise + 6px blur → none).
+### 5.5 Responsive & scroll
+- **< 1100px:** Search shows only ⌘K, the status pill shows only its dot, and the avatars hide.
+- **< 760px:** the tabs collapse into one pill ("{current} ▾") that opens a glass dropdown of all tabs, and the workspace name hides.
+- **Scroll > 24px:** add `data-compact`. Height 56 → 46, wrapper top padding 12 → 6, fill .72 → .85, animated over .4s with `--ease`.
 
-**Sign-in.** A centered glass card: max-width 400, padding 44/40, radius 28, gap 28, text centered, entrance `g-sheet`.
-- A 52px accent rounded square as the mark.
-- H1 "Sign in" (30px) and "Sign in to your workspaces."
-- Two 50px pill buttons: GitHub (accent) and Google (glass white).
-- Footnote 13px: "New here? Signing in creates your account and a workspace of your own."
+### 5.6 Under-nav floating pills (centred, 10px below the nav)
+- **Offline / syncing:** glass `rgba(255,255,255,.62)` with blur 24, pill, padding 6/6/6/16, 8px status dot, text `--text-2`, and a dark **Reconnect** pill (30px) when offline.
+  - Offline copy: "You're offline. Keep working, your changes are saved on this device." With a count: "You're offline. {n} changes saved on this device will sync when you're back."
+  - Syncing copy: "Back online. Syncing your changes…"
+- **Version preview:** dark glass, `max-width:100%; min-width:0`. Label "{Author} · {Mon D, HH:MM}" with ellipsis, **Restore** (white pill, editors only) and **Back to now** (`rgba(255,255,255,.16)` pill).
 
-**Dashboard.** Max-width 960, padding `40px 16px 64px`. H1 "Workspaces".
-- Grid `repeat(auto-fill,minmax(250px,1fr))`, 16px gap.
-- Tile: glass, radius 24, padding 22, 32px gap. It holds a 44px accent initial square (radius 14), the name (18/600) and "N documents · N people".
-- Tile hover: `translateY(-2px)` + `0 10px 28px rgba(30,45,40,.08)`. Active: `scale(.98)`.
-- The last tile is the create tile: `1.5px dashed rgba(40,40,60,.22)`, background `rgba(255,255,255,.7)` with `blur(20px) saturate(180%)`, shadow `inset 0 1px 0 rgba(255,255,255,.9), 0 4px 16px rgba(30,45,40,.06)`. Its pill input is `#fff` with `1px solid rgba(40,40,60,.14)` and the placeholder "Name it, then press Enter".
-- Tile text column (name and meta): `gap:4px; width:100%; min-width:0`, children `display:block`. Name `line-height:1.3; text-wrap:pretty`; meta `line-height:1.35`.
+### 5.7 Popovers
+- **Status:** 270px wide, radius 22, `rgba(255,255,255,.72)` with blur 30, origin top-right, `g-pop .45s`.
+  - Title: "Everything is up to date" / "Working offline" / "Catching up".
+  - Rows: People here · Response time · Waiting to sync · Version.
+  - A dev-only button: "Go offline (simulate)" / "Reconnect now".
+- **User menu:** 220px wide, radius 20. Name and email, "All workspaces", and "Sign out" in `--danger`. Rows are 38px with radius 14.
+- **Behaviour:** opening one popover closes the other. Esc or a click outside closes both.
 
-**Workspace.** H1 = workspace name, then `N documents · N people` on its own frosted pill: `align-self:flex-start; padding:5px 14px`, pill radius, `rgba(255,255,255,.75)` with `blur(16px) saturate(180%)`, `1px solid rgba(255,255,255,.9)`, `0 2px 8px rgba(30,45,40,.06)`; text `--text-2`, 14px, 500. Any small text sitting directly on the painted background gets this pill; large headings stay bare.
-- **Documents:** tiles (minmax 230) with a kind chip (`Board` / `Page`: accent-tint bg, accent-text, pill) and the title plus "updated" line.
-- **Create tile** (editors only):
-  - Same create-tile surface as the dashboard (dashed border, `.7` frosted fill); pill input `#fff` with `1px solid rgba(40,40,60,.14)`.
-  - Page/Board segmented control: track `rgba(40,40,60,.08)`; the selected segment is white with `0 1px 3px rgba(30,45,40,.14)`.
-  - Create button (accent).
-  - Enter submits.
-- **People:** a glass list (radius 22) with rows of a 34px avatar, name, email and role ("Owner / Can edit / Can view"). The header link "Manage" (owner) or "See who has access" opens Share.
+---
 
-**Board.** A horizontal scroller with **44px** top padding and 16px gutters, centred
-with `width:fit-content; max-width:100%; margin:0 auto` so the columns sit in the
-middle when they fit and still scroll when they do not.
-- **Column:** 290px wide, radius 26, glass `rgba(255,255,255,.42)`; drag-over bg `rgba(255,255,255,.75)` + `inset 0 0 0 2px var(--accent)`. Header: title 15/600 and a count chip (22px pill, `rgba(0,0,0,.05)`).
-- **Card:**
-  - Base: `rgba(255,255,255,.92)`, radius 18, padding 14/16, title 14.5px. Shadow `0 0 0 1px #fff, 0 2px 8px rgba(30,45,40,.06)`.
-  - Hover: `translateY(-3px) scale(1.01)` + `0 14px 30px rgba(30,45,40,.12)`. Active: `scale(.98)`. Entrance: `g-in .5s`.
-  - Being dragged: opacity .4.
-  - Selected: `0 0 0 2px var(--accent)`.
-  - A remote peer on the card: `0 0 0 2px #0ea5e9, 0 4px 14px rgba(14,165,233,.18)` plus a peer chip (avatar + name, `rgba(14,165,233,.1)`, text `#0b6e99`).
-  - "Has notes" meta when there is a description. A delete × (24px circle) for editors.
-- **"+ Add a card":** a ghost pill — fill `rgba(255,255,255,.55)`, `inset 0 0 0 1px rgba(40,40,60,.08)`, text `#3d403b` (= `--text-2`) at weight 500, hover fill `rgba(255,255,255,.9)`.
-- **"+ Add a list":** a 230×54 dashed pill — `1.5px dashed rgba(40,40,60,.22)`, fill `rgba(255,255,255,.7)` with `blur(20px) saturate(180%)`, shadow `inset 0 1px 0 rgba(255,255,255,.9), 0 4px 16px rgba(30,45,40,.06)`, text `#3d403b` at weight 500, hover fill `rgba(255,255,255,.92)`, pressed `scale(.97)`.
+## 6. Layout & spacing
+- **Scrolling:** the page itself scrolls (`height:100vh; overflow:auto`). There is no sidebar.
+- **Content widths:** dashboard and workspace 960; document 780 (narrow) or 1040 (wide); board columns centred.
+- **Top spacing:** dashboard and workspace pages `padding:40px 16px 64px`. Board 44px top. Document: toolbar 24px top, then the page 16px below it.
+- **Spacing steps:** 2/4/6/8/10/12/14/16/18/20/22/26/28/32/40/44/56.
+- **Radius nesting:** inner radius ≈ outer radius − 8.
 
-**Card sheet.** A fixed overlay `rgba(30,40,35,.16)` + `blur(8px)`, `g-fade .35s`.
-- Sheet: max-width 580, radius 30, `--glass-bg-sheet`, shadow `0 40px 90px rgba(30,45,40,.22)`, entrance `g-sheet .6s`.
-- **Top row:** column select (pill, `rgba(0,0,0,.05)`), "Grace is here too" with a pulsing dot, and a close button (30px circle).
-- **Body:**
-  - Title textarea, 26/600.
-  - Notes textarea: radius 20, white glass. On focus: white fill + `0 0 0 1px accent, 0 0 0 5px var(--accent-ring)`.
-  - Activity list: 24px avatars and "**Who** what", with the time on the right.
-- **Footer:** "Delete card" (danger text) and "Done" (accent pill).
-- Esc or a backdrop click closes it. Viewers get read-only fields.
+---
 
-**Document.** Max-width 780, centered.
-- The page is a glass sheet: radius 30, padding 56/56/96, `rgba(255,255,255,.78)`.
-- Text: H1 32/600; H2 21/600; paragraphs **18px** (raised from 17 with the base),
-  line-height 1.65, color `--text-2`; caret color accent. At the 668px measure that is
-  about 71–75 characters a line, down from 75–80.
-- Remote cursor: a 2px bar in the peer color, with the label in a pill above it (11px / 500, `0 4px 10px` shadow). It moves with `left/top .7s var(--ease)`.
+## 7. Sign-in
+- **Card:** a centred glass card, `max-width:400px; padding:44px 40px; border-radius:28px; gap:28px; text-align:center`; `rgba(255,255,255,.55)`, blur 30, shadow `inset 0 1px 0 rgba(255,255,255,.95), 0 24px 60px rgba(30,45,40,.12)`; entrance `g-sheet .7s`.
+- **Mark:** a 52px accent square with radius 16 and an accent glow.
+- **Text:** H1 "Sign in", then "Sign in to your workspaces." in `--text-muted`.
+- **Continue with GitHub:** 50px, pill, accent. Hover `translateY(-1px)` with a bigger accent shadow; **the colour stays the same**. Pressed `scale(.97)`; `transition .4s var(--ease)`.
+- **Continue with Google:** 50px, pill, `rgba(255,255,255,.6)` with a white border; hover `.9`.
+- **Footnote:** 13px, `--text-faint`: "New here? Signing in creates your account and a workspace of your own."
 
-**History.** A fixed panel at `top:84px; right:16px; bottom:16px`, 330px wide, radius 28, glass, entrance `g-side .6s` (slides in from 28px right).
-- Header "History" (18/600) + close.
-- Range slider (accent color) with "Earliest … Now" labels.
-- List, newest first. Each row: a 32px author avatar, the description and "Author · time". Row radius 18; the selected row is `rgba(255,255,255,.85)`.
+---
 
-**Version preview.** A dark floating pill under the nav: `rgba(28,29,27,.82)` + blur, white text "Ada · Sep 27, 14:20" (ellipsis), "Restore" (white pill, editors only) and "Back to now" (white 16% pill). Keep `max-width:100%; min-width:0`. While preview is active the content is read-only.
+## 8. Dashboard
+- **Heading:** H1 "Workspaces".
+- **Grid:** `repeat(auto-fill,minmax(250px,1fr))`, gap 16.
+- **Workspace tile:** glass `rgba(255,255,255,.7)` (raised from .55 for legibility over the splatter), 1px white border, radius 24, padding 22, gap 32. It contains:
+  - A 44px accent square (radius 14) with the initial at 18px/600.
+  - A text column: `gap:4px; width:100%; min-width:0`. Name 18/600/1.3 with `display:block`; "N documents · N people" at 13.5 in `--text-muted`.
+  - Hover `translateY(-2px)` + `0 10px 28px rgba(30,45,40,.08)`, over .55s `--ease`. Pressed `scale(.98)`.
+- **New workspace tile:** `1.5px dashed var(--dash)`, `rgba(255,255,255,.7)` with blur 20, `inset 0 1px 0 rgba(255,255,255,.9), 0 4px 16px rgba(30,45,40,.06)`. Contains the title "New workspace" and a 42px white pill input "Name it, then press Enter".
+- **Input focus:** border `--accent` + `0 0 0 4px var(--accent-ring)`.
 
-**Offline / syncing.** A glass floating pill under the nav containing a status dot (the syncing dot pulses), the message, and a "Reconnect" dark pill when offline.
-- Offline copy: "You're offline. Keep working, your changes are saved on this device." With queued changes: "You're offline. N changes saved on this device will sync when you're back."
-- Syncing copy: "Back online. Syncing your changes…"
-- When it finishes, toast "Back online · N changes synced".
+---
 
-**Status popover.** 270px, radius 22, glass strong, origin top-right, `g-pop .45s`. Title ("Everything is up to date" / "Working offline" / "Catching up"), then a grid: People here, Response time, Waiting to sync, Version. Plus a "Go offline (simulate)" / "Reconnect now" button (dev only).
-
-**Share sheet.** Same overlay and sheet style, max-width 510.
-- Title: Share "{workspace}".
-- Owner-only invite field: a pill container holding a borderless email input, a role select (Can view / Can edit / Owner) and an "Add" accent pill.
-- Errors (danger, 13px): "We couldn't find {email}. Ask them to sign in once, then try again." / "{email} already has access."
-- Member rows: 36px avatar, name, email, and a role select for the owner (others see text).
-- Footnote: "People need to have signed in once before you can add them. Role changes apply the next time they connect."
-- Toasts: "{name} added", "{name} can edit now".
-
-**⌘K palette.** Overlay `rgba(30,40,35,.1)`, sheet at top 110px, max-width 580, radius 28, blur 36px.
-- 60px input "Search documents and actions".
-- Items are 46px pills; the selected one is accent bg with white text. Arrow keys move the selection, Enter runs it, Esc closes.
-- Items: the workspace's documents, Overview, All workspaces, Share, Go offline / Reconnect.
-
-**Viewer.** A "View only" pill next to the tabs. No create, add, delete, drag or restore. Read-only fields; the editor is not contentEditable.
-
-**Toasts.** Dark glass pill, bottom-center 28px, 8px lavender dot (`oklch(0.78 0.12 300)`), `g-up .55s`, auto-hide after 3.2s.
-
-## Keyframes
+## 9. Workspace (Overview)
+- **Header:** H1 = workspace name.
+- **Meta pill** (directly on the canvas):
 ```css
-@keyframes g-in{from{opacity:0;transform:translateY(14px);filter:blur(6px)}to{opacity:1;transform:none;filter:none}}
-@keyframes g-pop{from{opacity:0;transform:translateY(-6px) scale(.96);filter:blur(4px)}to{opacity:1;transform:none;filter:none}}
+align-self:flex-start; padding:5px 14px; border-radius:999px;
+background:rgba(255,255,255,.75); backdrop-filter:blur(16px) saturate(180%);
+border:1px solid rgba(255,255,255,.9); box-shadow:0 2px 8px rgba(30,45,40,.06);
+color:#3d403b; font-size:14px; font-weight:500;
+```
+  Text: "{n} documents · {m} people".
+
+**Documents (H2 21/600)**
+- **Grid:** `minmax(230px,1fr)`, gap 16.
+- **Document tile:** same as the workspace tile, but with gap 40.
+  - Kind chip: "Board" / "Page", 12.5/600, padding 3px 10px, pill, `--accent-tint` background, `oklch(0.38 0.1 285)` text.
+  - Title + "Author · 2 min ago" (13.5, `--text-faint`).
+- **Create tile** (editors only), same style as the new-workspace tile:
+  - Input "New document name" (white pill, maxLength 200).
+  - **Page / Board** segmented control: `--track` with 3px padding; the selected option is white + `0 1px 3px rgba(30,45,40,.14)`, buttons 32px at 13.5/500.
+  - **Create** (accent pill, 38px). Enter also creates.
+
+**People (H2)**
+- **Header link:** "Manage" (owner) or "See who has access" (others), `--accent-text`, 15/500. Opens the Share sheet.
+- **List:** glass `rgba(255,255,255,.7)`, radius 22. Rows: padding 14×18, a bottom line `rgba(0,0,0,.05)`, a 34px avatar, name 500, email 13 `--text-faint`, and the role on the right ("Owner / Can edit / Can view", 13, `--text-muted`).
+- **Owner alone:** show the empty state "Just you so far. **Invite people**", where the link opens Share.
+- **No inline invite form:** inviting happens only in the Share sheet.
+
+---
+
+## 10. Board
+- **Container:** `overflow-x:auto; padding:44px 0 48px`. The inner row is `display:flex; gap:16px; width:max-content; margin:0 auto; padding:0 16px`, so it's centred.
+
+**Column**
+- 290px wide, radius 26, `--glass-col` with blur 20 saturate 170, 1px white border.
+- Drag-over: background `rgba(255,255,255,.75)` + `inset 0 0 0 2px var(--accent)`, transition .4s.
+- Header (padding 16/18/10): title 15/600 + count chip (22px pill, `rgba(0,0,0,.05)`, 12.5, `--text-muted`).
+- Body: padding 0 10 10, gap 8.
+
+**Card**
+- `rgba(255,255,255,.92)`, radius 18, padding 14×16, gap 8. Title 14.5/1.4 with `text-wrap:pretty`.
+- Shadow:
+  - Default: `0 0 0 1px #fff, 0 2px 8px rgba(30,45,40,.06)`.
+  - Selected: `0 0 0 2px var(--accent)`.
+  - Peer on the card: `0 0 0 2px #0ea5e9, 0 4px 14px rgba(14,165,233,.18)`.
+- Hover `translateY(-3px) scale(1.01)` + `0 0 0 1px #fff, 0 14px 30px rgba(30,45,40,.12)`, .5s. Pressed `scale(.98)`. Entrance `g-in .5s`.
+- Dragging: opacity .4.
+- Meta row (12.5, `--text-faint`):
+  - "Has notes" when there is a description.
+  - Peer chip on the right: an 18px avatar inside a pill, `rgba(14,165,233,.1)`, text `#0b6e99`, `g-pop .4s`.
+- Delete × (editors): 24px circle in `--icon-faint`; hover `rgba(0,0,0,.05)` with `--text`.
+
+**Add buttons**
+- **+ Add a card:** 40px pill, `rgba(255,255,255,.55)`, `inset 0 0 0 1px rgba(40,40,60,.08)`, `--text-2` at 14/500, left-aligned with padding 0 14. Hover `.9`. Adds a "New card" and opens the sheet.
+- **+ Add a list:** 230×54 pill, `1.5px dashed var(--dash)`, `rgba(255,255,255,.7)` with blur 20, the create-tile shadow, `--text-2` at 14/500. Hover `.92`; pressed `scale(.97)`.
+
+**Drag & drop**
+- Dropping on a card inserts the dragged card before it; dropping on the column body appends it.
+- Each move is **one Yjs transaction**.
+- Viewers can't drag and have no × or add buttons.
+
+---
+
+## 11. Card sheet
+- **Overlay:** see §3. `g-fade .35s`.
+- **Sheet:** max-width 580, radius 30, `--glass-sheet` with blur 30, shadow `inset 0 1px 0 #fff, 0 40px 90px rgba(30,45,40,.22)`, `g-sheet .6s`.
+- **Top row** (padding 22/26/0, gap 10):
+  - Column `<select>`: 32px pill, `rgba(0,0,0,.05)`, 13.5/500.
+  - "Grace is here too", with an 8px `#0ea5e9` dot running `g-pulse 1.8s`.
+  - Close: 30px circle, `rgba(0,0,0,.06)`.
+- **Body** (padding 16/26/26, gap 20):
+  - Title textarea: 26/600, transparent, no border.
+  - Notes textarea "Add notes": radius 20, `rgba(255,255,255,.6)` with a 1px white border, padding 16×18. Focus: white + `0 0 0 1px var(--accent), 0 0 0 5px var(--accent-ring)`.
+  - Activity: label "Activity" (13/600, `--text-faint`); rows of a 24px avatar, **Who** what, and the time on the right (12.5).
+- **Footer** (editors, padding 14/26/20): "Delete card" (danger text link) and **Done** (38px accent pill).
+- **Closing:** Esc or a backdrop click. Viewers get read-only fields.
+- **Data:** title, column and description live on the card's Y.Map. Activity is a Y.Array per card.
+
+---
+
+## 12. Document page + Word-style toolbar
+
+### 12.1 Toolbar container
+```css
+position:sticky; top:80px; z-index:20;           /* 12px under the nav */
+max-width:1000px; margin:24px auto 0; padding:0 16px;
+animation: g-pop .6s var(--ease);
+```
+Inner panel: radius 22, `--glass-tool` with `--blur-2`, `1px solid rgba(40,40,60,.1)`, shadow `inset 0 1px 0 #fff, 0 10px 28px rgba(30,30,50,.1), 0 1px 3px rgba(30,30,50,.06)`.
+
+**Row 1: tabs** (padding 7/10/0, gap 4)
+- **Home · Insert · View:** 28px pills, padding 0 13, 13px.
+  - Active: `rgba(255,255,255,.95)` + `0 1px 3px rgba(30,30,50,.12)`, `--accent` text at 600.
+  - Inactive: transparent, `--text-muted` at 500.
+  - Transitions: background, colour and shadow over .3s.
+- Viewers see **View** only, plus a "View only" chip (12.5, `rgba(40,40,60,.06)`).
+- **Right side:** word count "{n} words" (12.5, `--text-faint`, tabular numbers), updated live.
+
+**Divider:** 1px `--line`, margin 7px 12px 0.
+
+**Row 2: tools** (min-height 48, padding 7/8, gap 2, wraps). Switching tabs fades the row in over .3s.
+
+**Tool button** (shared)
+```css
+height:32px; min-width:32px; padding:0 7px; border:none; border-radius:10px;
+display:flex; align-items:center; justify-content:center; gap:6px; font-size:13.5px;
+background: transparent | var(--accent-soft) when active;
+color: var(--text-2) | var(--accent) when active;
+transition: background .25s, color .25s, transform .3s var(--ease);
+:hover  { background: rgba(255,255,255,.9) }
+:active { transform: scale(.92) }
+```
+- **Keep the selection:** every tool calls `preventDefault()` on **mousedown**, so the editor keeps its selection.
+- **Labelled buttons** (Insert tab): padding 0 11 0 9, with the icon and text.
+- **Group separator:** 1×20px, `--sep`, margin 0 6px.
+- **Icons:** 16×16, `stroke: currentColor`, stroke-width 1.6, round caps and joins.
+
+### 12.2 Home tab, left to right
+| Group | Tool | Tooltip | Command |
+|---|---|---|---|
+| History | Undo · Redo | "Undo (⌘Z)" · "Redo (⌘⇧Z)" | editor undo/redo (`y-prosemirror` undo manager) |
+| Style | **Style dropdown** (150px, §12.4) | "Text style" | block type |
+| Inline | **B** (700) · *I* (Georgia italic) · U (underlined) · S (struck) | "Bold (⌘B)" · "Italic (⌘I)" · "Underline (⌘U)" · "Strikethrough" | toggle marks |
+| Colour | **A** with a 15×3px bar in the last colour used | "Text color" | opens the colour menu (§12.5) |
+| | Marker icon with a bar in the last highlight used | "Highlight" | opens the highlight menu |
+| Lists | Bulleted · Numbered | | toggle the list |
+| Align | Left · Center · Right · Justify | | paragraph alignment |
+| Clear | T with an × | "Clear formatting" | remove marks + set paragraph |
+
+**Active states:** B, I, U, S, the lists, the alignments and Quote/Code are highlighted (`--accent-soft` with `--accent` text) whenever the selection has that format. Re-read the format on `selectionchange` and after every command.
+
+### 12.3 Insert tab
+| Tool | Label | Inserts |
+|---|---|---|
+| Link | "Link" | opens the link popover (§12.6) |
+| Table | "Table" | a 3×3 table + an empty paragraph after it |
+| Divider | "Divider" | a horizontal rule |
+| Code block | "Code block" | toggles a `pre`/code block |
+| Quote | "Quote" | toggles a blockquote |
+| Date | "Date" | today's date as text, e.g. "Oct 3, 2026" |
+
+### 12.4 View tab
+- **Zoom:** label "Zoom", then **−**, the current value (a 58px field-style button, tabular numbers, click resets to 100%), then **+**. Steps of 10%, range 70–150%. Applied as `zoom` on the editor container; remote cursors stay correct.
+- **Page width:** label "Page width", then the **Narrow | Wide** segmented control (`--track`; the selected option is white + shadow, 26px). Narrow = 780px, Wide = 1040px; the page animates `max-width` over .55s.
+
+### 12.5 Dropdowns (shared shell)
+```css
+position:absolute; left:0; top:40px; padding:8px; border-radius:18px;
+background: var(--glass-menu); backdrop-filter: var(--blur-3);
+border:1px solid rgba(255,255,255,.95);
+box-shadow: inset 0 1px 0 #fff, 0 18px 44px rgba(30,30,50,.16);
+transform-origin: top left; animation: g-pop .4s var(--ease); z-index:5;
+```
+- **Closing:** clicking outside the toolbar, Esc, or choosing an item.
+- **Style menu** (240px, padding 6, rows 38px with radius 12, hover `rgba(40,40,60,.06)`). Each option is shown in its own style, with its shortcut on the right (11.5, `--text-faint`):
+
+| Option | Preview | Shortcut |
+|---|---|---|
+| Title (H1) | 22/600 | ⌘⌥1 |
+| Heading (H2) | 17/600 | ⌘⌥2 |
+| Subheading (H3) | 15/600 | ⌘⌥3 |
+| Normal text | 14.5 | ⌘⌥0 |
+| Quote | 14.5, muted, 2px violet left rule | — |
+| Code | monospace 13 | — |
+
+  The trigger button: 150×32, field style, current style name + a 9px ▼.
+- **Colour menu** (170px): title "Text color" (12/600, `--text-faint`), then a 4-column grid of 28px swatches (gap 8). Hover `scale(1.12)`. The selected swatch gets `0 0 0 2px #fff, 0 0 0 4px <colour>`.
+  - Default `#1c1d1b`, Grey `#6c6f6a`, Violet `--accent`, Red `#c4372b`, Orange `#c9661a`, Green `#2f8a4f`, Blue `#2f6fd0`, Pink `#c2417f`.
+- **Highlight menu:** same layout.
+  - None (white swatch with a red diagonal), Yellow `#fde68a`, Green `#c9f0d3`, Blue `#d3e4ff`, Pink `#ffd6e8`, Violet `#e4d8fb`, Orange `#ffe0c2`, Grey `#e6e6ea`.
+
+### 12.6 Link popover
+- **Size:** 330px, padding 6, gap 6.
+- **Input:** "Paste a link", 34px white pill; focus is accent + ring. Opens focused.
+- **Add:** accent pill, 34px. Enter also applies.
+- **Remove:** 34px pill, `rgba(40,40,60,.06)`.
+- **Behaviour:**
+  - Save the editor selection when the popover opens and restore it before applying.
+  - URLs without a scheme get `https://`.
+  - Esc closes.
+
+### 12.7 Page
+- **Container:** `max-width: 780px | 1040px; margin:16px auto 64px; padding:0 16px`.
+- **Sheet:** radius 30, padding 56/56/96, `--glass-page` with blur 24 saturate 170, 1px border `rgba(255,255,255,.9)`, shadow `inset 0 1px 0 #fff, 0 10px 40px rgba(30,45,40,.06)`.
+- **Document title:** shown as the first H1.
+- **Editor:** 17px / 1.65, `--text-2`, caret colour `--accent`. `contentEditable` only for editors.
+
+**Element styles inside the editor** (ProseMirror node views / CSS):
+
+| Node | Style |
+|---|---|
+| h1 | 32/600/1.2, −0.025em, margin 0 0 20, `--text` |
+| h2 | 21/600/1.3, −0.02em, margin 30 0 10 |
+| h3 | 17/600/1.35, margin 22 0 8 |
+| p | margin 0 0 14 |
+| blockquote | margin 18 0, padding 2 0 2 18, `border-left:3px solid oklch(0.42 0.11 285 / .35)`, `--text-muted` |
+| pre / code block | radius 14, padding 14×16, `rgba(40,40,60,.05)`, `ui-monospace` 14/1.55, `white-space:pre-wrap` |
+| ul / ol | margin 0 0 14, padding-left 24; li margin 0 0 4 |
+| hr | no border, 1px `rgba(40,40,60,.14)`, margin 28 0 |
+| table | width 100%, `border-collapse:separate`, 1px `rgba(40,40,60,.14)` outer border, radius 12, overflow hidden, 15px |
+| td | right/bottom 1px `rgba(40,40,60,.1)`, padding 8×12, min-width 60, top-aligned |
+| a | `--accent`, underline, offset 2px |
+| text colour / highlight | inline marks (`textStyle` colour, `highlight`) |
+
+**Implementation notes**
+- Build the toolbar on ProseMirror commands (`toggleMark`, `setBlockType`, `wrapIn`, list commands, a table plugin), not `document.execCommand`. The prototype uses `execCommand` only for convenience.
+- Shortcuts:
+  - ⌘B/I/U through the keymap.
+  - ⌘⌥0–3 for block types, matched on `event.code` (`Digit0–3`) so they work on macOS.
+  - Don't bind ⌘K in the editor; it's the global palette shortcut.
+- **New schema marks/nodes needed:** underline, strike, text colour, highlight, alignment attribute, table, horizontal rule, code block.
+- **Word count:** count whitespace-separated tokens of `doc.textContent`, debounced to about 150ms.
+
+**Remote cursors:** a 2px bar in the peer's colour, radius 1. The label pill sits above it (11/500, white text, padding 4×8, `0 4px 10px` shadow in the peer's colour at 30%). Position changes animate `left/top .7s var(--ease)`.
+
+---
+
+## 13. History panel
+- **Panel:** `position:fixed; top:84px; right:16px; bottom:16px; width:330px; z-index:25`, radius 28, `rgba(255,255,255,.66)` with blur 30, entrance `g-side .6s`.
+- **Header** (padding 20/20/10): "History" (18/600) + a 30px close circle.
+- **Slider:** range input with `accent-color: var(--accent)`, labelled "Earliest … Now" (12, `--text-faint`).
+- **List,** newest first. Rows 10×12 with radius 18: a 32px author avatar, the description (14/500) and "Author · time" (12.5, faint).
+  - Selected row: `rgba(255,255,255,.85)`. Hover `.75`. Transition .35s.
+- **Selecting an older entry:** the content becomes a read-only preview (fade .4s) and the version pill appears (§5.6).
+- **Restore:** writes the old state as a **new** update, then toasts "Restored version from {date}".
+
+---
+
+## 14. Share sheet
+- **Shell:** same overlay and sheet as §11, max-width 510.
+- **Title:** Share "{workspace}" (21/600) + close.
+- **Invite bar** (owner only): a container pill (`rgba(255,255,255,.7)`, white border, `inset 0 1px 2px rgba(0,0,0,.04)`, padding 5) holding:
+  - A borderless email input, "Add people by email".
+  - A role `<select>` (Can view / Can edit / Owner), 36px pill, `rgba(0,0,0,.05)`.
+  - An **Add** accent pill.
+  - Enter submits.
+- **Errors** (13px, `--danger`, `g-pop .4s`):
+  - "We couldn't find {email}. Ask them to sign in once, then try again."
+  - "{email} already has access."
+- **Members:** 36px avatar, name, email. The owner sees a role select for everyone except themselves; others see the role as text.
+- **Footnote** (12.5, faint): "People need to have signed in once before you can add them. Role changes apply the next time they connect."
+- **Toasts:** "{name} added", "{name} can edit now".
+
+---
+
+## 15. ⌘K palette
+- **Overlay:** see §3. `g-fade .3s`.
+- **Panel:** `padding-top:110px`; max-width 580, radius 28, `rgba(255,255,255,.72)` with `blur(36px) saturate(200%)`, `g-pop .5s`.
+- **Input:** 60px, 18px text, "Search documents and actions", with a bottom line `rgba(0,0,0,.06)`. Focused on open.
+- **Results:** max-height 340, padding 8. Each row is a 46px pill: label (15) + hint (12.5, .7 opacity).
+  - Selected row: `--accent` background with white text; transitions .25s.
+  - Items: the workspace's documents, Overview, All workspaces, Share, Go offline / Reconnect.
+  - Empty: "No matches."
+- **Keyboard:** ↑/↓, Enter runs, Esc closes.
+- **Open:** Meta/Ctrl + K, globally.
+
+---
+
+## 16. Toasts
+- **Look:** fixed, bottom-centre 28px, dark glass, pill, padding 12×20, 14px white text, an 8px `--toast-dot`.
+- **Motion:** enter `g-up .55s`; auto-hide after 3.2s. A new toast replaces the current one.
+- **Messages:**
+  - "Back online · {n} changes synced"
+  - "Restored version from …"
+  - "{name} added"
+  - "{name} can edit now"
+  - "Created {workspace}"
+
+---
+
+## 17. Motion
+
+```css
+@keyframes g-in   {from{opacity:0;transform:translateY(14px);filter:blur(6px)}to{opacity:1;transform:none;filter:none}}
+@keyframes g-pop  {from{opacity:0;transform:translateY(-6px) scale(.96);filter:blur(4px)}to{opacity:1;transform:none;filter:none}}
 @keyframes g-sheet{from{opacity:0;transform:translateY(24px) scale(.97)}to{opacity:1;transform:none}}
-@keyframes g-side{from{opacity:0;transform:translateX(28px)}to{opacity:1;transform:none}}
-@keyframes g-fade{from{opacity:0}to{opacity:1}}
-@keyframes g-up{from{opacity:0;transform:translate(-50%,16px) scale(.96)}to{opacity:1;transform:translate(-50%,0)}}
+@keyframes g-side {from{opacity:0;transform:translateX(28px)}to{opacity:1;transform:none}}
+@keyframes g-fade {from{opacity:0}to{opacity:1}}
+@keyframes g-up   {from{opacity:0;transform:translate(-50%,16px) scale(.96)}to{opacity:1;transform:translate(-50%,0)}}
 @keyframes g-pulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.4;transform:scale(.8)}}
 ```
-Buttons generally use `transition: transform .4s var(--ease), background .3s` and press with `:active{transform:scale(.95–.97)}`. Wrap all motion in `@media (prefers-reduced-motion: no-preference)`.
 
-## State & data (production wiring)
-- **Connection:** y-websocket `status` events (`connected` / `disconnected` / `connecting`) map to Synced / Offline / Syncing.
-- **Queued count:** local `doc.on('update')` while disconnected; reset on `sync`.
-- **Presence:** `provider.awareness`. Extend it with `{ user:{name,color}, cardId?, mode }` to drive avatars, card peer rings and the tab dot.
-- **Version:** the server update sequence. **History:** a new API returning snapshot list + state; preview by applying a snapshot to a throwaway `Y.Doc`. Restore writes a **new** update.
-- **Roles:** come from the session / JWT. The UI hides affordances; the sync server still enforces them.
-- **⌘K:** a global `keydown` listener (Meta / Ctrl + K) in a client component.
+| Duration | Used for |
+|---|---|
+| .2–.3s | colour and background changes, toolbar tab fade, palette selection |
+| .4s | button press, popovers, dropdowns, splat landing (.65s) |
+| .55s | tab indicator, nav width, card and tile hover, page width |
+| .6–.7s | screen entrance, sheets, history panel, remote cursor |
 
-## Browser notes
-- Always pair `backdrop-filter` with `-webkit-backdrop-filter`.
-- Provide a fallback for browsers without backdrop-filter: raise glass opacity to `.92` via `@supports not (backdrop-filter: blur(1px))`.
+- **Easing:** `--ease` everywhere. Nothing bounces except the splat landing.
+- **Closing is instant:** popovers, menus and sheets close without an exit animation.
+- **Press depth:** small round buttons `scale(.92)`, toolbar tools `.92`, pills `.95`, cards and tiles `.98`, sign-in buttons `.97`.
+- **Reduced motion:** with `prefers-reduced-motion: reduce`, all keyframes become instant, the splatter freezes and transitions become 0s.
+
+**Overview → Launch board, in order**
+1. On click, any open popovers close and the old page is removed instantly.
+2. 0–.55s: the indicator slides and resizes to the new tab, the tab text cross-fades colour over .3s, and the nav grows evenly from the centre as the avatars and History appear.
+3. 0–.7s: the board rises 14px into focus; each card enters over .5s.
+4. Peer presence rings start showing.
+
+---
+
+## 18. States & roles
+
+| State | UI |
+|---|---|
+| Connected | green dot, "{n} here" (you included) |
+| Offline | amber dot, offline pill, queued count rising, tab presence dots hidden, peers faded to .35 |
+| Syncing | violet pulsing dot, "Back online. Syncing your changes…" |
+| Viewer | "View only" pills (nav + toolbar), toolbar shows the View tab only, no create/add/delete/drag/restore, editor not editable, card fields read-only |
+| Preview (history) | content read-only, toolbar hidden, version pill shown |
+
+---
+
+## 19. Production wiring
+
+| UI | Source |
+|---|---|
+| Connection | y-websocket `status`: connected / disconnected / connecting |
+| Queued count | local `doc.on('update')` while disconnected; reset on `sync` |
+| Response time | awareness / ping round-trip |
+| Presence, card focus, cursors | `provider.awareness` `{ user:{name,color}, cardId?, mode }`, driving the avatars, card rings and the tab dot (open doc only until per-doc presence exists) |
+| Version | server update sequence (needs exposing) |
+| History | new API: snapshot/session list + state at an update id (see backend plan) |
+| Card notes / activity | `description` on the card Y.Map + a per-card activity Y.Array |
+| Roles | session / JWT. The UI hides affordances; the sync server enforces them |
+
+**Agreed backend order:** (1) card notes + activity → (2) offline metrics (client side) → (3) `userId` on updates + version number → (4) history API + restore.
+
+---
+
+## 20. Accessibility checklist
+- Text contrast is at least 4.5:1. `--text-faint` passes on white and on the canvas. Any small text over the canvas sits on a frosted pill.
+- Every icon-only button has an `aria-label` and a `title` with its shortcut.
+- Visible focus rings everywhere (accent + 4–5px halo).
+- Sheets trap focus and return it to whatever opened them. Esc closes all overlays.
+- Clickable targets are at least 32px in the toolbar and 36px elsewhere.
+- Reduced-motion support as in §17.
+
+---
 
 ## Files
 - `Workspace D - Glass.dc.html`: interactive prototype (source of truth)
 - `support.js`: runtime needed to open it
 
 ---
+
+## Precedence, and where this file disagrees with itself
+
+**Sections 1–20 above are the design authority**, regenerated from the design tool on
+2026-10-03. They replaced a narrative handoff roughly a third of this length.
+
+**The Implementation status section below is the build record** — what exists, what was
+measured, every deliberate deviation and why. The regenerated design sections carry none
+of that, and it is not recoverable, so it travels with them rather than being replaced
+by them.
+
+**Where a decision made in conversation postdates this file, the decision wins.** The
+design tool regenerates from its own prototype and cannot know what was agreed
+afterwards. The three below were all decided on 2026-10-03, after the state this file
+describes:
+
+| Item | This file says | Decided later, and shipped |
+|---|---|---|
+| Splat scale | `range(0.6, 1.2)` (§4.2) | **`range(0.7, 1.4)`** — the owner asked for "a little" bigger and chose +17% from measured options, median span 116 → 134px |
+| Document body | 17px (§12.7) | **18px** — the owner asked for reading text a size up; the 15px base went to 16px with it |
+| Document page margin | `16px auto 64px` (§12.7) | **`28px auto 64px`** — from the screenshot review, where the sheet was touching the nav |
+
+**The prototype it names as source of truth is not in this repository.** §0 says
+`Workspace D - Glass.dc.html` wins over this README. That file arrives in
+`CRDT workspace design.zip`, which is untracked, so a reader following that instruction
+has nothing to open. Until it is committed, **this document is the only authority
+anyone here can actually consult**, and a disagreement with the prototype cannot be
+discovered, let alone resolved.
+
+**Two more disagreements, both still open:**
+
+- **Device pixel ratio.** §4.2 caps it at 2; the code caps at 1, in one named constant,
+  with the measurements that justified it recorded below. Raising it roughly quadruples
+  the layer's memory. Not changed on the strength of a regenerated document.
+- **Minimum splat spacing.** §4.2 requires 120px between centres. Not implemented, and
+  not currently measured. It would change the seeded pattern.
+
+**One disagreement this file resolves.** §4.2 states the purple palette as `#7b3fe4`
+**×2** — an actual duplicate entry. The build record below documents the opposite
+reading ("eleven entries, all distinct — do not add a duplicate"), which was flagged as
+an open question rather than guessed at. §4.2 is newer and is the design authority, so
+the duplicate is the intended behaviour. **Applying it changes the seeded splatter
+pattern on every screen**, so it is a deliberate change with a visible result, not a
+tidy-up.
+
 
 ## Implementation status
 
