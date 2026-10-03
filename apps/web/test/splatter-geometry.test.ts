@@ -42,9 +42,15 @@ describe('splat geometry', () => {
     }
   })
 
-  it('splatCount follows 16 + 12 * sqrt(W*H)/1100', () => {
-    expect(splatCount(1100, 1100)).toBe(28)
-    expect(splatCount(1440, 900)).toBe(16 + Math.round((12 * Math.sqrt(1440 * 900)) / 1100))
+  it('splatCount follows 10 + 8 * sqrt(W*H)/1100', () => {
+    // Expectations computed by hand, not copied from a run: the point of this test
+    // is to pin the formula independently of the implementation.
+    // 1100x1100: sqrt = 1100, 8 * 1100 / 1100 = 8, 10 + 8 = 18.
+    expect(splatCount(1100, 1100)).toBe(18)
+    // 3840x2160: sqrt = 2880, 8 * 2880 / 1100 = 20.945 -> 21, 10 + 21 = 31. A 4K
+    // viewport separates this formula from the old one, which gave 47 there.
+    expect(splatCount(3840, 2160)).toBe(31)
+    expect(splatCount(1440, 900)).toBe(10 + Math.round((8 * Math.sqrt(1440 * 900)) / 1100))
   })
 
   it('specks default to about 320 and sit inside the viewport', () => {

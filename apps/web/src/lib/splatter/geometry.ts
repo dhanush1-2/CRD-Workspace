@@ -50,7 +50,7 @@ export type Speck = { x: number; y: number; r: number; color: string; phase: num
 // Coordinates are splat-local: origin at the centre, y pointing down (canvas).
 const DOWN = Math.PI / 2
 const TAU = Math.PI * 2
-const BASE_CORE_RADIUS = 30
+const BASE_CORE_RADIUS = 11
 const DRIP_PROBABILITY = 0.35
 
 export function makeSplat(random: Random, color: string, scale: number): Splat {
@@ -80,25 +80,26 @@ export function makeSplat(random: Random, color: string, scale: number): Splat {
       x: Math.cos(angle) * start,
       y: Math.sin(angle) * start,
       angle,
-      length: coreR * random.range(1.4, 3.2),
-      width: scale * random.range(5, 11),
-      tipR: scale * random.range(2.5, 6),
+      length: coreR * random.range(1.5, 5),
+      width: scale * random.range(1.5, 4),
+      tipR: scale * random.range(1, 2.5),
       drip: random.next() < DRIP_PROBABILITY ? coreR * random.range(0.4, 1.4) : 0,
     })
   }
 
-  // Droplets: scattered out to roughly twice the core radius, getting both
-  // smaller and further out along the list.
+  // Droplets: scattered out to roughly five core radii, getting both smaller and
+  // further out along the list. Most are tiny: the spray reads as spray, not as a
+  // second ring of blobs.
   const droplets: Circle[] = []
   const dropletCount = random.int(40, 90)
   for (let i = 0; i < dropletCount; i += 1) {
     const t = dropletCount > 1 ? i / (dropletCount - 1) : 0
     const angle = random.range(0, TAU)
-    const dist = coreR * (1 + t * 0.9 + random.range(0, 0.2))
+    const dist = coreR * (1 + t * 4 + random.range(0, 0.2))
     droplets.push({
       x: Math.cos(angle) * dist,
       y: Math.sin(angle) * dist,
-      r: scale * (5.5 - 4.7 * t) * random.range(0.85, 1),
+      r: scale * (2.5 - 2.1 * t) * random.range(0.85, 1),
     })
   }
 
@@ -106,7 +107,7 @@ export function makeSplat(random: Random, color: string, scale: number): Splat {
   const drips: Ray[] = []
   const dripCount = random.int(0, 3)
   for (let i = 0; i < dripCount; i += 1) {
-    const width = scale * random.range(3, 6)
+    const width = scale * random.range(1, 2.5)
     drips.push({
       x: coreR * random.range(-0.6, 0.6),
       y: coreR * random.range(0.2, 0.6),
@@ -150,7 +151,7 @@ export function makeSplat(random: Random, color: string, scale: number): Splat {
 }
 
 export function splatCount(width: number, height: number): number {
-  return 16 + Math.round((12 * Math.sqrt(width * height)) / 1100)
+  return 10 + Math.round((8 * Math.sqrt(width * height)) / 1100)
 }
 
 export function makeSpecks(

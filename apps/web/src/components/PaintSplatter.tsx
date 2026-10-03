@@ -15,7 +15,7 @@ type Props = {
 // A constant, never Date.now(): the pattern must be the same on every load.
 const SEED = 0x5ca77e5
 
-const LAYER_OPACITY = { subtle: 0.5, bold: 0.9 } as const
+const LAYER_OPACITY = { subtle: 0.32, bold: 0.9 } as const
 const LANDING_MS = 650
 const FADE_OUT_MS = 2400
 const SPECK_PERIOD_MS = 700
@@ -174,7 +174,7 @@ export function PaintSplatter({ strength = 'subtle', palette = 'purple', motion 
       const colors = PALETTES[palette]
       const now = performance.now()
       for (let i = 0, n = splatCount(w, h); i < n; i += 1) {
-        const splat = makeSplat(random, random.pick(colors), random.range(0.7, 1.4))
+        const splat = makeSplat(random, random.pick(colors), random.range(0.6, 1.2))
         placed.push({
           splat,
           canvas: paintSplat(splat, dpr),

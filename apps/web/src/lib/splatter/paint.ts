@@ -32,9 +32,16 @@ export function paintSplat(splat: Splat, dpr: number): HTMLCanvasElement {
     ctx.fill()
   }
 
-  // A streak tapering from `ray.width` at its start to a point just narrower
-  // than the tip blob, then the blob itself. The tip end is never wider than
-  // tipR, so it stays inside the blob and the blob inside the bound.
+  // A streak tapering from `ray.width` at its start to 15% of that at the tip,
+  // then the blob itself.
+  //
+  // The 15% is the design's figure and it is what makes a ray read as a thrown
+  // streak. Tapering to a fraction of `tipR` instead — which this did — leaves the
+  // tip at roughly 60% of the base width with a blob as wide as the base on the
+  // end, which is the "spider leg" the design owner reported.
+  //
+  // 15% of the base width is far below `tipR` at every size in the table, so the
+  // tip end still sits inside the blob and the blob inside the bound.
   const streak = (ray: Ray) => {
     const dx = Math.cos(ray.angle)
     const dy = Math.sin(ray.angle)
@@ -43,7 +50,7 @@ export function paintSplat(splat: Splat, dpr: number): HTMLCanvasElement {
     const tipX = ray.x + dx * ray.length
     const tipY = ray.y + dy * ray.length
     const baseHalf = ray.width / 2
-    const tipHalf = ray.tipR * 0.6
+    const tipHalf = (ray.width * 0.15) / 2
 
     ctx.beginPath()
     ctx.moveTo(ray.x + nx * baseHalf, ray.y + ny * baseHalf)
