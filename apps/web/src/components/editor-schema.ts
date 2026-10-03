@@ -1,4 +1,5 @@
 import StarterKit from '@tiptap/starter-kit'
+import { FontFamily, FontSize, TextStyle } from '@tiptap/extension-text-style'
 import { getSchema } from '@tiptap/core'
 import type { Schema } from '@tiptap/pm/model'
 
@@ -18,7 +19,15 @@ import type { Schema } from '@tiptap/pm/model'
  * document but absent from the schema used to read it is dropped silently, with no
  * error anywhere.
  */
-export const editorExtensions = [StarterKit.configure({ undoRedo: false })]
+export const editorExtensions = [
+  StarterKit.configure({ undoRedo: false }),
+  // TextStyle is the mark; FontFamily and FontSize are global attributes written
+  // onto it, so it has to come with them or both are silent no-ops. The values they
+  // may take are curated — see editor-type.ts.
+  TextStyle,
+  FontFamily,
+  FontSize,
+]
 
 let schema: Schema | null = null
 
