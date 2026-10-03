@@ -8,6 +8,27 @@ import styles from './nav-tabs.module.css'
 
 type Metrics = { x: number; w: number }
 
+/**
+ * The pill's last position, kept outside the component so it survives a client
+ * navigation.
+ *
+ * Every page renders its own AppShell, so this component is a new instance on every
+ * navigation and its state starts empty -- which made the pill appear at its
+ * destination instead of travelling there. Seeded from this, the new nav first draws
+ * the pill where the old one left it and then slides to the new tab.
+ *
+ * Safe despite being module scope on the server: it is only ever written from
+ * measureIndicator, which runs in a layout effect, and layout effects do not run
+ * during SSR. So on the server this is always null, every render agrees, and there is
+ * nothing for hydration to disagree about.
+ *
+ * It can be stale across workspaces -- a position measured in one workspace's strip
+ * means little in another's -- in which case the pill slides from a slightly wrong
+ * place. Still better than materialising out of nothing. The shared-layout
+ * restructure removes the need for this entirely, because the nav stops being rebuilt.
+ */
+let lastMetrics: Metrics | null = null
+
 function isOverflowing(element: HTMLElement) {
   // The fade hints that there is more to scroll to, so it drops once the strip
   // is scrolled to the far end.
@@ -36,14 +57,17 @@ export function NavTabs({
   // dropped.
   const othersHere = status === 'connected' && peers.length > 0
   const strip = useRef<HTMLDivElement>(null)
-  const [metrics, setMetrics] = useState<Metrics | null>(null)
+  const [metrics, setMetrics] = useState<Metrics | null>(lastMetrics)
   const [overflowing, setOverflowing] = useState(false)
   // The transition is withheld until the indicator has been placed and painted
-  // once. The server renders the indicator at width 0 and it is only sized
-  // during hydration, so animating from that first state would make the pill
-  // visibly grow from nothing on every hard load.
-  const [animated, setAnimated] = useState(false)
-  const animatedOnce = useRef(false)
+  // once. On a hard load the server renders the indicator at width 0 and it is only
+  // sized during hydration, so animating from that first state would make the pill
+  // visibly grow from nothing.
+  //
+  // After a client navigation there is a remembered position to start from, so the
+  // transition is on from the first frame -- that is the whole point of remembering it.
+  const [animated, setAnimated] = useState(lastMetrics !== null)
+  const animatedOnce = useRef(lastMetrics !== null)
 
   function measureIndicator(element: HTMLElement) {
     const active = element.querySelector<HTMLElement>('[data-active="true"]')
@@ -52,6 +76,8 @@ export function NavTabs({
       return null
     }
     const next = { x: active.offsetLeft, w: active.offsetWidth }
+    // Remembered for the next instance of this component; see lastMetrics.
+    lastMetrics = next
     // offsetLeft is relative to the positioned strip, so it does not change as
     // the strip scrolls. Bail out when nothing moved to skip a re-render.
     setMetrics((prev) => (prev && prev.x === next.x && prev.w === next.w ? prev : next))

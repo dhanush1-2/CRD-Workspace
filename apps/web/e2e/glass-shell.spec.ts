@@ -208,6 +208,94 @@ test('the board starts 44px below the nav and its columns are centred', async ({
   await cleanup(label)
 })
 
+/**
+ * Samples a measurement off the page on every frame while `act` runs.
+ *
+ * Re-queries the element each frame on purpose. The nav is rebuilt on every
+ * navigation, so the thing being measured is a *different node* before and after --
+ * which is exactly what these two tests are about: the new node has to start where
+ * the old one left off rather than at nothing.
+ */
+async function sampleEachFrame(
+  page: Page,
+  target: { selector: string; axis: 'x' | 'width' },
+  act: () => Promise<void>,
+): Promise<number[]> {
+  const sampling = page.evaluate(async ({ selector, axis }) => {
+    const out: number[] = []
+    const start = performance.now()
+    while (performance.now() - start < 1400) {
+      const el = document.querySelector(selector)
+      if (el) out.push(el.getBoundingClientRect()[axis])
+      await new Promise((resolve) => requestAnimationFrame(resolve))
+    }
+    return out
+  }, target)
+  await act()
+  return sampling
+}
+
+const PILL = { selector: '[class*="indicator"]', axis: 'x' } as const
+const NAV = { selector: 'nav[aria-label="Primary"]', axis: 'width' } as const
+
+test('the pill slides to the new tab across a navigation instead of appearing there', async ({
+  page,
+}) => {
+  const label = `${LABEL}-pillslide`
+  const { owner, workspace } = await seedWorkspace(label)
+  const first = await createDocument(workspace.id, 'doc')
+  const second = await prisma.document.create({
+    data: { workspaceId: workspace.id, type: 'board', title: 'a much longer second title' },
+  })
+  await signIn(page, owner.id)
+  await page.setViewportSize({ width: 1600, height: 900 })
+  await page.goto(`/documents/${first.id}`)
+  await expect(page.getByTestId(`tab-${first.id}`)).toHaveAttribute('data-active', 'true')
+
+  const from = (await page.getByTestId(`tab-${first.id}`).boundingBox())!.x
+  const samples = await sampleEachFrame(page, PILL, async () => {
+    await page.getByTestId(`tab-${second.id}`).click()
+    await expect(page.getByTestId(`tab-${second.id}`)).toHaveAttribute('data-active', 'true')
+  })
+  const to = (await page.getByTestId(`tab-${second.id}`).boundingBox())!.x
+
+  expect(Math.abs(to - from)).toBeGreaterThan(20)
+  // At least a few frames caught the pill between the two tabs. Without the
+  // remembered position the new nav's pill starts at x=0 with width 0 and the first
+  // sample is already at the destination.
+  const low = Math.min(from, to) + 2
+  const high = Math.max(from, to) - 2
+  expect(samples.filter((x) => x > low && x < high).length).toBeGreaterThan(2)
+
+  await cleanup(label)
+})
+
+test('the nav animates to its new width across a navigation', async ({ page }) => {
+  const label = `${LABEL}-navbreathe`
+  const { owner, workspace } = await seedWorkspace(label)
+  const document = await createDocument(workspace.id, 'doc')
+  await signIn(page, owner.id)
+  await page.setViewportSize({ width: 1600, height: 900 })
+
+  // The overview has no status pill; a document does, so the bar genuinely changes
+  // width between the two.
+  await page.goto(`/workspaces/${workspace.id}`)
+  await expect(page.getByTestId('tab-overview')).toHaveAttribute('data-active', 'true')
+  const before = (await page.getByRole('navigation', { name: 'Primary' }).boundingBox())!.width
+
+  const samples = await sampleEachFrame(page, NAV, async () => {
+    await page.getByTestId(`tab-${document.id}`).click()
+    await expect(page.getByTestId('status')).toBeVisible()
+  })
+  const after = (await page.getByRole('navigation', { name: 'Primary' }).boundingBox())!.width
+
+  expect(after).toBeGreaterThan(before + 20)
+  const between = samples.filter((w) => w > before + 2 && w < after - 2)
+  expect(between.length).toBeGreaterThan(2)
+
+  await cleanup(label)
+})
+
 test('no splatter is painted behind the nav', async ({ page }) => {
   await page.goto('/login')
   await waitUntilDrawn(page)
