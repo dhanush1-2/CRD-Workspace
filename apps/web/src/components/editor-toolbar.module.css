@@ -23,7 +23,24 @@
 }
 
 .panel {
+  /* The glass is on ::before, not here. A backdrop-filter on this element would make it a
+     backdrop root, and the dropdowns (absolute, hanging below the panel's edge) are its
+     descendants: what lies outside the root is invisible to their own blur, so over the
+     document they would blur nothing. With the filter on a sibling layer, the menus are
+     no longer inside a backdrop root and blur the page behind them. */
+  position: relative;
+  isolation: isolate;
   border-radius: var(--r-pop);
+  /* Keeps the 1px the hairline used to occupy, so the content does not move. */
+  border: 1px solid transparent;
+}
+
+.panel::before {
+  content: '';
+  position: absolute;
+  inset: -1px;
+  z-index: -1;
+  border-radius: inherit;
   background: var(--glass-tool);
   backdrop-filter: var(--blur-2);
   -webkit-backdrop-filter: var(--blur-2);
@@ -34,6 +51,7 @@
     inset 0 1px 0 #fff,
     0 10px 28px rgba(30, 30, 50, 0.1),
     0 1px 3px rgba(30, 30, 50, 0.06);
+  pointer-events: none;
 }
 
 /* Row 1 */

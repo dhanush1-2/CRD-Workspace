@@ -1141,3 +1141,33 @@ test('colour and highlight made in one browser appear in the other', async ({ br
   await a.close()
   await b.close()
 })
+
+test('a menu blurs the page behind it: no ancestor of its panel is a backdrop root', async ({
+  page,
+}) => {
+  await openDocument(page, `${LABEL}-backdrop`)
+  await prose(page).click()
+
+  for (const id of ['style', 'color', 'highlight'] as const) {
+    await openMenu(page, id)
+    const found = await tb(page, `${id}-menu`).evaluate((menu) => {
+      const filter = (el: Element, pseudo?: string) => {
+        const style = getComputedStyle(el, pseudo)
+        return style.backdropFilter !== 'none' ? style.backdropFilter : 'none'
+      }
+      const ancestors: string[] = []
+      for (let el = menu.parentElement; el; el = el.parentElement) {
+        if (filter(el) !== 'none') ancestors.push(el.className || el.tagName)
+      }
+      const panel = menu.closest('[data-testid="tb-root"]')!.firstElementChild!
+      return { own: filter(menu), ancestors, panelGlass: filter(panel, '::before') }
+    })
+    // A backdrop-filter on an ancestor makes it the root the menu's blur samples from, and
+    // the menu hangs below that ancestor's edge, over the document: it would blur nothing.
+    expect(found.ancestors, `${id} menu`).toEqual([])
+    expect(found.own, `${id} menu`).not.toBe('none')
+    // The toolbar's own glass is still there, on its own layer.
+    expect(found.panelGlass).not.toBe('none')
+    await page.keyboard.press('Escape')
+  }
+})
