@@ -285,24 +285,48 @@ textarea {
   }
 }
 
-/* Tiptap editor surface. Typography follows the Glass document spec. The page sheet
-   (documents/[id]/document.module.css) supplies the 56/56/96 padding. */
+/* Tiptap editor surface. Typography follows the Glass document spec, handoff 12.7's
+   element table. The page sheet (documents/[id]/document.module.css) supplies the
+   56/56/96 padding.
+
+   Two deliberate departures from that table, both recorded in the handoff's Precedence
+   section: the body is 18px, not 17, and the page margin is 28px, not 16.
+
+   Literal values below are 12.7's own: the table gives rgba(40,40,60,.14), .1 and .05
+   and a 35% accent, and none of those is a token (--line is .07, --sep .12, --track .08,
+   --dash .22, --accent-soft a 12% tint). They are not rounded to the nearest token. */
 .editor .ProseMirror {
   min-height: 60vh;
   outline: none;
   caret-color: var(--accent);
 }
 
+/* h1..h3 set line-height and colour here because the global rules above carry only
+   size, weight and letter-spacing, and h3's global 18px is not the document's 17px. */
 .editor .ProseMirror h1 {
   font-size: 32px;
   font-weight: 600;
+  line-height: 1.2;
+  letter-spacing: -0.025em;
   margin: 0 0 20px;
+  color: var(--text);
 }
 
 .editor .ProseMirror h2 {
   font-size: 21px;
   font-weight: 600;
-  margin: 28px 0 8px;
+  line-height: 1.3;
+  letter-spacing: -0.02em;
+  margin: 30px 0 10px;
+  color: var(--text);
+}
+
+.editor .ProseMirror h3 {
+  font-size: 17px;
+  font-weight: 600;
+  line-height: 1.35;
+  margin: 22px 0 8px;
+  color: var(--text);
 }
 
 .editor .ProseMirror p {
@@ -311,7 +335,111 @@ textarea {
   font-size: 18px;
   line-height: 1.65;
   color: var(--text-2);
-  margin: 0 0 12px;
+  margin: 0 0 14px;
+}
+
+.editor .ProseMirror blockquote {
+  margin: 18px 0;
+  padding: 2px 0 2px 18px;
+  border-left: 3px solid oklch(0.42 0.11 285 / 0.35);
+  color: var(--text-muted);
+}
+
+/* A quote's text is paragraphs, and the paragraph rule above would paint them --text-2
+   and leave them 14px short of the rule's end. The quote's own colour wins, and its
+   padding is the only space at its bottom. */
+.editor .ProseMirror blockquote p {
+  color: inherit;
+}
+
+.editor .ProseMirror blockquote > :last-child {
+  margin-bottom: 0;
+}
+
+.editor .ProseMirror pre {
+  margin: 0 0 14px;
+  padding: 14px 16px;
+  border-radius: 14px;
+  background: rgba(40, 40, 60, 0.05);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 14px;
+  line-height: 1.55;
+  white-space: pre-wrap;
+}
+
+/* StarterKit's code block is pre > code, and the browser gives `code` its own plain
+   `monospace` family; the block's stack (ui-monospace first) should reach the text. */
+.editor .ProseMirror pre code {
+  font: inherit;
+}
+
+.editor .ProseMirror ul,
+.editor .ProseMirror ol {
+  margin: 0 0 14px;
+  padding-left: 24px;
+}
+
+.editor .ProseMirror li {
+  margin: 0 0 4px;
+}
+
+/* A list item's text is a paragraph too. The spec's item is bare text with 4px between
+   items; the paragraph's 14px margin would make every list loose. */
+.editor .ProseMirror li > p {
+  margin: 0;
+}
+
+.editor .ProseMirror hr {
+  border: none;
+  height: 1px;
+  background: rgba(40, 40, 60, 0.14);
+  margin: 28px 0;
+}
+
+.editor .ProseMirror table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  margin: 0 0 16px;
+  border: 1px solid rgba(40, 40, 60, 0.14);
+  border-radius: 12px;
+  overflow: hidden;
+  font-size: 15px;
+}
+
+.editor .ProseMirror td,
+.editor .ProseMirror th {
+  border-right: 1px solid rgba(40, 40, 60, 0.1);
+  border-bottom: 1px solid rgba(40, 40, 60, 0.1);
+  padding: 8px 12px;
+  min-width: 60px;
+  vertical-align: top;
+}
+
+.editor .ProseMirror th {
+  font-weight: 600;
+  text-align: left;
+}
+
+/* A cell's text is a paragraph. At 18px it would be bigger than the table's own 15px,
+   and its bottom margin would double the cell's padding. */
+.editor .ProseMirror td p,
+.editor .ProseMirror th p {
+  font-size: inherit;
+  line-height: 1.5;
+  margin: 0;
+}
+
+.editor .ProseMirror td p + p,
+.editor .ProseMirror th p + p {
+  margin-top: 6px;
+}
+
+/* Underlined and offset, per the table. Accent, not --accent-text: 12.7 says --accent. */
+.editor .ProseMirror a {
+  color: var(--accent);
+  text-decoration: underline;
+  text-underline-offset: 2px;
 }
 
 /*

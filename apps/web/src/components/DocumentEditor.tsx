@@ -83,10 +83,19 @@ export function DocumentEditor({
       />
       {/* data-width, not a second class: the sheet's stylesheet owns what each width is. */}
       <div className={sheetClassName} data-testid="document-page" data-width={pageWidth}>
-        {heading}
-        {/* CSS zoom on the editor's container (handoff 12.4), so the title above it stays
-            at its own size. A percentage string: it is unambiguous as a CSS value. */}
-        <EditorContent editor={editor} className="editor" style={{ zoom: `${zoom}%` }} />
+        {/* CSS zoom wraps the title as well as the editor (handoff 12.4, resolved against
+            the prototype: it zooms a div that contains the document's h1, so the title
+            scales with the body). Zooming only `.editor` left a 32px title over 12.6px
+            text at 70%. A percentage string: it is unambiguous as a CSS value.
+
+            Verified in Chromium 153 only. The exposure is not the remote carets (inline
+            widget spans, they scale with the text anywhere) but ProseMirror's own
+            posAtCoords/coordsAtPos, which drive clicks, drag selection and scroll-into-view
+            and which Chrome older than 128, and possibly Safari, report unzoomed. */}
+        <div data-testid="document-zoom" style={{ zoom: `${zoom}%` }}>
+          {heading}
+          <EditorContent editor={editor} className="editor" />
+        </div>
       </div>
     </>
   )

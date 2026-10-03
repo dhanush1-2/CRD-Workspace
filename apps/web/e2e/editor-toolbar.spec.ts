@@ -1863,8 +1863,11 @@ async function openView(page: Page) {
 
 const zoomValue = (page: Page) => tb(page, 'view-zoom-value')
 const sheet = (page: Page) => page.getByTestId('document-page')
-/** The element the design puts `zoom` on: the editor's container, not the sheet. */
-const editorBox = (page: Page) => page.locator('.editor')
+/**
+ * The element `zoom` is on: a wrapper around the title and the editor, not the sheet (so
+ * the padding stays) and not `.editor` alone (so the title scales with the body).
+ */
+const editorBox = (page: Page) => page.getByTestId('document-zoom')
 
 /** The number CSS is zooming the editor by, as the browser computed it (1.1 for 110%). */
 const appliedZoom = (page: Page) =>
@@ -1913,6 +1916,37 @@ test('zoom starts at 100%, steps by 10% either way, and the value resets it', as
   await expect(zoomValue(page)).toHaveText('100%')
   expect(await appliedZoom(page)).toBe(1)
   expect(await lineHeight()).toBeCloseTo(base, 0)
+})
+
+test('the document title scales with the body under zoom', async ({ page }) => {
+  await openDocument(page, `${LABEL}-zoom-title`)
+  await prose(page).click()
+  await page.keyboard.type('body text')
+  await openView(page)
+
+  const title = page.getByTestId('document-heading')
+  // What is painted, not what is computed: font-size is the unzoomed 32px at every zoom,
+  // so the box's height is what shows whether the title shrank. It is a single line.
+  const titleHeight = async () => (await title.boundingBox())!.height
+  const bodyHeight = async () => (await prose(page).locator('p').boundingBox())!.height
+
+  const titleAt100 = await titleHeight()
+  const bodyAt100 = await bodyHeight()
+  await expect(title).toHaveCSS('font-size', '32px')
+
+  await tb(page, 'view-zoom-out').click()
+  await tb(page, 'view-zoom-out').click()
+  await tb(page, 'view-zoom-out').click()
+  await expect(zoomValue(page)).toHaveText('70%')
+  expect(await titleHeight()).toBeCloseTo(titleAt100 * 0.7, 0)
+  // And in step with the text under it: the title keeps its size relative to the body.
+  expect((await titleHeight()) / (await bodyHeight())).toBeCloseTo(titleAt100 / bodyAt100, 1)
+
+  await zoomValue(page).click()
+  for (let i = 0; i < 5; i += 1) await tb(page, 'view-zoom-in').click()
+  await expect(zoomValue(page)).toHaveText('150%')
+  expect(await titleHeight()).toBeCloseTo(titleAt100 * 1.5, 0)
+  expect((await titleHeight()) / (await bodyHeight())).toBeCloseTo(titleAt100 / bodyAt100, 1)
 })
 
 test('zoom stops at 70% and at 150%, and the button that cannot go further says so', async ({
@@ -2224,4 +2258,169 @@ test('a peer’s caret and name label stay on their character at 70%, 100% and 1
 
   await a.close()
   await b.close()
+})
+
+// ---------------------------------------------------------------------------
+// Element styles (handoff 12.7's table)
+// ---------------------------------------------------------------------------
+
+/** One of every element the toolbar can produce, with a colour and a highlight among them. */
+const EVERY_ELEMENT = `
+<h1>Top</h1>
+<h2>Heading</h2>
+<h3>Subheading</h3>
+<p>Body with a <a href="https://example.com">link <span style="color: #c4372b">red in a link</span></a>, <span style="color: #2f8a4f">green</span> and <mark data-color="#fde68a" style="background-color: #fde68a; color: inherit">marked</mark>.</p>
+<ul><li><p>bullet one</p></li><li><p>bullet two</p></li></ul>
+<ol><li><p>number one</p></li><li><p>number two</p></li></ol>
+<blockquote><p>quoted <span style="color: #c4372b">red in a quote</span></p></blockquote>
+<pre><code>code line</code></pre>
+<hr>
+<table><tbody><tr><td><p>a1</p></td><td><p><span style="color: #2f6fd0">blue in a cell</span></p></td></tr><tr><td><p>b1</p></td><td><p>b2</p></td></tr></tbody></table>
+<p>last</p>
+`
+
+async function loadEveryElement(page: Page) {
+  await openDocument(page, `${LABEL}-elements-${Math.random().toString(36).slice(2, 8)}`)
+  await page.evaluate((html) => {
+    const editor = (document.querySelector('.editor .ProseMirror') as unknown as {
+      editor: import('@tiptap/core').Editor
+    }).editor
+    editor.commands.setContent(html)
+  }, EVERY_ELEMENT)
+  await expect(prose(page).locator('table')).toHaveCount(1)
+}
+
+/**
+ * The computed value of each property on the first element matching `selector`, inside the
+ * editor. Colours are not compared as text: `resolve` runs a literal through the browser,
+ * so `rgba(40,40,60,.14)` and `rgba(40, 40, 60, 0.14)` are the same answer.
+ */
+async function computed(page: Page, selector: string, props: string[]) {
+  return page.evaluate(
+    ([sel, names]) => {
+      const el = document.querySelector(`.editor .ProseMirror ${sel}`)!
+      const cs = getComputedStyle(el)
+      return Object.fromEntries(
+        (names as string[]).map((n) => [n, cs.getPropertyValue(n)]),
+      ) as Record<string, string>
+    },
+    [selector, props] as const,
+  )
+}
+
+/** What the browser makes of a colour value, `var()` included, so values can be compared. */
+function resolveColour(page: Page, value: string) {
+  return page.evaluate((v) => {
+    const probe = document.createElement('div')
+    probe.style.color = v
+    document.body.append(probe)
+    const out = getComputedStyle(probe).color
+    probe.remove()
+    return out
+  }, value)
+}
+
+test('headings, paragraphs, quote, code, lists and rule carry 12.7’s values', async ({ page }) => {
+  await loadEveryElement(page)
+  const text = await resolveColour(page, 'var(--text)')
+  const muted = await resolveColour(page, 'var(--text-muted)')
+
+  // size / weight / line-height / letter-spacing / margins, from the table.
+  expect(await computed(page, 'h1', ['font-size', 'font-weight', 'line-height', 'letter-spacing', 'margin-top', 'margin-bottom', 'color'])).toEqual({
+    'font-size': '32px', 'font-weight': '600', 'line-height': '38.4px', 'letter-spacing': '-0.8px', 'margin-top': '0px', 'margin-bottom': '20px', color: text,
+  })
+  expect(await computed(page, 'h2', ['font-size', 'font-weight', 'line-height', 'letter-spacing', 'margin-top', 'margin-bottom', 'color'])).toEqual({
+    'font-size': '21px', 'font-weight': '600', 'line-height': '27.3px', 'letter-spacing': '-0.42px', 'margin-top': '30px', 'margin-bottom': '10px', color: text,
+  })
+  // h3 is 17px here, not the global rule's 18px.
+  expect(await computed(page, 'h3', ['font-size', 'font-weight', 'line-height', 'margin-top', 'margin-bottom', 'color'])).toEqual({
+    'font-size': '17px', 'font-weight': '600', 'line-height': '22.95px', 'margin-top': '22px', 'margin-bottom': '8px', color: text,
+  })
+
+  // The body is 18px, which is a later decision than 12.7's 17 and must not be "corrected".
+  expect(await computed(page, 'p', ['font-size', 'line-height', 'margin-bottom'])).toEqual({
+    'font-size': '18px', 'line-height': '29.7px', 'margin-bottom': '14px',
+  })
+
+  const quote = await computed(page, 'blockquote', ['margin-top', 'margin-bottom', 'padding-top', 'padding-bottom', 'padding-left', 'border-left-width', 'border-left-color', 'color'])
+  expect(quote).toEqual({
+    'margin-top': '18px', 'margin-bottom': '18px', 'padding-top': '2px', 'padding-bottom': '2px', 'padding-left': '18px', 'border-left-width': '3px',
+    'border-left-color': await resolveColour(page, 'oklch(0.42 0.11 285 / .35)'), color: muted,
+  })
+  // The quote's text is a paragraph; the paragraph rule must not repaint it or pad its end.
+  expect(await computed(page, 'blockquote p', ['color', 'margin-bottom'])).toEqual({ color: muted, 'margin-bottom': '0px' })
+
+  expect(await computed(page, 'pre', ['margin-bottom', 'padding-top', 'padding-left', 'border-top-left-radius', 'background-color', 'font-size', 'line-height', 'white-space', 'font-family'])).toEqual({
+    'margin-bottom': '14px', 'padding-top': '14px', 'padding-left': '16px', 'border-top-left-radius': '14px',
+    'background-color': await resolveColour(page, 'rgba(40,40,60,.05)'), 'font-size': '14px', 'line-height': '21.7px', 'white-space': 'pre-wrap',
+    'font-family': 'ui-monospace, SFMono-Regular, Menlo, monospace',
+  })
+  // The code inside it takes the block's size and font stack, not the browser's `monospace`.
+  expect(await computed(page, 'pre code', ['font-size', 'font-family'])).toEqual({
+    'font-size': '14px', 'font-family': 'ui-monospace, SFMono-Regular, Menlo, monospace',
+  })
+
+  for (const list of ['ul', 'ol']) {
+    expect(await computed(page, list, ['margin-bottom', 'padding-left'])).toEqual({ 'margin-bottom': '14px', 'padding-left': '24px' })
+  }
+  expect(await computed(page, 'li', ['margin-bottom'])).toEqual({ 'margin-bottom': '4px' })
+  // An item's text is a paragraph; its own 14px margin must not make the list loose.
+  expect(await computed(page, 'li p', ['margin-bottom'])).toEqual({ 'margin-bottom': '0px' })
+
+  const hr = await computed(page, 'hr', ['border-top-width', 'height', 'background-color', 'margin-top', 'margin-bottom'])
+  expect(hr).toEqual({
+    'border-top-width': '0px', height: '1px', 'background-color': await resolveColour(page, 'rgba(40,40,60,.14)'), 'margin-top': '28px', 'margin-bottom': '28px',
+  })
+})
+
+test('a table and its cells carry 12.7’s values, and the text in a cell is the table’s 15px', async ({ page }) => {
+  await loadEveryElement(page)
+  const table = await computed(page, 'table', ['border-collapse', 'border-top-width', 'border-top-color', 'border-top-left-radius', 'overflow', 'font-size', 'margin-bottom'])
+  expect(table).toEqual({
+    'border-collapse': 'separate', 'border-top-width': '1px', 'border-top-color': await resolveColour(page, 'rgba(40,40,60,.14)'),
+    'border-top-left-radius': '12px', overflow: 'hidden', 'font-size': '15px', 'margin-bottom': '16px',
+  })
+  // Full width of the page's text column.
+  const widths = await page.evaluate(() => ({
+    table: document.querySelector('.editor .ProseMirror table')!.getBoundingClientRect().width,
+    column: document.querySelector('.editor .ProseMirror')!.getBoundingClientRect().width,
+  }))
+  expect(Math.abs(widths.table - widths.column)).toBeLessThan(1)
+
+  const cell = await computed(page, 'td', ['border-right-width', 'border-bottom-width', 'border-right-color', 'border-bottom-color', 'padding-top', 'padding-left', 'min-width', 'vertical-align'])
+  const hairline = await resolveColour(page, 'rgba(40,40,60,.1)')
+  expect(cell).toEqual({
+    'border-right-width': '1px', 'border-bottom-width': '1px', 'border-right-color': hairline, 'border-bottom-color': hairline,
+    'padding-top': '8px', 'padding-left': '12px', 'min-width': '60px', 'vertical-align': 'top',
+  })
+  // A cell's text is a paragraph and would be 18px with a 14px tail; it is the table's size.
+  expect(await computed(page, 'td p', ['font-size', 'margin-bottom'])).toEqual({ 'font-size': '15px', 'margin-bottom': '0px' })
+})
+
+test('a link is accent and underlined, and colour and highlight marks keep their own colours', async ({ page }) => {
+  await loadEveryElement(page)
+  const accent = await resolveColour(page, 'var(--accent)')
+
+  expect(await computed(page, 'p a', ['color', 'text-decoration-line', 'text-underline-offset'])).toEqual({
+    color: accent, 'text-decoration-line': 'underline', 'text-underline-offset': '2px',
+  })
+
+  // A colour set on text is an inline style on a span, and it has to beat every rule above:
+  // in a paragraph, inside a link, inside a quote (which sets its own colour), in a cell.
+  const red = await resolveColour(page, '#c4372b')
+  for (const sel of ['p a span', 'blockquote span']) {
+    expect(await computed(page, sel, ['color'])).toEqual({ color: red })
+  }
+  expect(await computed(page, 'p > span', ['color'])).toEqual({ color: await resolveColour(page, '#2f8a4f') })
+  expect(await computed(page, 'td span', ['color'])).toEqual({ color: await resolveColour(page, '#2f6fd0') })
+
+  // The highlight keeps its fill and the text in it keeps the paragraph's colour.
+  expect(await computed(page, 'mark', ['background-color'])).toEqual({ 'background-color': await resolveColour(page, '#fde68a') })
+})
+
+test('the sheet keeps 28px above it, and its text is 18px', async ({ page }) => {
+  await loadEveryElement(page)
+  await expect(sheet(page)).toHaveCSS('margin-top', '28px')
+  await expect(sheet(page)).toHaveCSS('margin-bottom', '64px')
+  await expect(prose(page).locator('p').first()).toHaveCSS('font-size', '18px')
 })
