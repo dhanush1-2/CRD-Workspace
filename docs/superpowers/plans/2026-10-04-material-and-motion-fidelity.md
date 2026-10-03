@@ -570,251 +570,31 @@ git commit -m "feat(presence): say whether a peer is editing or viewing, and fad
 
 ---
 
-### Task 4: The nav becomes a content-sized centred pill
+### Task 4: The nav becomes a content-sized centred pill — DONE, NOT AS PLANNED
 
-The spec: `Nav: only as wide as its contents, never wider than the window, centred` and `when the tabs change, the nav smoothly grows or shrinks to its new width while staying centred, so it seems to breathe` over 0.55s.
+**Landed on 2026-10-04 in `12f785c`, before this plan ran. Do not implement it.**
 
-The nav is a full-width flex row with 16px gutters, and the tab strip inside it is `flex: 1 1 auto`. Both have to change.
+This task's premise was wrong. It asserted that "CSS cannot transition `fit-content`"
+and built a JS measurement path — a `ResizeObserver` on an inner row, an explicit pixel
+width, and a hold-the-transition-until-after-first-paint flag. The design owner then
+supplied the native answer: **`interpolate-size: allow-keywords`** on `:root` plus
+`transition: width .55s`, which interpolates against intrinsic keywords directly. No
+JavaScript, no observer, no measurement.
 
-**Files:**
-- Modify: `apps/web/src/components/AppShell.tsx`
-- Modify: `apps/web/src/components/app-shell.module.css`
-- Modify: `apps/web/src/components/nav-tabs.module.css`
-- Test: `apps/web/e2e/glass-shell.spec.ts`
+What shipped, and what to know about it:
 
-**Interfaces:**
-- Consumes: nothing.
-- Produces: `data-testid="nav-bar"` keeps its meaning (added by the shell plan's Task 5); the bar gains an explicit measured `width`.
-
-**Why JavaScript.** CSS cannot transition `width: fit-content` — there is no numeric start value to interpolate, so the bar would snap. The content's width is measured with a `ResizeObserver` and written as an explicit pixel width, which does transition. This is the same shape as `NavTabs`' sliding indicator, including the hold-the-transition-until-after-the-first-paint trick, and for the same reason: animating from the server-rendered zero would make the nav visibly grow from nothing on every hard load.
-
-- [ ] **Step 1: Write the failing test**
-
-Add to `apps/web/e2e/glass-shell.spec.ts`:
-
-```ts
-test('the nav is only as wide as its contents and stays centred', async ({ page }) => {
-  const label = `${LABEL}-navwidth`
-  const { owner, workspace } = await seedWorkspace(label)
-  const document = await createDocument(workspace.id, 'doc')
-  await signIn(page, owner.id)
-  await page.setViewportSize({ width: 1600, height: 900 })
-
-  await page.goto(documentPath(document))
-  const bar = page.getByTestId('nav-bar')
-  await expect(bar).toBeVisible()
-
-  const box = (await bar.boundingBox())!
-  // Comfortably narrower than the viewport at 1600: a full-width bar would be
-  // 1568 here (1600 less the 16px gutters).
-  expect(box.width).toBeLessThan(1200)
-  // Centred: equal space either side, within a pixel of rounding.
-  const left = box.x
-  const right = 1600 - (box.x + box.width)
-  expect(Math.abs(left - right)).toBeLessThanOrEqual(1)
-
-  await cleanup(label)
-})
-
-test('the nav animates to its new width when the tabs change', async ({ page }) => {
-  const label = `${LABEL}-navbreathe`
-  const { owner, workspace } = await seedWorkspace(label)
-  const short = await prisma.document.create({
-    data: { workspaceId: workspace.id, type: 'doc', title: 'A' },
-  })
-  await signIn(page, owner.id)
-  await page.setViewportSize({ width: 1600, height: 900 })
-  await page.goto(`/workspaces/${workspace.id}`)
-
-  const bar = page.getByTestId('nav-bar')
-  const before = (await bar.boundingBox())!.width
-
-  // A much longer title, created live, so the tab strip's content width changes
-  // while the nav is mounted.
-  await page.getByTestId('document-name').fill('A considerably longer document title')
-  await page.getByTestId('create-document').click()
-  await expect(page.getByTestId('tab-overview')).toBeVisible()
-
-  // Sampled on every frame: the point is that it travels, not that it arrives.
-  const samples = await page.evaluate(async () => {
-    const out: number[] = []
-    const el = document.querySelector('[data-testid="nav-bar"]') as HTMLElement
-    const start = performance.now()
-    while (performance.now() - start < 1000) {
-      out.push(el.getBoundingClientRect().width)
-      await new Promise((resolve) => requestAnimationFrame(resolve))
-    }
-    return out
-  })
-
-  const after = (await bar.boundingBox())!.width
-  expect(after).toBeGreaterThan(before + 20)
-  const between = samples.filter((w) => w > before + 2 && w < after - 2)
-  expect(between.length).toBeGreaterThan(2)
-
-  await cleanup(label)
-})
-```
-
-Read `apps/web/e2e/document-type.spec.ts` for the real testids on the create-document form before writing `document-name` / `create-document`; use whatever is actually there. The second test navigates and creates, so the sampling must start after the create click — adjust the order if the create triggers a navigation, and say in the report what you found.
-
-- [ ] **Step 2: Run them to verify they fail**
-
-Expected: FAIL — the bar spans the viewport, so the width assertion fails at 1568.
-
-- [ ] **Step 3: Measure and apply the width**
-
-In `AppShell.tsx`:
-
-```tsx
-  // The nav is as wide as its contents and centred, and it transitions between
-  // widths. CSS cannot transition `fit-content` — there is no numeric start value —
-  // so the content is measured and the width written in pixels.
-  const navContent = useRef<HTMLDivElement>(null)
-  const [navWidth, setNavWidth] = useState<number | null>(null)
-  const [navAnimated, setNavAnimated] = useState(false)
-
-  useLayoutEffect(() => {
-    const element = navContent.current
-    if (!element) return
-
-    const measure = () => {
-      // scrollWidth, not clientWidth: the row may already be constrained by the
-      // max-width below, and the natural content width is what we want.
-      setNavWidth((previous) => {
-        const next = element.scrollWidth
-        return previous !== null && Math.abs(previous - next) < 1 ? previous : next
-      })
-    }
-    measure()
-
-    const observer = new ResizeObserver(measure)
-    observer.observe(element)
-    // Children changing (a tab appearing, the View only pill, the status label
-    // hiding below 1100px) does not resize the row itself in every case.
-    for (const child of element.children) observer.observe(child)
-    return () => observer.disconnect()
-  }, [])
-
-  // Withheld until after the first paint, exactly as NavTabs does for its
-  // indicator: animating from the server-rendered unset width would make the bar
-  // visibly grow from nothing on every hard load.
-  useEffect(() => {
-    if (navWidth === null || navAnimated) return
-    const frame = requestAnimationFrame(() => setNavAnimated(true))
-    return () => cancelAnimationFrame(frame)
-  }, [navWidth, navAnimated])
-```
-
-The nav markup gains an inner row that is measured, with the bar sized from it:
-
-```tsx
-        <div className={`${styles.navWrap} ${condensed ? styles.navWrapCondensed : ''}`}>
-          <nav
-            className={`${styles.nav} ${condensed ? styles.navCondensed : ''} ${
-              navAnimated ? styles.navAnimated : ''
-            }`}
-            aria-label="Primary"
-            data-testid="nav-bar"
-            data-condensed={condensed}
-            style={navWidth === null ? undefined : { width: navWidth }}
-          >
-            <div className={styles.navRow} ref={navContent}>
-              {/* every existing child, unchanged */}
-            </div>
-          </nav>
-        </div>
-```
-
-- [ ] **Step 4: Change the CSS**
-
-`app-shell.module.css`:
-
-```css
-.navWrap {
-  position: sticky;
-  top: 0;
-  z-index: 30;
-  padding: 12px 16px 0;
-  /* The bar is centred inside the full-width sticky wrapper. */
-  display: flex;
-  justify-content: center;
-}
-
-.nav {
-  /* Before the measurement lands (the server render, and the first client frame),
-     fit-content gives the right size without a transition to snap from. */
-  width: fit-content;
-  max-width: 100%;
-  /* … height, padding, radius, background, blur, border and shadow unchanged … */
-}
-
-@media (prefers-reduced-motion: no-preference) {
-  /* Added only once the width has been measured; see AppShell. */
-  .navAnimated {
-    transition:
-      width var(--dur) var(--ease),
-      height 0.4s var(--ease),
-      background 0.4s var(--ease);
-  }
-}
-
-/* The row that is measured. The bar's own padding is on .nav, so this is exactly
-   the content width. */
-.navRow {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  width: 100%;
-  min-width: 0;
-}
-```
-
-The `display: flex; align-items: center; gap: 10px` currently on `.nav` moves to `.navRow`. **Remove it from `.nav`**, or the single child is laid out as a flex item and the measurement is of the wrong box.
-
-The shell plan's Task 5 put `transition: height, background` on `.nav`; that moves into `.navAnimated` above so all three transitions live together. Keep the `g-pop` entrance animation on `.nav`.
-
-`nav-tabs.module.css`: the strip can no longer grow to fill a bar that is sizing itself to the strip — that is a circular constraint, and the browser resolves it by making the nav as wide as the viewport.
-
-```css
-.strip {
-  /* Not `flex: 1 1 auto`. The nav sizes itself to this row, so a strip that grows
-     to fill the nav makes the nav grow to fill the window: each would be waiting
-     for the other. The strip is its own content's width, capped, and scrolls. */
-  flex: 0 1 auto;
-  min-width: 0;
-  max-width: 52vw;
-}
-```
-
-`.tabsSlot` in `app-shell.module.css` has the same problem and the same fix: `flex: 0 1 auto` with its `min-width: 120px` kept, since the dashboard's "Workspaces" label needs no more.
-
-`52vw` is a cap, not a design value — comment it as such. Measure what it costs: with many documents the strip stops growing there and scrolls, which is the behaviour the edge-fade mask already exists for.
-
-- [ ] **Step 5: Run the tests**
-
-Expected: PASS. Then run the **whole** Playwright suite, not just these two: the nav's geometry is asserted by the View-only-pill position test, the 1100px clip test and every indicator test.
-
-- [ ] **Step 6: Prove the tests discriminate**
-
-Commit first. Then:
-1. Put `flex: 1 1 auto` back on `.strip` and re-run. Expected: the centring test fails with a full-width bar — this is the circular-constraint bug, and it is worth seeing once.
-2. Remove the `navAnimated` class and re-run. Expected: the breathe test fails on `between.length`.
-
-Restore both.
-
-- [ ] **Step 7: Check it by eye at four widths**
-
-At 1600, 1280, 1000 and 800: is the bar centred, is it the width of its contents, does it breathe rather than jump when you switch tabs, and does it never exceed the window? Note what you saw, with a measured number at each width.
-
-- [ ] **Step 8: Run the full gate and commit**
-
-```bash
-git add apps/web
-git commit -m "feat(nav): a content-sized centred pill that animates to its new width"
-```
-
----
+- `.navWrap` is a centred flex column, so the bar and the floating pills beneath it all
+  centre. `.nav` is `width: fit-content; max-width: 100%`.
+- `.strip` and `.tabsSlot` are `flex: 0 1 auto`. This is load-bearing: the bar sizes
+  itself to that row, so a growing child makes the bar grow to the window.
+- The dashboard's slot gained its "Workspaces" label here rather than in the shell
+  plan, because a content-sized bar turns an unlabelled spacer into a visible hole.
+  **The shell plan's Task 4 no longer needs to add it.**
+- `interpolate-size` is Chrome 129+ and Edge; elsewhere the width jumps, which is still
+  correct. Unverified in a browser that lacks it.
+- The width animation only plays for changes *within* a page. Across a navigation the
+  bar is a new node, so it cannot animate — the shared-layout restructure fixes that,
+  exactly as it fixes the sliding indicator.
 
 ### Task 5: The canvas wakes up
 
@@ -1018,7 +798,7 @@ git commit -m "docs: record the material and motion fidelity pass"
 
 ## Self-Review
 
-**1. Spec coverage.** Of the owner's material/motion spec, this plan covers every item that needs no backend and no new surface: glass strengths (Task 1), focus ring, selection, press depths (Task 2), presence detail and fade (Task 3), nav shape and breathing (Task 4), canvas wake-up (Task 5), the created-workspace message (Task 6). The "Already correct" section above lists what was checked and found right, so nobody re-does it.
+**1. Spec coverage.** Of the owner's material/motion spec, this plan covers every item that needs no backend and no new surface: glass strengths (Task 1), focus ring, selection, press depths (Task 2), presence detail and fade (Task 3), nav shape and breathing (Task 4, which landed early and by a better mechanism), canvas wake-up (Task 5), the created-workspace message (Task 6). The "Already correct" section above lists what was checked and found right, so nobody re-does it.
 
 Deliberately **not** here, with their owners named: amber offline, the pulsing syncing dot, the under-nav offline and syncing pills, the status popover and the "Back online · N synced" message all belong to the connection-states plan, because each needs real connection telemetry rather than a colour. The card sheet, "Has notes" and the selected-card outline belong to the card-notes plan. The history panel, the old-version pill and "Restored version from …" belong to the history-panel plan. The remote caret's glide needs a different mechanism entirely and stays a documented deviation.
 

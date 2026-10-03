@@ -792,7 +792,13 @@ git commit -m "test(nav): the indicator travels across a navigation, and the nav
 
 ---
 
-### Task 4: The presence count and the dashboard's tab slot
+### Task 4: The presence count (the dashboard's tab slot is already done)
+
+**The "Workspaces" label landed on 2026-10-04 in `12f785c`**, with the content-sized
+nav, because that geometry turned the unlabelled slot into a visible hole. Skip the
+label half of this task and its test — `nav-context` already exists and is covered.
+What remains is the presence count including yourself.
+
 
 Two small nav corrections from the owner's review, batched because each is a handful of lines in the nav and neither needs the other.
 
