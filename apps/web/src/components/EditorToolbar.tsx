@@ -2,7 +2,9 @@
 
 import { useEffect, useId, useRef, useState, type KeyboardEvent } from 'react'
 import type { Editor } from '@tiptap/react'
+import { MENU_SCOPE } from './EditorMenu'
 import { HomeTools } from './HomeTools'
+import { useLastColours } from './HomeMenus'
 import { keepEditorSelection } from './ToolButton'
 import { useRovingToolRow } from './useRovingToolRow'
 import styles from './editor-toolbar.module.css'
@@ -76,6 +78,7 @@ export function EditorToolbar({ editor, readOnly }: EditorToolbarProps) {
   const tabRefs = useRef(new Map<ToolbarTab, HTMLButtonElement>())
   const words = useWordCount(editor)
   const roving = useRovingToolRow()
+  const lastColours = useLastColours()
 
   // A viewer cannot edit, so Home and Insert are not disabled, they are absent. Derived
   // rather than stored so a role change cannot leave the open tab pointing at one.
@@ -90,6 +93,8 @@ export function EditorToolbar({ editor, readOnly }: EditorToolbarProps) {
   // The tablist pattern: arrows move between tabs and Home/End jump, so a keyboard user
   // is one Tab stop from the whole strip rather than three.
   function onKeyDown(event: KeyboardEvent) {
+    // Modified keys are the browser's (Alt+Left is Back); see useRovingToolRow.
+    if (event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return
     const index = visible.findIndex((entry) => entry.id === current)
     let next: number
     if (event.key === 'ArrowRight') next = (index + 1) % visible.length
@@ -103,7 +108,13 @@ export function EditorToolbar({ editor, readOnly }: EditorToolbarProps) {
   }
 
   return (
-    <section className={styles.root} aria-label="Document toolbar" data-testid="tb-root">
+    <section
+      className={styles.root}
+      aria-label="Document toolbar"
+      data-testid="tb-root"
+      // The bounds of "outside the toolbar" for a menu's click-away close.
+      {...MENU_SCOPE}
+    >
       <div className={styles.panel}>
         <div className={styles.tabsRow}>
           <div
@@ -159,7 +170,7 @@ export function EditorToolbar({ editor, readOnly }: EditorToolbarProps) {
           onKeyDown={roving.onKeyDown}
         >
           {/* No editor yet means no controls: a button that cannot act is worse than none. */}
-          {current === 'home' && editor && <HomeTools editor={editor} />}
+          {current === 'home' && editor && <HomeTools editor={editor} lastColours={lastColours} />}
         </div>
       </div>
     </section>

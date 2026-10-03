@@ -145,12 +145,14 @@
   padding: 0 11px 0 9px;
 }
 
-.toolActive {
+.toolActive,
+.tool[aria-expanded='true'] {
+  /* An open menu's trigger reads as pressed. */
   background: var(--accent-soft);
   color: var(--accent);
 }
 
-.tool:hover:not(.toolActive) {
+.tool:hover:not(.toolActive):not([aria-expanded='true']) {
   /* The design's literal. Not applied to an active toggle: the pointer is on the button
      the moment it is pressed, so a hover fill that beat the active one would hide the
      toggle's new state until the mouse moved away. */
@@ -230,4 +232,218 @@
   .tool:active {
     transform: scale(0.92);
   }
+}
+
+/* Dropdowns (handoff 12.5) */
+
+/* The anchor the panel is positioned against; the trigger and its panel share it. */
+.menuAnchor {
+  position: relative;
+}
+
+/* The Style dropdown's trigger: a 150px field with the current name and a caret. */
+.toolField {
+  width: 150px;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 0 10px 0 12px;
+  border: 1px solid var(--field-border);
+  /* The design's literal: a white a little clearer than the glass around it. */
+  background: rgba(255, 255, 255, 0.8);
+  color: var(--text);
+}
+
+.toolField:hover:not(.toolActive):not([aria-expanded='true']) {
+  background: #fff;
+}
+
+.tool.toolField[aria-expanded='true'] {
+  background: #fff;
+  border-color: var(--accent);
+  color: var(--text);
+}
+
+.styleName {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.styleCaret {
+  font-size: 9px;
+  color: var(--text-faint);
+}
+
+/* The panel: one container for all three menus. */
+.menu {
+  position: absolute;
+  left: 0;
+  top: 40px;
+  z-index: 5;
+  padding: 8px;
+  border-radius: var(--r-menu);
+  background: var(--glass-menu);
+  backdrop-filter: var(--blur-3);
+  -webkit-backdrop-filter: var(--blur-3);
+  /* The design's literals: a near-white edge and a two-layer shadow. */
+  border: 1px solid rgba(255, 255, 255, 0.95);
+  box-shadow:
+    inset 0 1px 0 #fff,
+    0 18px 44px rgba(30, 30, 50, 0.16);
+  transform-origin: top left;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .menu {
+    animation: g-pop 0.4s var(--ease);
+  }
+}
+
+.menuList {
+  width: 240px;
+  padding: 6px;
+}
+
+.menuSwatches {
+  width: 170px;
+}
+
+.menuListBody {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+/* A Style row: 38px, drawn in its own style, its shortcut at the right. */
+.styleRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 38px;
+  padding: 4px 12px;
+  border: none;
+  border-radius: var(--r-item);
+  background: transparent;
+  text-align: left;
+  color: var(--text);
+  cursor: pointer;
+}
+
+.styleRow:hover {
+  /* The design's literal. */
+  background: rgba(40, 40, 60, 0.06);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .styleRow {
+    transition: background 0.2s var(--ease);
+  }
+}
+
+.previewTitle {
+  font-size: 22px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+}
+
+.previewHeading {
+  font-size: 17px;
+  font-weight: 600;
+}
+
+.previewSubheading {
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.previewNormal {
+  font-size: 14.5px;
+}
+
+.previewQuote {
+  padding-left: 10px;
+  border-left: 2px solid color-mix(in oklch, var(--accent) 40%, transparent);
+  color: var(--text-muted);
+  font-size: 14.5px;
+}
+
+.previewCode {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 13px;
+}
+
+.styleShortcut {
+  color: var(--text-faint);
+  font-size: 11.5px;
+  white-space: nowrap;
+}
+
+/* The colour menus: a title, then two rows of four 28px swatches. */
+.menuTitle {
+  padding: 2px 4px 8px;
+  color: var(--text-faint);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.menuGrid {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 0 4px 4px;
+}
+
+.swatchRow {
+  display: grid;
+  grid-template-columns: repeat(4, 28px);
+  gap: 8px;
+}
+
+.swatch {
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  cursor: pointer;
+}
+
+/* "None": white, struck through with a red diagonal. Artwork, like the palettes. */
+.swatchNone {
+  background: linear-gradient(135deg, #fff 44%, #c4372b 44% 56%, #fff 56%);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .swatch {
+    transition: transform 0.3s var(--ease);
+  }
+  .swatch:hover {
+    transform: scale(1.12);
+  }
+}
+
+/* The A of the colour trigger, over a bar in the last colour used. */
+.colourGlyph {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  line-height: 1;
+}
+
+.colourLetter {
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.colourBar {
+  width: 15px;
+  height: 3px;
+  border-radius: 2px;
+}
+
+/* The marker's underline, in the last highlight used. The stroke is set inline. */
+.tool svg .highlightBar {
+  stroke-width: 2.6;
 }

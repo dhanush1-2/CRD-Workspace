@@ -1,6 +1,15 @@
 import type { ReactNode } from 'react'
 import { useEditorState, type Editor } from '@tiptap/react'
 import { ToolButton, ToolSeparator } from './ToolButton'
+import { useMenuGroup } from './EditorMenu'
+import {
+  ColourMenu,
+  HighlightMenu,
+  StyleMenu,
+  readBlockStyle,
+  type BlockReading,
+  type LastColours,
+} from './HomeMenus'
 import styles from './editor-toolbar.module.css'
 
 type Alignment = 'left' | 'center' | 'right' | 'justify'
@@ -14,6 +23,10 @@ interface HomeFormat {
   bulletList: boolean
   orderedList: boolean
   align: Alignment
+  block: BlockReading
+  /** The colour and the highlight at the selection; null when it has none. */
+  textColour: string | null
+  highlightColour: string | null
 }
 
 function readFormat(editor: Editor): HomeFormat {
@@ -28,6 +41,11 @@ function readFormat(editor: Editor): HomeFormat {
     bulletList: editor.isActive('bulletList'),
     orderedList: editor.isActive('orderedList'),
     align: align ?? 'left',
+    block: readBlockStyle(editor),
+    textColour: (editor.getAttributes('textStyle').color as string | undefined) ?? null,
+    highlightColour: editor.isActive('highlight')
+      ? ((editor.getAttributes('highlight').color as string | undefined) ?? null)
+      : null,
   }
 }
 
@@ -47,16 +65,18 @@ function Icon({ children }: { children: ReactNode }) {
 }
 
 /**
- * The Home tab's controls that need no menu (handoff 12.2): history, the four inline
- * marks, lists, alignment and clear formatting. The Style dropdown and the colour group
- * are menus and live with the dropdown shell.
+ * The Home tab's controls (handoff 12.2): history, the Style dropdown, the four inline
+ * marks, the colour group, lists, alignment and clear formatting. The three menus are
+ * built on one shell (EditorMenu) and live in HomeMenus.
  *
  * The active states are re-read after every transaction, which covers both a command
  * and a caret move: `useEditorState` re-runs the selector on each one and re-renders
  * only when the flags it returns differ.
  */
-export function HomeTools({ editor }: { editor: Editor }) {
+export function HomeTools({ editor, lastColours }: { editor: Editor; lastColours: LastColours }) {
   const format = useEditorState({ editor, selector: ({ editor: current }) => readFormat(current) })
+  // One open menu at a time across the three.
+  const menu = useMenuGroup()
 
   // No .focus() in the chain. The click never took focus from the editor (ToolButton
   // cancels the mousedown), so there is nothing to give back, and a keyboard user who
@@ -88,6 +108,9 @@ export function HomeTools({ editor }: { editor: Editor }) {
           <path d="M13 7H6.5a3.5 3.5 0 0 0 0 7H8" />
         </Icon>
       </ToolButton>
+      <ToolSeparator />
+
+      <StyleMenu editor={editor} control={menu('style')} current={format.block} />
       <ToolSeparator />
 
       <ToolButton
@@ -125,6 +148,20 @@ export function HomeTools({ editor }: { editor: Editor }) {
       >
         <span className={styles.glyphStrike}>S</span>
       </ToolButton>
+      <ToolSeparator />
+
+      <ColourMenu
+        editor={editor}
+        control={menu('color')}
+        current={format.textColour}
+        last={lastColours}
+      />
+      <HighlightMenu
+        editor={editor}
+        control={menu('highlight')}
+        current={format.highlightColour}
+        last={lastColours}
+      />
       <ToolSeparator />
 
       <ToolButton

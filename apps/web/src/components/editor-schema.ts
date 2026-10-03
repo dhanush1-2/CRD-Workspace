@@ -1,5 +1,6 @@
 import StarterKit from '@tiptap/starter-kit'
-import { FontFamily, FontSize, TextStyle } from '@tiptap/extension-text-style'
+import { Color, FontFamily, FontSize, TextStyle } from '@tiptap/extension-text-style'
+import Highlight from '@tiptap/extension-highlight'
 import TextAlign from '@tiptap/extension-text-align'
 import { getSchema } from '@tiptap/core'
 import type { Schema } from '@tiptap/pm/model'
@@ -28,6 +29,11 @@ export const editorExtensions = [
   TextStyle,
   FontFamily,
   FontSize,
+  // Text colour: a global attribute on the same textStyle mark, so it needs TextStyle
+  // above and travels in the document like the two before it. Highlight is its own mark
+  // (<mark>), multicolor so each run keeps the colour it was given.
+  Color,
+  Highlight.configure({ multicolor: true }),
   // A global attribute on these two block types. defaultAlignment stays null, so a
   // paragraph nobody aligned carries no attribute at all, in the Y.Doc or in the HTML.
   // The toolbar reads "no attribute" as left; see HomeTools.

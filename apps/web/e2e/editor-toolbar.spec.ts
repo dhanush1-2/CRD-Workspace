@@ -540,3 +540,604 @@ test('the tool row is one Tab stop, and the arrow keys move within it', async ({
   await page.keyboard.press('Enter')
   await expect(tb(page, 'align-justify')).toHaveAttribute('aria-pressed', 'true')
 })
+
+// ---------------------------------------------------------------------------
+// The dropdowns: Style, text colour and highlight (handoff 12.5)
+// ---------------------------------------------------------------------------
+
+/** A colour as the browser computes it, so a test compares like with like (hex or var()). */
+const resolved = (page: Page, value: string) =>
+  page.evaluate((input) => {
+    const probe = document.createElement('div')
+    probe.style.color = input
+    document.body.append(probe)
+    const out = getComputedStyle(probe).color
+    probe.remove()
+    return out
+  }, value)
+
+const STYLES = ['title', 'heading', 'subheading', 'normal', 'quote', 'code'] as const
+
+/** Opens a menu with the mouse, the way a person does: focus stays in the editor. */
+async function openMenu(page: Page, id: 'style' | 'color' | 'highlight') {
+  await tb(page, id).click()
+  await expect(tb(page, `${id}-menu`)).toBeVisible()
+}
+
+/** The one thing a toolbar press must not change: where focus and the selection are. */
+const editorState = (page: Page) =>
+  page.evaluate(() => ({
+    selected: (window.getSelection()?.toString() ?? '').trim(),
+    inEditor: document.activeElement?.closest('.ProseMirror') !== null,
+  }))
+
+test('the Style trigger names the current block and follows the caret', async ({ page }) => {
+  await openDocument(page, `${LABEL}-style-name`)
+  await prose(page).click()
+  const current = tb(page, 'style-current')
+
+  await expect(current).toHaveText('Normal text')
+  // "# " is the editor's own input rule for a heading.
+  await page.keyboard.type('# one')
+  await expect(current).toHaveText('Title')
+  await page.keyboard.press('Enter')
+  await page.keyboard.type('two')
+  await expect(current).toHaveText('Normal text')
+  await page.keyboard.press('ArrowUp')
+  await expect(current).toHaveText('Title')
+
+  // A level the menu has no row for is named honestly, and no row claims to be selected.
+  await page.keyboard.press('End')
+  await page.keyboard.press('Enter')
+  await page.keyboard.type('#### deep')
+  await expect(current).toHaveText('Heading 4')
+  await openMenu(page, 'style')
+  for (const id of STYLES) await expect(tb(page, `style-${id}`)).toHaveAttribute('aria-selected', 'false')
+})
+
+test('each Style option sets that block type, and moves cleanly between them', async ({ page }) => {
+  await openDocument(page, `${LABEL}-style-set`)
+  await prose(page).click()
+  await page.keyboard.type('line')
+
+  const choose = async (id: (typeof STYLES)[number]) => {
+    await openMenu(page, 'style')
+    await tb(page, `style-${id}`).click()
+    await expect(tb(page, 'style-menu')).toHaveCount(0)
+  }
+
+  await choose('title')
+  await expect(prose(page).locator('h1')).toHaveText('line')
+  await choose('heading')
+  await expect(prose(page).locator('h2')).toHaveText('line')
+  await expect(prose(page).locator('h1')).toHaveCount(0)
+  await choose('subheading')
+  await expect(prose(page).locator('h3')).toHaveText('line')
+  await choose('normal')
+  await expect(prose(page).locator('h1, h2, h3')).toHaveCount(0)
+  await expect(prose(page).locator('p', { hasText: 'line' })).toHaveCount(1)
+
+  await choose('quote')
+  await expect(prose(page).locator('blockquote p')).toHaveText('line')
+  // Quote again must not nest a second quote inside the first.
+  await choose('quote')
+  await expect(prose(page).locator('blockquote')).toHaveCount(1)
+  await expect(prose(page).locator('blockquote blockquote')).toHaveCount(0)
+
+  // Moving off a quote leaves it, rather than putting a heading or code inside it.
+  await choose('code')
+  await expect(prose(page).locator('pre code')).toHaveText('line')
+  await expect(prose(page).locator('blockquote')).toHaveCount(0)
+  await choose('quote')
+  await expect(prose(page).locator('blockquote p')).toHaveText('line')
+  await expect(prose(page).locator('pre')).toHaveCount(0)
+  await choose('title')
+  await expect(prose(page).locator('h1')).toHaveText('line')
+  await expect(prose(page).locator('blockquote')).toHaveCount(0)
+
+  // And the trigger agrees with what the document now holds.
+  await expect(tb(page, 'style-current')).toHaveText('Title')
+  await openMenu(page, 'style')
+  await expect(tb(page, 'style-title')).toHaveAttribute('aria-selected', 'true')
+  await expect(tb(page, 'style-normal')).toHaveAttribute('aria-selected', 'false')
+})
+
+test('each Style row previews in its own style and shows its shortcut', async ({ page }) => {
+  await openDocument(page, `${LABEL}-style-look`)
+  await prose(page).click()
+  await openMenu(page, 'style')
+
+  const look = (id: string) =>
+    tb(page, `style-${id}-preview`).evaluate((el) => {
+      const style = getComputedStyle(el)
+      return {
+        size: style.fontSize,
+        weight: style.fontWeight,
+        family: style.fontFamily,
+        rule: style.borderLeftWidth,
+      }
+    })
+  expect(await look('title')).toMatchObject({ size: '22px', weight: '600' })
+  expect(await look('heading')).toMatchObject({ size: '17px', weight: '600' })
+  expect(await look('subheading')).toMatchObject({ size: '15px', weight: '600' })
+  expect(await look('normal')).toMatchObject({ size: '14.5px', weight: '400' })
+  expect(await look('quote')).toMatchObject({ size: '14.5px', rule: '2px' })
+  const code = await look('code')
+  expect(code.size).toBe('13px')
+  expect(code.family).toMatch(/monospace|Menlo|Mono/)
+  // Only Quote carries the violet rule.
+  expect((await look('normal')).rule).toBe('0px')
+
+  const shortcuts = { title: '⌘⌥1', heading: '⌘⌥2', subheading: '⌘⌥3', normal: '⌘⌥0', quote: '', code: '' }
+  for (const [id, shortcut] of Object.entries(shortcuts)) {
+    await expect(tb(page, `style-${id}-shortcut`)).toHaveText(shortcut)
+  }
+
+  // The shell's measurements: a 240px panel, rows at least 38px (the 22px Title grows past
+  // it, the rest sit on it), 40px below the trigger, and a 150x32 trigger.
+  const menu = (await tb(page, 'style-menu').boundingBox())!
+  const trigger = (await tb(page, 'style').boundingBox())!
+  expect(menu.width).toBeCloseTo(240, 0)
+  expect(menu.y - trigger.y).toBeCloseTo(40, 0)
+  expect(trigger.width).toBeCloseTo(150, 0)
+  expect(trigger.height).toBeCloseTo(32, 0)
+  for (const id of STYLES) {
+    const height = (await tb(page, `style-${id}`).boundingBox())!.height
+    expect(height).toBeGreaterThanOrEqual(37.5)
+    if (id !== 'title') expect(height).toBeCloseTo(38, 0)
+  }
+})
+
+const TEXT_SWATCHES = [
+  ['default', '#1c1d1b'],
+  ['grey', '#6c6f6a'],
+  ['violet', 'var(--accent)'],
+  ['red', '#c4372b'],
+  ['orange', '#c9661a'],
+  ['green', '#2f8a4f'],
+  ['blue', '#2f6fd0'],
+  ['pink', '#c2417f'],
+] as const
+
+const HIGHLIGHT_SWATCHES = [
+  ['none', null],
+  ['yellow', '#fde68a'],
+  ['green', '#c9f0d3'],
+  ['blue', '#d3e4ff'],
+  ['pink', '#ffd6e8'],
+  ['violet', '#e4d8fb'],
+  ['orange', '#ffe0c2'],
+  ['grey', '#e6e6ea'],
+] as const
+
+test('the colour menus lay out as the design says, with every swatch its own colour', async ({
+  page,
+}) => {
+  await openDocument(page, `${LABEL}-swatches`)
+  await prose(page).click()
+
+  for (const [menu, swatches, title] of [
+    ['color', TEXT_SWATCHES, 'Text color'],
+    ['highlight', HIGHLIGHT_SWATCHES, 'Highlight'],
+  ] as const) {
+    await openMenu(page, menu)
+    await expect(tb(page, `${menu}-menu`)).toContainText(title)
+    expect((await tb(page, `${menu}-menu`).boundingBox())!.width).toBeCloseTo(170, 0)
+
+    const boxes = []
+    for (const [id, value] of swatches) {
+      const swatch = tb(page, `${menu}-${id}`)
+      boxes.push((await swatch.boundingBox())!)
+      if (value) {
+        await expect(swatch).toHaveCSS('background-color', await resolved(page, value))
+      } else {
+        // "None": white with a red diagonal, drawn as a gradient.
+        await expect(swatch).toHaveCSS('background-image', /linear-gradient/)
+      }
+    }
+    // 28px circles, four to a row with 8px between, then a second row 36px down.
+    for (const box of boxes) expect([box.width, box.height]).toEqual([28, 28])
+    expect(boxes[1]!.x - boxes[0]!.x).toBeCloseTo(36, 0)
+    expect(boxes[3]!.y).toBeCloseTo(boxes[0]!.y, 0)
+    expect(boxes[4]!.y - boxes[0]!.y).toBeCloseTo(36, 0)
+    expect(boxes[4]!.x).toBeCloseTo(boxes[0]!.x, 0)
+    await page.keyboard.press('Escape')
+  }
+})
+
+test('the colour menu colours the selection and marks the swatch that matches it', async ({
+  page,
+}) => {
+  await openDocument(page, `${LABEL}-colour`)
+  await typeAndSelect(page, 'paint me')
+
+  // Nothing coloured yet: Default is the one selected.
+  await openMenu(page, 'color')
+  await expect(tb(page, 'color-default')).toHaveAttribute('aria-selected', 'true')
+  await tb(page, 'color-red').click()
+  await expect(prose(page).locator('span[style^="color"]')).toHaveText('paint me')
+  await expect(prose(page).locator('span[style^="color"]')).toHaveCSS(
+    'color',
+    await resolved(page, '#c4372b'),
+  )
+
+  // The swatch that matches is marked, and only that one, with a ring in its own colour.
+  await openMenu(page, 'color')
+  await expect(tb(page, 'color-red')).toHaveAttribute('aria-selected', 'true')
+  await expect(tb(page, 'color-default')).toHaveAttribute('aria-selected', 'false')
+  await expect(tb(page, 'color-blue')).toHaveAttribute('aria-selected', 'false')
+  await expect(tb(page, 'color-red')).toHaveCSS('box-shadow', /0px 0px 0px 4px/)
+  await expect(tb(page, 'color-blue')).not.toHaveCSS('box-shadow', /0px 0px 0px 4px/)
+
+  // Violet follows the accent token rather than a copy of it.
+  await tb(page, 'color-violet').click()
+  await expect(prose(page).locator('span[style^="color"]')).toHaveCSS(
+    'color',
+    await resolved(page, 'var(--accent)'),
+  )
+
+  // Default takes the colour off; it does not paint the run a second "default".
+  await openMenu(page, 'color')
+  await tb(page, 'color-default').click()
+  await expect(prose(page).locator('span[style^="color"]')).toHaveCount(0)
+  await expect(prose(page)).toContainText('paint me')
+
+  // The caret reads the colour back: inside coloured text the swatch is marked, outside not.
+  await tb(page, 'color').click()
+  await tb(page, 'color-green').click()
+  await page.keyboard.press('ArrowRight')
+  await page.keyboard.type(' plain')
+  await openMenu(page, 'color')
+  await expect(tb(page, 'color-default')).toHaveAttribute('aria-selected', 'true')
+})
+
+test('the highlight menu highlights the selection, and None removes it', async ({ page }) => {
+  await openDocument(page, `${LABEL}-highlight`)
+  await typeAndSelect(page, 'mark me')
+
+  await openMenu(page, 'highlight')
+  await expect(tb(page, 'highlight-none')).toHaveAttribute('aria-selected', 'true')
+  await tb(page, 'highlight-blue').click()
+  await expect(prose(page).locator('mark')).toHaveText('mark me')
+  await expect(prose(page).locator('mark')).toHaveCSS('background-color', await resolved(page, '#d3e4ff'))
+
+  await openMenu(page, 'highlight')
+  await expect(tb(page, 'highlight-blue')).toHaveAttribute('aria-selected', 'true')
+  await expect(tb(page, 'highlight-none')).toHaveAttribute('aria-selected', 'false')
+  await expect(tb(page, 'highlight-yellow')).toHaveAttribute('aria-selected', 'false')
+
+  // A second colour replaces the first rather than stacking marks.
+  await tb(page, 'highlight-pink').click()
+  await expect(prose(page).locator('mark')).toHaveCount(1)
+  await expect(prose(page).locator('mark')).toHaveCSS('background-color', await resolved(page, '#ffd6e8'))
+
+  await openMenu(page, 'highlight')
+  await tb(page, 'highlight-none').click()
+  await expect(prose(page).locator('mark')).toHaveCount(0)
+  await expect(prose(page)).toContainText('mark me')
+})
+
+test('the A and the marker show a bar in the last colour used, and keep it across tabs', async ({
+  page,
+}) => {
+  await openDocument(page, `${LABEL}-bars`)
+  await typeAndSelect(page, 'bars')
+  const bar = (id: 'color' | 'highlight') =>
+    tb(page, `${id}-bar`).evaluate((el) => {
+      const style = getComputedStyle(el)
+      return el instanceof SVGElement ? style.stroke : style.backgroundColor
+    })
+
+  // The design's starting colours: the text colour and yellow.
+  expect(await bar('color')).toBe(await resolved(page, '#1c1d1b'))
+  expect(await bar('highlight')).toBe(await resolved(page, '#fde68a'))
+
+  await openMenu(page, 'color')
+  await tb(page, 'color-blue').click()
+  await openMenu(page, 'highlight')
+  await tb(page, 'highlight-green').click()
+  expect(await bar('color')).toBe(await resolved(page, '#2f6fd0'))
+  expect(await bar('highlight')).toBe(await resolved(page, '#c9f0d3'))
+
+  // None removes a highlight; it is not a colour, so the bar keeps the last real one.
+  await openMenu(page, 'highlight')
+  await tb(page, 'highlight-none').click()
+  expect(await bar('highlight')).toBe(await resolved(page, '#c9f0d3'))
+
+  // The Home row remounts when the tab changes; the bars must not reset with it.
+  await tb(page, 'tab-insert').click()
+  await tb(page, 'tab-home').click()
+  expect(await bar('color')).toBe(await resolved(page, '#2f6fd0'))
+  expect(await bar('highlight')).toBe(await resolved(page, '#c9f0d3'))
+})
+
+test('a menu closes on Esc, on a click outside the toolbar, and on choosing an item', async ({
+  page,
+}) => {
+  await openDocument(page, `${LABEL}-close`)
+  await typeAndSelect(page, 'close')
+
+  for (const id of ['style', 'color', 'highlight'] as const) {
+    const menu = tb(page, `${id}-menu`)
+
+    // Esc, with focus still in the editor after a mouse open.
+    await openMenu(page, id)
+    await page.keyboard.press('Escape')
+    await expect(menu).toHaveCount(0)
+
+    // A click outside the toolbar.
+    await openMenu(page, id)
+    await prose(page).click()
+    await expect(menu).toHaveCount(0)
+
+    // Choosing an item.
+    await page.keyboard.press('ControlOrMeta+a')
+    await openMenu(page, id)
+    await tb(page, id === 'style' ? 'style-normal' : `${id}-${id === 'color' ? 'red' : 'yellow'}`).click()
+    await expect(menu).toHaveCount(0)
+
+    // The trigger toggles it too.
+    await openMenu(page, id)
+    await tb(page, id).click()
+    await expect(menu).toHaveCount(0)
+  }
+
+  // The design says "outside the toolbar": a press elsewhere on the toolbar is not a close.
+  await openMenu(page, 'style')
+  await page.getByTestId('tb-wordcount').click()
+  await expect(tb(page, 'style-menu')).toBeVisible()
+})
+
+test('opening one menu closes any other', async ({ page }) => {
+  await openDocument(page, `${LABEL}-exclusive`)
+  await prose(page).click()
+
+  await openMenu(page, 'style')
+  await openMenu(page, 'color')
+  await expect(tb(page, 'style-menu')).toHaveCount(0)
+  await expect(tb(page, 'color-menu')).toBeVisible()
+
+  await openMenu(page, 'highlight')
+  await expect(tb(page, 'color-menu')).toHaveCount(0)
+  await expect(tb(page, 'highlight-menu')).toBeVisible()
+
+  await openMenu(page, 'style')
+  await expect(tb(page, 'highlight-menu')).toHaveCount(0)
+  await expect(page.locator('[data-testid$="-menu"]')).toHaveCount(1)
+  await expect(tb(page, 'style')).toHaveAttribute('aria-expanded', 'true')
+  await expect(tb(page, 'color')).toHaveAttribute('aria-expanded', 'false')
+})
+
+test('the Style menu works from the keyboard, and Esc returns focus to the trigger', async ({
+  page,
+}) => {
+  await openDocument(page, `${LABEL}-style-keys`)
+  await prose(page).click()
+  await page.keyboard.type('abc')
+
+  await tb(page, 'style').focus()
+  await page.keyboard.press('Enter')
+  await expect(tb(page, 'style-menu')).toBeVisible()
+  // Opens on the current value, with focus inside it.
+  await expect(tb(page, 'style-normal')).toBeFocused()
+  await page.keyboard.press('ArrowDown')
+  await expect(tb(page, 'style-quote')).toBeFocused()
+  await page.keyboard.press('ArrowUp')
+  await page.keyboard.press('ArrowUp')
+  await expect(tb(page, 'style-subheading')).toBeFocused()
+
+  await page.keyboard.press('Escape')
+  await expect(tb(page, 'style-menu')).toHaveCount(0)
+  await expect(tb(page, 'style')).toBeFocused()
+
+  // Down on the trigger opens it; Home and Enter choose the first row.
+  await page.keyboard.press('ArrowDown')
+  await expect(tb(page, 'style-normal')).toBeFocused()
+  await page.keyboard.press('Home')
+  await expect(tb(page, 'style-title')).toBeFocused()
+  await page.keyboard.press('Enter')
+  await expect(prose(page).locator('h1')).toHaveText('abc')
+  await expect(tb(page, 'style-menu')).toHaveCount(0)
+  // The keyboard user stays on the trigger, which now names the new style.
+  await expect(tb(page, 'style')).toBeFocused()
+  await expect(tb(page, 'style-current')).toHaveText('Title')
+
+  // Tab out of an open menu closes it.
+  await page.keyboard.press('Enter')
+  await expect(tb(page, 'style-menu')).toBeVisible()
+  await page.keyboard.press('Tab')
+  await expect(tb(page, 'style-menu')).toHaveCount(0)
+})
+
+test('the swatch grid moves by arrow keys and chooses with Enter', async ({ page }) => {
+  await openDocument(page, `${LABEL}-grid-keys`)
+  await typeAndSelect(page, 'grid')
+
+  await tb(page, 'color').focus()
+  await page.keyboard.press('Enter')
+  await expect(tb(page, 'color-default')).toBeFocused()
+  // The row's own arrow handling must not take these: Right moves within the grid, not on
+  // to the highlight button beside the trigger.
+  await page.keyboard.press('ArrowRight')
+  await expect(tb(page, 'color-grey')).toBeFocused()
+  await page.keyboard.press('ArrowDown')
+  await expect(tb(page, 'color-green')).toBeFocused()
+  await page.keyboard.press('ArrowLeft')
+  await expect(tb(page, 'color-orange')).toBeFocused()
+  await page.keyboard.press('ArrowUp')
+  await expect(tb(page, 'color-default')).toBeFocused()
+  await page.keyboard.press('End')
+  await expect(tb(page, 'color-pink')).toBeFocused()
+  await page.keyboard.press('Home')
+  await page.keyboard.press('ArrowRight')
+  await page.keyboard.press('ArrowRight')
+  await page.keyboard.press('ArrowRight')
+  await expect(tb(page, 'color-red')).toBeFocused()
+
+  await page.keyboard.press('Enter')
+  await expect(prose(page).locator('span[style^="color"]')).toHaveCSS(
+    'color',
+    await resolved(page, '#c4372b'),
+  )
+  await expect(tb(page, 'color-menu')).toHaveCount(0)
+  await expect(tb(page, 'color')).toBeFocused()
+
+  // Reopened, it starts on the swatch that is current.
+  await page.keyboard.press('Enter')
+  await expect(tb(page, 'color-red')).toBeFocused()
+  await page.keyboard.press('Escape')
+  await expect(tb(page, 'color')).toBeFocused()
+})
+
+test('the selection and focus survive opening and using each menu', async ({ page }) => {
+  await openDocument(page, `${LABEL}-menu-selection`)
+  await typeAndSelect(page, 'keep me')
+  expect(await editorState(page)).toEqual({ selected: 'keep me', inEditor: true })
+
+  /**
+   * Press, check, release. Focus moves on mousedown, so a check made after the click
+   * cannot tell a control that kept focus from one that took it and handed it back.
+   */
+  async function hold(id: string) {
+    const box = (await tb(page, id).boundingBox())!
+    await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2)
+    await page.mouse.down()
+    expect(await editorState(page), `${id} on mousedown`).toEqual({
+      selected: 'keep me',
+      inEditor: true,
+    })
+    await page.mouse.up()
+  }
+
+  // The trigger, then the item: both are presses that must leave the editor alone, and
+  // the second is the one that goes wrong silently, applying its colour to nothing.
+  await hold('color')
+  await expect(tb(page, 'color-menu')).toBeVisible()
+  await hold('color-red')
+  await expect(tb(page, 'color-menu')).toHaveCount(0)
+  await expect(prose(page).locator('span[style^="color"]')).toHaveText('keep me')
+  expect(await editorState(page)).toEqual({ selected: 'keep me', inEditor: true })
+
+  await hold('highlight')
+  await hold('highlight-yellow')
+  await expect(prose(page).locator('mark')).toHaveText('keep me')
+  expect(await editorState(page)).toEqual({ selected: 'keep me', inEditor: true })
+
+  await hold('style')
+  await hold('style-title')
+  await expect(prose(page).locator('h1')).toHaveText('keep me')
+  // Still the same selection, still coloured and highlighted: three commands, one range.
+  await expect(prose(page).locator('h1 span[style^="color"] mark, h1 mark span[style^="color"]')).toHaveText('keep me')
+  expect(await editorState(page)).toEqual({ selected: 'keep me', inEditor: true })
+})
+
+test('a menu’s items are not stops of the tool row', async ({ page }) => {
+  await openDocument(page, `${LABEL}-menu-roving`)
+  await prose(page).click()
+  const stops = page.locator('[data-testid="tb-row-home"] [data-roving]')
+  const before = await stops.count()
+  // The three triggers joined the row; their items must not.
+  expect(before).toBeGreaterThan(14)
+
+  for (const id of ['style', 'color', 'highlight'] as const) {
+    await openMenu(page, id)
+    await expect(stops).toHaveCount(before)
+    await expect(page.locator('[data-testid="tb-row-home"] [data-roving][tabindex="0"]')).toHaveCount(1)
+    await expect(page.locator(`[data-testid="tb-${id}-menu"] [data-roving]`)).toHaveCount(0)
+    await expect(page.locator(`[data-testid="tb-${id}-menu"] [data-menu-item]`).first()).toHaveAttribute(
+      'tabindex',
+      '-1',
+    )
+    await page.keyboard.press('Escape')
+  }
+
+  // And the triggers are stops, in the design's order, between the neighbours they sit by.
+  await tb(page, 'redo').focus()
+  await page.keyboard.press('ArrowRight')
+  await expect(tb(page, 'style')).toBeFocused()
+  await page.keyboard.press('ArrowRight')
+  await expect(tb(page, 'bold')).toBeFocused()
+  await tb(page, 'strike').focus()
+  await page.keyboard.press('ArrowRight')
+  await expect(tb(page, 'color')).toBeFocused()
+  await page.keyboard.press('ArrowRight')
+  await expect(tb(page, 'highlight')).toBeFocused()
+  await page.keyboard.press('ArrowRight')
+  await expect(tb(page, 'bullet')).toBeFocused()
+})
+
+test('modified arrows are left to the browser, in the tool row and on the tab strip', async ({
+  page,
+}) => {
+  await openDocument(page, `${LABEL}-modified-keys`)
+
+  // Dispatched rather than pressed: Alt+Left is the browser's Back, which a real press
+  // would act on. What matters is whether the page called preventDefault on it.
+  const prevented = (init: KeyboardEventInit) =>
+    page.evaluate((keyInit) => {
+      const event = new KeyboardEvent('keydown', { ...keyInit, bubbles: true, cancelable: true })
+      document.activeElement?.dispatchEvent(event)
+      return event.defaultPrevented
+    }, init)
+
+  await tb(page, 'bold').focus()
+  expect(await prevented({ key: 'ArrowLeft', altKey: true })).toBe(false)
+  expect(await prevented({ key: 'Home', ctrlKey: true })).toBe(false)
+  expect(await prevented({ key: 'ArrowRight', metaKey: true })).toBe(false)
+  expect(await prevented({ key: 'ArrowRight', shiftKey: true })).toBe(false)
+  await expect(tb(page, 'bold')).toBeFocused()
+  // The control: the same keys unmodified are handled, so the probe reaches the handler.
+  expect(await prevented({ key: 'ArrowRight' })).toBe(true)
+  await expect(tb(page, 'italic')).toBeFocused()
+
+  await page.getByTestId('tb-tab-home').focus()
+  expect(await prevented({ key: 'ArrowLeft', altKey: true })).toBe(false)
+  expect(await prevented({ key: 'ArrowRight', ctrlKey: true })).toBe(false)
+  await expect(page.getByTestId('tb-tab-home')).toBeFocused()
+  await expect(page.getByTestId('tb-tab-home')).toHaveAttribute('aria-selected', 'true')
+  expect(await prevented({ key: 'ArrowRight' })).toBe(true)
+  await expect(page.getByTestId('tb-tab-insert')).toBeFocused()
+})
+
+test('colour and highlight made in one browser appear in the other', async ({ browser }) => {
+  const label = `${LABEL}-colour-sync`
+  const { owner, workspace } = await seedWorkspace(label)
+  const editor = await addMember(workspace.id, label, 'editor')
+  const document = await createDocument(workspace.id, 'doc')
+
+  async function openAs(userId: string) {
+    const context = await browser.newContext()
+    await context.addCookies([await sessionCookieFor(userId)])
+    const page = await context.newPage()
+    // ?nobc=1: sync through the server, so B sees what went through the CRDT and the wire.
+    await page.goto(`/documents/${document.id}?nobc=1`)
+    await expect(page.getByTestId('status')).toHaveAttribute('data-status', 'connected')
+    await expect(prose(page)).toHaveAttribute('contenteditable', 'true')
+    return { page, close: () => context.close() }
+  }
+
+  const a = await openAs(owner.id)
+  const b = await openAs(editor.id)
+
+  await typeAndSelect(a.page, 'shared paint')
+  await openMenu(a.page, 'color')
+  await tb(a.page, 'color-red').click()
+  await openMenu(a.page, 'highlight')
+  await tb(a.page, 'highlight-yellow').click()
+  await openMenu(a.page, 'style')
+  await tb(a.page, 'style-heading').click()
+
+  const text = prose(b.page)
+  await expect(text.locator('h2')).toHaveText('shared paint')
+  await expect(text.locator('span[style^="color"]')).toHaveCSS('color', await resolved(b.page, '#c4372b'))
+  await expect(text.locator('mark')).toHaveCSS('background-color', await resolved(b.page, '#fde68a'))
+
+  // B's own menus read what arrived: with the caret in A's red, Red is the marked swatch.
+  await text.locator('h2').click()
+  await expect(tb(b.page, 'style-current')).toHaveText('Heading')
+  await openMenu(b.page, 'color')
+  await expect(tb(b.page, 'color-red')).toHaveAttribute('aria-selected', 'true')
+
+  await a.close()
+  await b.close()
+})

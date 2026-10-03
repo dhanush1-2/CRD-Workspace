@@ -11,6 +11,9 @@ export default defineConfig({
     // context here) and belong to `playwright test` only, run separately.
     exclude: ['**/node_modules/**', '**/.git/**', 'e2e/**'],
   },
+  // tsconfig keeps `jsx: preserve` for Next, which Vite cannot parse. This lets a test
+  // import a component file (and call a hook-free one as a function) without a renderer.
+  oxc: { jsx: { runtime: 'automatic' } },
   resolve: {
     alias: {
       '@': fileURLToPath(new URL('./src', import.meta.url)),

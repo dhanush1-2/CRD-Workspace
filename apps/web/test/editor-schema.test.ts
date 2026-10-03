@@ -24,6 +24,16 @@ describe('the editor schema', () => {
     }
   })
 
+  it('carries text colour on textStyle and highlight as its own mark', () => {
+    const { marks } = getEditorSchema()
+    // Both are what the colour and highlight menus write. Missing, the menu is a no-op
+    // and a coloured document read back from history loses its colour in silence.
+    expect(marks.textStyle?.spec.attrs, 'textStyle').toHaveProperty('color')
+    expect(marks.highlight, 'highlight').toBeDefined()
+    // multicolor: the mark carries the colour it was given rather than one fixed yellow.
+    expect(marks.highlight?.spec.attrs, 'highlight').toHaveProperty('color')
+  })
+
   it('lets paragraphs and headings be aligned, with no alignment as the default', () => {
     const { nodes } = getEditorSchema()
     for (const name of ['paragraph', 'heading']) {

@@ -3,8 +3,16 @@ import { useCallback, type KeyboardEvent } from 'react'
 /**
  * The attribute that puts a control in the tool row's roving tabindex. ToolButton sets it
  * itself. A control that is not a ToolButton (a dropdown trigger built on its own button)
- * spreads `ROVING_ITEM` onto its focusable element to join; anything inside a menu or
- * popover must not carry it, or the menu's own items become row stops.
+ * spreads `ROVING_ITEM` onto its focusable element to join.
+ *
+ * The escape hatch: anything inside a menu or popover must not carry it, or the menu's
+ * own items become row stops (the row collects by subtree, wherever the DOM sits). A
+ * ToolButton in that position takes `roving={false}`; a plain element simply does not
+ * spread this.
+ *
+ * Use `aria-disabled`, never the `disabled` attribute, on a row item. The selector below
+ * skips :disabled items and nothing observes attribute changes, so disabling the current
+ * stop would leave the row with no Tab stop until some unrelated child mutation.
  */
 export const ROVING_ITEM = { 'data-roving': '' } as const
 const ITEM_SELECTOR = '[data-roving]:not(:disabled)'
@@ -57,6 +65,10 @@ export function useRovingToolRow() {
   }, [])
 
   const onKeyDown = useCallback((event: KeyboardEvent<HTMLElement>) => {
+    // A modified arrow or Home belongs to the browser or the page: Alt+Left is Back and
+    // Ctrl+Home is the top of the page, and swallowing them while a tool has focus would
+    // make those shortcuts quietly stop working there.
+    if (event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return
     const target = event.target
     // Only from an item: arrows inside a menu or a text field in the row belong to it.
     if (!(target instanceof HTMLElement) || !target.matches(ITEM_SELECTOR)) return
