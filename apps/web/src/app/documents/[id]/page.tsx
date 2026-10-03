@@ -7,7 +7,6 @@ import { colorFor } from '@/lib/color'
 import type { WorkspaceMemberView } from '@/lib/members'
 import { AppShell } from '@/components/AppShell'
 import { DocumentClient } from './DocumentClient'
-import ui from '@/components/ui/ui.module.css'
 
 export default async function DocumentPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
@@ -75,10 +74,9 @@ export default async function DocumentPage({ params }: { params: Promise<{ id: s
       canManage={role === 'owner'}
       role={role}
     >
-      {/* The page's only heading: the nav shows the title as a tab, not a heading. */}
-      <h1 className={ui.labelHidden}>{document.title}</h1>
       <DocumentClient
         documentId={id}
+        title={document.title}
         type={type}
         readOnly={role === 'viewer'}
         user={{ name: user.name, color: colorFor(user.id) }}

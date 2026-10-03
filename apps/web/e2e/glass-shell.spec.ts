@@ -100,6 +100,57 @@ test('the tiles and the People card sit on raised glass, not the shared token', 
   await cleanup(label)
 })
 
+test('a document shows its title and sits below the nav', async ({ page }) => {
+  const label = `${LABEL}-docheading`
+  const { owner, workspace } = await seedWorkspace(label)
+  const document = await createDocument(workspace.id, 'doc')
+  await signIn(page, owner.id)
+  await page.goto(`/documents/${document.id}`)
+
+  const heading = page.getByTestId('document-heading')
+  await expect(heading).toBeVisible()
+  await expect(heading).toHaveText(document.title)
+  await expect(heading).toHaveCSS('font-size', '32px')
+  await expect(heading).toHaveCSS('font-weight', '600')
+
+  // The gap the design owner asked for: the sheet no longer touches the nav.
+  await expect(page.getByTestId('document-page')).toHaveCSS('margin-top', '28px')
+
+  // Said as the reader experiences it, not just as a declared value: the sheet's
+  // top edge is clear of the nav's bottom edge.
+  const nav = (await page.getByRole('navigation', { name: 'Primary' }).boundingBox())!
+  const sheet = (await page.getByTestId('document-page').boundingBox())!
+  expect(sheet.y).toBeGreaterThanOrEqual(nav.y + nav.height)
+
+  await cleanup(label)
+})
+
+test('a board keeps the title for screen readers without showing it', async ({ page }) => {
+  const label = `${LABEL}-boardheading`
+  const { owner, workspace } = await seedWorkspace(label)
+  const board = await createDocument(workspace.id, 'board')
+  await signIn(page, owner.id)
+  await page.goto(`/documents/${board.id}`)
+
+  // The design gives a board no title slot -- columns start below the nav. But the
+  // page still needs an accessible name, so the heading stays, clipped. This is the
+  // half that stops the visible heading being added by deleting the hidden one.
+  const heading = page.getByTestId('document-heading')
+  await expect(heading).toHaveCount(1)
+  await expect(heading).toHaveText(board.title)
+  // Clipped, not removed -- the same pattern as the nav's labels below 1100px.
+  // toBeVisible() is no use here: a 1px clipped element still has a box, so
+  // Playwright calls it visible. A box that exists proves it is not display:none;
+  // a box that narrow proves it is not on screen.
+  const box = await heading.boundingBox()
+  expect(box).not.toBeNull()
+  expect(box!.width).toBeLessThanOrEqual(1)
+  expect(box!.height).toBeLessThanOrEqual(1)
+  await expect(page.getByTestId('document-page')).toHaveCount(0)
+
+  await cleanup(label)
+})
+
 test('no splatter is painted behind the nav', async ({ page }) => {
   await page.goto('/login')
   await waitUntilDrawn(page)

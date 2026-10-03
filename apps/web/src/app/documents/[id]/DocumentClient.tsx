@@ -7,14 +7,17 @@ import { Board } from '@/components/Board'
 import { Editor } from '@/components/Editor'
 import { clearDocState, publishDocState } from '@/lib/doc-state'
 import styles from './document.module.css'
+import ui from '@/components/ui/ui.module.css'
 
 export function DocumentClient({
   documentId,
+  title,
   type,
   readOnly,
   user,
 }: {
   documentId: string
+  title: string
   type: 'doc' | 'board'
   readOnly: boolean
   user: { name: string; color: string }
@@ -46,7 +49,22 @@ export function DocumentClient({
   return (
     // The sheet is for the document only: the board is a horizontal scroller with its
     // own gutters and would be crushed into a 780px column.
-    <div className={type === 'doc' ? styles.page : undefined}>
+    <div
+      className={type === 'doc' ? styles.page : undefined}
+      data-testid={type === 'doc' ? 'document-page' : undefined}
+    >
+      {/*
+        The page's only heading, and the only one there has ever been -- it used to be
+        screen-reader-only in page.tsx. Visible on a document, where the design shows a
+        title; still clipped on a board, where the design has no title slot but the
+        page still needs an accessible name.
+      */}
+      <h1
+        className={type === 'doc' ? styles.heading : ui.labelHidden}
+        data-testid="document-heading"
+      >
+        {title}
+      </h1>
       {doc && provider && type === 'doc' && (
         <Editor doc={doc} provider={provider} user={user} readOnly={readOnly} />
       )}

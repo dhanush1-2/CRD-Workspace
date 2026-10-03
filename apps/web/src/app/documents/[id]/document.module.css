@@ -1,6 +1,9 @@
 .page {
   max-width: 780px;
-  margin: 0 auto;
+  /* 28px below the nav, per the design owner's review: the sheet was touching the
+     bottom of the bar. The board is not wrapped in .page and its scroller already
+     carries the same 28px of top padding. */
+  margin: 28px auto 64px;
   border-radius: var(--r-sheet);
   padding: 56px 56px 96px;
   background: rgba(255, 255, 255, 0.78);
@@ -8,6 +11,17 @@
   backdrop-filter: var(--glass-blur);
   -webkit-backdrop-filter: var(--glass-blur);
   box-shadow: var(--glass-highlight);
+}
+
+/*
+  The document's own title. Size, weight and letter-spacing come from the global h1
+  rule, which already carries the design's 32px / 600 / -0.025em, so they are not
+  repeated here; only the measure-specific bits are.
+*/
+.heading {
+  margin: 0 0 20px;
+  line-height: 1.2;
+  text-wrap: pretty;
 }
 
 /* Same reason globals.css swaps the sheet tokens: without backdrop blur, 0.78 white
