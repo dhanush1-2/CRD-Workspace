@@ -321,8 +321,12 @@ textarea {
   color: var(--text);
 }
 
+/* 18px, level with the body, not §12.7's 17. In the prototype the body and the h3 are both
+   17px, so the design marked a subheading by weight, colour (--text against --text-2) and
+   its 22px top margin, never by size. The owner's later move of the body to 18px would have
+   made the h3 smaller than the text under it, so the h3 moves with it. */
 .editor .ProseMirror h3 {
-  font-size: 17px;
+  font-size: 18px;
   font-weight: 600;
   line-height: 1.35;
   margin: 22px 0 8px;
@@ -402,7 +406,7 @@ textarea {
   border-spacing: 0;
   margin: 0 0 16px;
   border: 1px solid rgba(40, 40, 60, 0.14);
-  border-radius: 12px;
+  border-radius: var(--r-item);
   overflow: hidden;
   font-size: 15px;
 }

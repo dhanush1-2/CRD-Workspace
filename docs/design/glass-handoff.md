@@ -1262,8 +1262,9 @@ marks and nodes, all of which the Y.Doc already represents as ordinary XML.
 
 - **One definition of the document's shape** (Tasks 1-2). `editor-schema.ts` holds
   `editorExtensions` and `getEditorSchema()`; the editor and anything that reads a
-  stored document use the same list. Curated font families and the design's size
-  steps (14/16/18/21/26/32) in `editor-type.ts`; System is stored as `var(--font)`.
+  stored document use the same list. `editor-type.ts` holds the curated font
+  families and the design's size steps (14/16/18/21/26/32), with System stored as
+  `var(--font)`, **but no control uses it** (see the deviation table).
 - **Shell** (Task 3, §12.1). `EditorToolbar`, in its own glass panel above the sheet, sticky
   at `top: 80px`. Home / Insert / View as an ARIA tablist, a "View only" chip and a live
   word count. `useEditor` now lives in `DocumentEditor.tsx`, which renders the toolbar and
@@ -1281,12 +1282,16 @@ marks and nodes, all of which the Y.Doc already represents as ordinary XML.
   persisted, as in the design.
 - **Element styles** (Task 8, §12.7's table). In `globals.css` under `.editor .ProseMirror`:
   h1, h2, h3, p, blockquote, pre, ul/ol/li, hr, table, td/th and a, with colour and
-  highlight left as inline marks that none of those rules override. Pinned by four
-  computed-style tests in `e2e/editor-toolbar.spec.ts` that read every value in the table
-  back from the browser, plus a test that the title's painted size follows zoom.
-- **Schema additions**, each carried through the Y.Doc by a two-browser test: underline,
-  strike, `textStyle` (colour, family, size), highlight (multicolor), `textAlign` on
-  headings and paragraphs, table / row / cell / header, code block, horizontal rule.
+  highlight left as inline marks that none of those rules override. Three
+  computed-style tests in `e2e/editor-toolbar.spec.ts` read back from the browser the sizes,
+  weights, margins, borders, radii and colours of h1-h3, p, blockquote, pre, lists, hr, table,
+  td and a, and that colour and highlight survive; a fourth pins the sheet's 28px margin and
+  18px body, and a fifth that the title's painted size follows zoom. Not asserted: `th`, the
+  `td p + p` and `blockquote > :last-child` rules, and a cell's line-height.
+- **Schema additions**, all in `editorExtensions` so a document carrying any of them reads back whole: underline,
+  strike, `textStyle` (carrying colour, and the `fontFamily` and `fontSize` attributes, which
+  no control sets), highlight (multicolor), `textAlign` on headings and paragraphs,
+  table / row / cell / header, code block, horizontal rule.
 
 **Deviations from §12, and why**
 
@@ -1295,7 +1300,8 @@ marks and nodes, all of which the Y.Doc already represents as ordinary XML.
 | Document body (§12.7) | 17px | 18px | Later owner decision, see Precedence. Kept. |
 | Page margin (§12.7) | `16px auto 64px` | `28px auto 64px` | Later owner decision, see Precedence. Kept. |
 | Zoom target (§12.4) | on the editor container | on a wrapper that includes the title | The prototype wins, see Precedence. |
-| h3 in the document | 17/600/1.35 | same, but it is **smaller than the 18px body** | §12.7's h3 predates the 18px body. A subheading is told from body text by weight alone. Left as specified; the owner may want 19-20px. |
+| h3 in the document | 17/600/1.35 | **18**/600/1.35, margin 22 0 8 | §12.7's 17px was superseded when the body moved to 18px. In the prototype the body and the h3 are both 17px (`glass-prototype.html` lines 604 and 456), so the design never used size to mark a subheading: it used weight, `--text` against `--text-2`, and the 22px top margin. The later 18px body would have turned that parity into a subheading smaller than the text beneath it, which nobody chose. A subheading larger than the body (19-20px) would be a further owner decision, not built. |
+| Font family and size controls | not in §12.2's Home table; the toolbar plan and the owner's earlier answers asked for family and size selects | **not built** | §12.2 replaced them with the Style menu. `editor-type.ts` (curated families, the size steps) and its test have no UI consumer, and no control can produce a `fontFamily` or `fontSize` attribute today. The `FontFamily` and `FontSize` extensions stay in `editorExtensions`, because a document could carry the attributes and a restore must read them. |
 | Link colour (§12.7) | `--accent` | `--accent`, in the editor only | The global `a` rule uses `--accent-text`; the editor's rule is scoped, so the rest of the app is unchanged. |
 | Text in a list item, quote, cell | not specified (the spec's items are bare text) | paragraphs inside them are reset (no 14px tail, and a cell's text is the table's 15px, not 18px) | ProseMirror wraps all of them in `<p>`; the spec's margins describe the block, not a paragraph inside it. |
 | `th` | not in the table | same as `td`, weight 600, left | The schema carries a header node, so a document that has one reads back whole. The toolbar cannot make one. |

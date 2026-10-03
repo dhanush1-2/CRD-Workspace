@@ -2332,9 +2332,10 @@ test('headings, paragraphs, quote, code, lists and rule carry 12.7’s values', 
   expect(await computed(page, 'h2', ['font-size', 'font-weight', 'line-height', 'letter-spacing', 'margin-top', 'margin-bottom', 'color'])).toEqual({
     'font-size': '21px', 'font-weight': '600', 'line-height': '27.3px', 'letter-spacing': '-0.42px', 'margin-top': '30px', 'margin-bottom': '10px', color: text,
   })
-  // h3 is 17px here, not the global rule's 18px.
+  // h3 is 18px, level with the body: §12.7's 17px was 17px against a 17px body, and the body
+  // has since moved to 18px (see the handoff's deviation table).
   expect(await computed(page, 'h3', ['font-size', 'font-weight', 'line-height', 'margin-top', 'margin-bottom', 'color'])).toEqual({
-    'font-size': '17px', 'font-weight': '600', 'line-height': '22.95px', 'margin-top': '22px', 'margin-bottom': '8px', color: text,
+    'font-size': '18px', 'font-weight': '600', 'line-height': '24.3px', 'margin-top': '22px', 'margin-bottom': '8px', color: text,
   })
 
   // The body is 18px, which is a later decision than 12.7's 17 and must not be "corrected".
