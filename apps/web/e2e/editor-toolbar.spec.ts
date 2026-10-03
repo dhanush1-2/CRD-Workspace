@@ -2425,3 +2425,90 @@ test('the sheet keeps 28px above it, and its text is 18px', async ({ page }) => 
   await expect(sheet(page)).toHaveCSS('margin-bottom', '64px')
   await expect(prose(page).locator('p').first()).toHaveCSS('font-size', '18px')
 })
+
+test('pasting text styled with a font family and size writes neither into the document', async ({ page }) => {
+  await openDocument(page, `${LABEL}-paste-type`)
+  await prose(page).click()
+
+  // A real paste event carrying text/html, which is what Word, Google Docs and a web page
+  // put on the clipboard. The second paragraph is the control: colour is a feature and
+  // must come through, so a pass here means the paste was parsed, not dropped.
+  await prose(page).evaluate((el) => {
+    const data = new DataTransfer()
+    data.setData(
+      'text/html',
+      '<p><span style="font-family:Arial;font-size:11pt">typed</span></p>' +
+        '<p><span style="color:rgb(196, 55, 43)">coloured</span></p>',
+    )
+    el.dispatchEvent(new ClipboardEvent('paste', { clipboardData: data, bubbles: true, cancelable: true }))
+  })
+
+  await expect(prose(page)).toContainText('typed')
+  await expect(prose(page)).toContainText('coloured')
+  const html = await prose(page).innerHTML()
+  expect(html).not.toMatch(/font-family/i)
+  expect(html).not.toMatch(/font-size/i)
+  expect(html).not.toMatch(/Arial|11pt/)
+  // The control: the colour survived the same paste.
+  expect(html).toMatch(/color:\s*rgb\(196,\s*55,\s*43\)/)
+})
+
+test('the tools are a labelled toolbar inside the tabpanel, and only the open tab controls a panel', async ({
+  page,
+}) => {
+  await openDocument(page, `${LABEL}-roles`)
+
+  for (const [tab, name] of [['home', 'Home tools'], ['insert', 'Insert tools'], ['view', 'View tools']] as const) {
+    await page.getByTestId(`tb-tab-${tab}`).click()
+    const panel = page.getByRole('tabpanel')
+    await expect(panel).toHaveCount(1)
+    // The role the keyboard model belongs to, announced by name, and holding every tool.
+    const toolbar = panel.getByRole('toolbar', { name })
+    await expect(toolbar).toHaveCount(1)
+    expect(await toolbar.locator('[data-roving]').count()).toBeGreaterThan(0)
+    expect(
+      await panel.evaluate((el) => el.querySelectorAll('[data-roving]').length),
+    ).toBe(await toolbar.locator('[data-roving]').count())
+
+    // aria-controls names a panel that exists, and only on the selected tab.
+    const controls = await page.getByRole('tab').evaluateAll((tabs) =>
+      tabs.map((el) => ({
+        selected: el.getAttribute('aria-selected') === 'true',
+        controls: el.getAttribute('aria-controls'),
+      })),
+    )
+    for (const entry of controls) {
+      if (entry.selected) {
+        expect(entry.controls).not.toBeNull()
+        expect(await page.locator(`[id="${entry.controls}"]`).count()).toBe(1)
+      } else {
+        expect(entry.controls).toBeNull()
+      }
+    }
+  }
+})
+
+test('Table is unavailable with the caret in a table, and does not nest one', async ({ page }) => {
+  await openDocument(page, `${LABEL}-table-nest`)
+  await prose(page).click()
+  await openInsert(page)
+  const table = tb(page, 'insert-table')
+  await expect(table).toHaveAttribute('aria-disabled', 'false')
+  await table.click()
+  await expect(prose(page).locator('table')).toHaveCount(1)
+
+  // The caret is in the first cell. The button says so, and stays in the row.
+  await expect(table).toHaveAttribute('aria-disabled', 'true')
+  // force: Playwright treats aria-disabled as not enabled and would wait forever. The click
+  // must really be delivered, so what follows proves it inserted nothing.
+  await table.click({ force: true })
+  await expect(prose(page).locator('table')).toHaveCount(1)
+  await expect(prose(page).locator('table table')).toHaveCount(0)
+  await expect(prose(page).locator('td')).toHaveCount(9)
+
+  // Out of the table, in the paragraph after it, it is available again.
+  await prose(page).locator(':scope > p').last().click()
+  await expect(table).toHaveAttribute('aria-disabled', 'false')
+  await table.click()
+  await expect(prose(page).locator('table')).toHaveCount(2)
+})

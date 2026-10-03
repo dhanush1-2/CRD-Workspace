@@ -10,6 +10,8 @@ interface InsertFormat {
   link: boolean
   codeBlock: boolean
   blockquote: boolean
+  /** The caret is in a table: a table inserted there would nest inside its cell. */
+  table: boolean
 }
 
 function readFormat(editor: Editor): InsertFormat {
@@ -17,6 +19,7 @@ function readFormat(editor: Editor): InsertFormat {
     link: editor.isActive('link'),
     codeBlock: editor.isActive('codeBlock'),
     blockquote: editor.isActive('blockquote'),
+    table: editor.isActive('table'),
   }
 }
 
@@ -44,6 +47,28 @@ export function InsertTools({ editor }: { editor: Editor }) {
   // No .focus() in these chains: the click never took focus from the editor.
   const run = () => editor.chain()
 
+  function insertTable() {
+    // Read from the editor, not from `format`: the click is what matters, and the state
+    // behind `format` is a render behind it.
+    if (editor.isActive('table')) return
+    run()
+      .insertTable({ rows: TABLE_ROWS, cols: TABLE_COLS, withHeaderRow: false })
+      // The caret is in the first cell. An empty paragraph goes after the table, in the
+      // same step, so there is always somewhere to write below it and undo takes both
+      // away together.
+      .command(({ tr, state }) => {
+        const { $from } = tr.selection
+        for (let depth = $from.depth; depth > 0; depth -= 1) {
+          if ($from.node(depth).type.name !== 'table') continue
+          const paragraph = state.schema.nodes.paragraph
+          if (paragraph) tr.insert($from.after(depth), paragraph.create())
+          break
+        }
+        return true
+      })
+      .run()
+  }
+
   return (
     <>
       <LinkMenu editor={editor} control={menu('insert-link')} active={format.link} />
@@ -52,24 +77,11 @@ export function InsertTools({ editor }: { editor: Editor }) {
         label="Table"
         text="Table"
         data-testid="tb-insert-table"
-        onClick={() =>
-          run()
-            .insertTable({ rows: TABLE_ROWS, cols: TABLE_COLS, withHeaderRow: false })
-            // The caret is in the first cell. An empty paragraph goes after the table, in
-            // the same step, so there is always somewhere to write below it and undo
-            // takes both away together.
-            .command(({ tr, state }) => {
-              const { $from } = tr.selection
-              for (let depth = $from.depth; depth > 0; depth -= 1) {
-                if ($from.node(depth).type.name !== 'table') continue
-                const paragraph = state.schema.nodes.paragraph
-                if (paragraph) tr.insert($from.after(depth), paragraph.create())
-                break
-              }
-              return true
-            })
-            .run()
-        }
+        // aria-disabled, not disabled: ToolButton omits `disabled` on purpose, because a
+        // disabled button drops out of the row's roving tabindex. Inside a table, insertTable
+        // would nest a second table in the cell, so the click does nothing there.
+        aria-disabled={format.table}
+        onClick={insertTable}
       >
         <Icon>
           <rect x="2" y="3" width="12" height="10" rx="1.5" />

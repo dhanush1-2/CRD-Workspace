@@ -78,6 +78,10 @@ export function DocumentEditor({
     <>
       <EditorToolbar
         editor={editor}
+        // Home and Insert need an editor that is bound: for one effect the editor is
+        // unbound, non-editable and without the Collaboration extension, so it has no
+        // undo, and a click on Undo there throws. View does not depend on this.
+        editable={editor?.isEditable === true}
         readOnly={readOnly}
         view={{ zoom, onZoom: setZoom, pageWidth, onPageWidth: setPageWidth }}
       />

@@ -1,5 +1,7 @@
 # Document Formatting Toolbar Implementation Plan
 
+> **SUPERSEDED.** This plan is not a record of what was built. Section 12 of the design replaced its font family and size controls, its "viewers get no toolbar" rule, its fixed bar inside the sheet, its native `<select>` menus and its "no colour, highlight or alignment" constraint. The record of what shipped, and of where it deviates from the design, is the document-formatting-toolbar section of `docs/design/glass-handoff.md`. Read that, not this.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Give the document page a formatting toolbar — bold through to links — and curated control over font family and size, without letting a document stop looking like the product.

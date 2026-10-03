@@ -1,5 +1,5 @@
 import StarterKit from '@tiptap/starter-kit'
-import { Color, FontFamily, FontSize, TextStyle } from '@tiptap/extension-text-style'
+import { Color, TextStyle } from '@tiptap/extension-text-style'
 import Highlight from '@tiptap/extension-highlight'
 import TextAlign from '@tiptap/extension-text-align'
 import { Table, TableCell, TableHeader, TableRow } from '@tiptap/extension-table'
@@ -32,14 +32,16 @@ export const editorExtensions = [
     // A viewer's click is never intercepted, so the browser follows the anchor itself.
     link: { openOnClick: false },
   }),
-  // TextStyle is the mark; FontFamily and FontSize are global attributes written
-  // onto it, so it has to come with them or both are silent no-ops. The values they
-  // may take are curated — see editor-type.ts.
+  // TextStyle is the mark that text colour hangs off (Color, below). FontFamily and
+  // FontSize are deliberately NOT registered. Their parseHTML reads font-family and
+  // font-size off any pasted span, so with them here a paste from Word, Google Docs or a
+  // web page writes arbitrary families and sizes into the shared document, and no control
+  // can show or remove them. Nothing enforces a curated list at parse time; if font
+  // controls return, they need their own extensions that accept only editor-type.ts's
+  // values. editor-schema.test.ts and the paste test in e2e guard this.
   TextStyle,
-  FontFamily,
-  FontSize,
   // Text colour: a global attribute on the same textStyle mark, so it needs TextStyle
-  // above and travels in the document like the two before it. Highlight is its own mark
+  // above and travels in the document with it. Highlight is its own mark
   // (<mark>), multicolor so each run keeps the colour it was given.
   Color,
   Highlight.configure({ multicolor: true }),

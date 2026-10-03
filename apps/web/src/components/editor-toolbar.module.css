@@ -126,7 +126,9 @@
 
 /* Row 2 */
 
-.toolsRow {
+/* .toolsRow is the tabpanel and carries only the entrance fade, below. The layout is on
+   .tools, the toolbar inside it. */
+.tools {
   display: flex;
   flex-wrap: wrap;
   align-items: center;

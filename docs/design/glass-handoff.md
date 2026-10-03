@@ -710,7 +710,7 @@ only improve — reasoned, not measured.
 Four tokens are ours and deliberately not in section 2: `--dur`, `--dur-fast` and
 `--dur-slow`, because section 2 writes durations as literals and three tokens beat
 scattering them through 16 stylesheets; `--font`, because section 2 gives the stack in
-prose while `editor-type.ts` stores `var(--font)` inside documents; and `--ok-text`,
+prose while the parked `editor-type.ts` stores `var(--font)` for a document's font family; and `--ok-text`,
 a contrast-safe variant of `--ok`, which is a dot colour that fails 4.5:1 as text.
 
 **One literal was deliberately not tokenised.** The "+ Add a card" ghost pill's inset
@@ -1264,7 +1264,8 @@ marks and nodes, all of which the Y.Doc already represents as ordinary XML.
   `editorExtensions` and `getEditorSchema()`; the editor and anything that reads a
   stored document use the same list. `editor-type.ts` holds the curated font
   families and the design's size steps (14/16/18/21/26/32), with System stored as
-  `var(--font)`, **but no control uses it** (see the deviation table).
+  `var(--font)`. It is a parked design reserve: nothing imports it, and neither
+  `FontFamily` nor `FontSize` is in the schema (see the deviation table).
 - **Shell** (Task 3, §12.1). `EditorToolbar`, in its own glass panel above the sheet, sticky
   at `top: 80px`. Home / Insert / View as an ARIA tablist, a "View only" chip and a live
   word count. `useEditor` now lives in `DocumentEditor.tsx`, which renders the toolbar and
@@ -1289,8 +1290,8 @@ marks and nodes, all of which the Y.Doc already represents as ordinary XML.
   18px body, and a fifth that the title's painted size follows zoom. Not asserted: `th`, the
   `td p + p` and `blockquote > :last-child` rules, and a cell's line-height.
 - **Schema additions**, all in `editorExtensions` so a document carrying any of them reads back whole: underline,
-  strike, `textStyle` (carrying colour, and the `fontFamily` and `fontSize` attributes, which
-  no control sets), highlight (multicolor), `textAlign` on headings and paragraphs,
+  strike, `textStyle` (carrying colour only: `FontFamily` and `FontSize` are deliberately not
+  registered, because they would accept any pasted `font-family` or `font-size`), highlight (multicolor), `textAlign` on headings and paragraphs,
   table / row / cell / header, code block, horizontal rule.
 
 **Deviations from §12, and why**
@@ -1300,8 +1301,8 @@ marks and nodes, all of which the Y.Doc already represents as ordinary XML.
 | Document body (§12.7) | 17px | 18px | Later owner decision, see Precedence. Kept. |
 | Page margin (§12.7) | `16px auto 64px` | `28px auto 64px` | Later owner decision, see Precedence. Kept. |
 | Zoom target (§12.4) | on the editor container | on a wrapper that includes the title | The prototype wins, see Precedence. |
-| h3 in the document | 17/600/1.35 | **18**/600/1.35, margin 22 0 8 | §12.7's 17px was superseded when the body moved to 18px. In the prototype the body and the h3 are both 17px (`glass-prototype.html` lines 604 and 456), so the design never used size to mark a subheading: it used weight, `--text` against `--text-2`, and the 22px top margin. The later 18px body would have turned that parity into a subheading smaller than the text beneath it, which nobody chose. A subheading larger than the body (19-20px) would be a further owner decision, not built. |
-| Font family and size controls | not in §12.2's Home table; the toolbar plan and the owner's earlier answers asked for family and size selects | **not built** | §12.2 replaced them with the Style menu. `editor-type.ts` (curated families, the size steps) and its test have no UI consumer, and no control can produce a `fontFamily` or `fontSize` attribute today. The `FontFamily` and `FontSize` extensions stay in `editorExtensions`, because a document could carry the attributes and a restore must read them. |
+| h3 in the document | 17/600/1.35 | **18**/600/1.35, margin 22 0 8 | §12.7's 17px was superseded when the body moved to 18px. In the prototype the body and the h3 are both 17px (`glass-prototype.html` lines 604 (h3) and 267/277 (body)), so the design never used size to mark a subheading: it used weight, `--text` against `--text-2`, and the 22px top margin. The later 18px body would have turned that parity into a subheading smaller than the text beneath it, which nobody chose. A subheading larger than the body (19-20px) would be a further owner decision, not built. |
+| Font family and size controls | not in §12.2's Home table; the toolbar plan and the owner's earlier answers asked for family and size selects | **not built** | §12.2 replaced them with the Style menu. `editor-type.ts` (curated families, the size steps) and its test have no UI consumer and are kept as a parked design reserve. The `FontFamily` and `FontSize` extensions are **not** in `editorExtensions`: their `parseHTML` reads `font-family` and `font-size` off any span, so registering them would let a paste from Word, Google Docs or a web page write arbitrary type into the shared document, which no control could show or remove. No existing document can carry the attributes (`textStyle` was not in the schema before this branch), so leaving them out costs nothing now; adding them later and removing them after documents carry them would make a history restore drop them silently. If font controls are built, register extensions that accept only `editor-type.ts`'s values. Guarded by `editor-schema.test.ts` and a paste test in `editor-toolbar.spec.ts`. |
 | Link colour (§12.7) | `--accent` | `--accent`, in the editor only | The global `a` rule uses `--accent-text`; the editor's rule is scoped, so the rest of the app is unchanged. |
 | Text in a list item, quote, cell | not specified (the spec's items are bare text) | paragraphs inside them are reset (no 14px tail, and a cell's text is the table's 15px, not 18px) | ProseMirror wraps all of them in `<p>`; the spec's margins describe the block, not a paragraph inside it. |
 | `th` | not in the table | same as `td`, weight 600, left | The schema carries a header node, so a document that has one reads back whole. The toolbar cannot make one. |

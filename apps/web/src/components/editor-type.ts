@@ -1,3 +1,4 @@
+// PARKED: nothing imports this. The font controls are not built and FontFamily/FontSize are not in the schema (editor-schema.ts says why); this is the curated set to enforce if they return.
 /**
  * The only font families a document may use.
  *

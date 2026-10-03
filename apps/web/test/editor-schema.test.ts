@@ -35,6 +35,17 @@ describe('the editor schema', () => {
     expect(marks.highlight?.spec.attrs, 'highlight').toHaveProperty('color')
   })
 
+  it('keeps font family and size out of the schema', () => {
+    const { marks } = getEditorSchema()
+    // FontFamily and FontSize read font-family and font-size off any pasted span, so a
+    // paste from Word or a web page would write arbitrary type into the shared document.
+    // textStyle is there for colour only; the e2e paste test is the same guard end to end.
+    expect(Object.keys(marks.textStyle?.spec.attrs ?? {})).toEqual(['color'])
+    const names = editorExtensions.map((extension) => extension.name)
+    expect(names).not.toContain('fontFamily')
+    expect(names).not.toContain('fontSize')
+  })
+
   it('lets paragraphs and headings be aligned, with no alignment as the default', () => {
     const { nodes } = getEditorSchema()
     for (const name of ['paragraph', 'heading']) {

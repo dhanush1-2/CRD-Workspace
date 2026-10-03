@@ -66,6 +66,11 @@ function useWordCount(editor: Editor | null): number {
 interface EditorToolbarProps {
   /** Null until Tiptap has mounted, which is after hydration. */
   editor: Editor | null
+  /**
+   * Whether that editor is bound to the shared document and can be written to. Home and
+   * Insert render only then; View needs no editor and ignores it.
+   */
+  editable: boolean
   readOnly: boolean
   /** Zoom and page width. They act on the sheet, which DocumentEditor owns, not the editor. */
   view: ViewState
@@ -76,7 +81,7 @@ interface EditorToolbarProps {
  * of it. Row 1 holds the tabs, a "View only" chip for viewers and the word count; row 2
  * holds the active tab's tools, added group by group.
  */
-export function EditorToolbar({ editor, readOnly, view }: EditorToolbarProps) {
+export function EditorToolbar({ editor, editable, readOnly, view }: EditorToolbarProps) {
   const ids = useId()
   // The tab is local state; nothing outside the toolbar needs to know which is open.
   const [tab, setTab] = useState<ToolbarTab>('home')
@@ -139,7 +144,9 @@ export function EditorToolbar({ editor, readOnly, view }: EditorToolbarProps) {
                 role="tab"
                 id={`${ids}-tab-${entry.id}`}
                 aria-selected={entry.id === current}
-                aria-controls={`${ids}-row-${entry.id}`}
+                // Only the open tab: the panel it names exists for that tab alone, and an
+                // aria-controls pointing at an id that is not in the DOM is a broken reference.
+                aria-controls={entry.id === current ? `${ids}-row-${entry.id}` : undefined}
                 tabIndex={entry.id === current ? 0 : -1}
                 className={`${styles.tab} ${entry.id === current ? styles.tabActive : ''}`}
                 data-testid={`tb-tab-${entry.id}`}
@@ -170,15 +177,26 @@ export function EditorToolbar({ editor, readOnly, view }: EditorToolbarProps) {
           id={`${ids}-row-${current}`}
           aria-labelledby={`${ids}-tab-${current}`}
           data-testid={`tb-row-${current}`}
-          // One Tab stop for the row, arrows within it.
-          ref={roving.ref}
-          onKeyDown={roving.onKeyDown}
         >
-          {/* No editor yet means no controls: a button that cannot act is worse than none. */}
-          {current === 'home' && editor && <HomeTools editor={editor} lastColours={lastColours} />}
-          {current === 'insert' && editor && <InsertTools editor={editor} />}
-          {/* No editor needed: View is the viewer's whole toolbar, and it acts on the page. */}
-          {current === 'view' && <ViewTools {...view} />}
+          {/* The tools are a toolbar and say so: one Tab stop, arrows within it, which is
+              the ARIA toolbar keyboard model, so the role has to match the behaviour. The
+              tabpanel above only names the region the tab controls. */}
+          <div
+            className={styles.tools}
+            role="toolbar"
+            aria-label={`${visible.find((entry) => entry.id === current)?.label} tools`}
+            ref={roving.ref}
+            onKeyDown={roving.onKeyDown}
+          >
+            {/* No bound editor yet means no controls: a button that cannot act is worse than
+                none, and against the unbound editor one of them throws. */}
+            {current === 'home' && editor && editable && (
+              <HomeTools editor={editor} lastColours={lastColours} />
+            )}
+            {current === 'insert' && editor && editable && <InsertTools editor={editor} />}
+            {/* No editor needed: View is the viewer's whole toolbar, and it acts on the page. */}
+            {current === 'view' && <ViewTools {...view} />}
+          </div>
         </div>
       </div>
     </section>
