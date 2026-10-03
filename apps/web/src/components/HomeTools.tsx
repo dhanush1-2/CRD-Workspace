@@ -1,0 +1,195 @@
+import type { ReactNode } from 'react'
+import { useEditorState, type Editor } from '@tiptap/react'
+import { ToolButton, ToolSeparator } from './ToolButton'
+import styles from './editor-toolbar.module.css'
+
+type Alignment = 'left' | 'center' | 'right' | 'justify'
+
+/** What the Home row shows of the selection. Every field is a flag the bar renders. */
+interface HomeFormat {
+  bold: boolean
+  italic: boolean
+  underline: boolean
+  strike: boolean
+  bulletList: boolean
+  orderedList: boolean
+  align: Alignment
+}
+
+function readFormat(editor: Editor): HomeFormat {
+  // The block holding the start of the selection. An unaligned block has no textAlign
+  // attribute (editor-schema keeps defaultAlignment null), and that is left-aligned.
+  const align = editor.state.selection.$from.parent.attrs.textAlign as Alignment | null | undefined
+  return {
+    bold: editor.isActive('bold'),
+    italic: editor.isActive('italic'),
+    underline: editor.isActive('underline'),
+    strike: editor.isActive('strike'),
+    bulletList: editor.isActive('bulletList'),
+    orderedList: editor.isActive('orderedList'),
+    align: align ?? 'left',
+  }
+}
+
+const ALIGNMENTS: { id: Alignment; label: string; path: string }[] = [
+  { id: 'left', label: 'Align left', path: 'M2 3.5h12M2 6.5h8M2 9.5h12M2 12.5h8' },
+  { id: 'center', label: 'Center', path: 'M2 3.5h12M4 6.5h8M2 9.5h12M4 12.5h8' },
+  { id: 'right', label: 'Align right', path: 'M2 3.5h12M6 6.5h8M2 9.5h12M6 12.5h8' },
+  { id: 'justify', label: 'Justify', path: 'M2 3.5h12M2 6.5h12M2 9.5h12M2 12.5h12' },
+]
+
+function Icon({ children }: { children: ReactNode }) {
+  return (
+    <svg viewBox="0 0 16 16" aria-hidden="true">
+      {children}
+    </svg>
+  )
+}
+
+/**
+ * The Home tab's controls that need no menu (handoff 12.2): history, the four inline
+ * marks, lists, alignment and clear formatting. The Style dropdown and the colour group
+ * are menus and live with the dropdown shell.
+ *
+ * The active states are re-read after every transaction, which covers both a command
+ * and a caret move: `useEditorState` re-runs the selector on each one and re-renders
+ * only when the flags it returns differ.
+ */
+export function HomeTools({ editor }: { editor: Editor }) {
+  const format = useEditorState({ editor, selector: ({ editor: current }) => readFormat(current) })
+
+  // No .focus() in the chain. The click never took focus from the editor (ToolButton
+  // cancels the mousedown), so there is nothing to give back, and a keyboard user who
+  // pressed a button with Enter stays on it, which is how a toolbar is meant to behave.
+  const run = () => editor.chain()
+
+  return (
+    <>
+      <ToolButton
+        label="Undo"
+        title="Undo (⌘Z)"
+        data-testid="tb-undo"
+        // The collaborative history (y-prosemirror's undo manager, not StarterKit's).
+        onClick={() => run().undo().run()}
+      >
+        <Icon>
+          <path d="M6 4 3 7l3 3" />
+          <path d="M3 7h6.5a3.5 3.5 0 0 1 0 7H8" />
+        </Icon>
+      </ToolButton>
+      <ToolButton
+        label="Redo"
+        title="Redo (⌘⇧Z)"
+        data-testid="tb-redo"
+        onClick={() => run().redo().run()}
+      >
+        <Icon>
+          <path d="m10 4 3 3-3 3" />
+          <path d="M13 7H6.5a3.5 3.5 0 0 0 0 7H8" />
+        </Icon>
+      </ToolButton>
+      <ToolSeparator />
+
+      <ToolButton
+        label="Bold"
+        title="Bold (⌘B)"
+        active={format.bold}
+        data-testid="tb-bold"
+        onClick={() => run().toggleBold().run()}
+      >
+        <span className={styles.glyphBold}>B</span>
+      </ToolButton>
+      <ToolButton
+        label="Italic"
+        title="Italic (⌘I)"
+        active={format.italic}
+        data-testid="tb-italic"
+        onClick={() => run().toggleItalic().run()}
+      >
+        <span className={styles.glyphItalic}>I</span>
+      </ToolButton>
+      <ToolButton
+        label="Underline"
+        title="Underline (⌘U)"
+        active={format.underline}
+        data-testid="tb-underline"
+        onClick={() => run().toggleUnderline().run()}
+      >
+        <span className={styles.glyphUnderline}>U</span>
+      </ToolButton>
+      <ToolButton
+        label="Strikethrough"
+        active={format.strike}
+        data-testid="tb-strike"
+        onClick={() => run().toggleStrike().run()}
+      >
+        <span className={styles.glyphStrike}>S</span>
+      </ToolButton>
+      <ToolSeparator />
+
+      <ToolButton
+        label="Bulleted list"
+        active={format.bulletList}
+        data-testid="tb-bullet"
+        onClick={() => run().toggleBulletList().run()}
+      >
+        <Icon>
+          <circle cx="3" cy="4" r="1.1" className={styles.iconFill} />
+          <circle cx="3" cy="8" r="1.1" className={styles.iconFill} />
+          <circle cx="3" cy="12" r="1.1" className={styles.iconFill} />
+          <path d="M6 4h8M6 8h8M6 12h8" />
+        </Icon>
+      </ToolButton>
+      <ToolButton
+        label="Numbered list"
+        active={format.orderedList}
+        data-testid="tb-ordered"
+        onClick={() => run().toggleOrderedList().run()}
+      >
+        <Icon>
+          <text x="1" y="5.8" className={styles.iconNumeral}>
+            1
+          </text>
+          <text x="1" y="9.8" className={styles.iconNumeral}>
+            2
+          </text>
+          <text x="1" y="13.8" className={styles.iconNumeral}>
+            3
+          </text>
+          <path d="M6 4h8M6 8h8M6 12h8" />
+        </Icon>
+      </ToolButton>
+      <ToolSeparator />
+
+      {ALIGNMENTS.map((entry) => (
+        <ToolButton
+          key={entry.id}
+          label={entry.label}
+          active={format.align === entry.id}
+          data-testid={`tb-align-${entry.id}`}
+          // set, not toggle: alignment is a choice among four, and pressing the one that
+          // is already active should not silently revert to the default.
+          onClick={() => run().setTextAlign(entry.id).run()}
+        >
+          <Icon>
+            <path d={entry.path} />
+          </Icon>
+        </ToolButton>
+      ))}
+      <ToolSeparator />
+
+      <ToolButton
+        label="Clear formatting"
+        data-testid="tb-clear"
+        // Marks off, then the block back to a plain paragraph. clearNodes also lifts
+        // out of lists and quotes and, building a fresh paragraph, drops its alignment.
+        onClick={() => run().clearNodes().unsetAllMarks().run()}
+      >
+        <Icon>
+          <path d="M3 3.5h8M7 3.5v9" />
+          <path d="m10 9.5 3.5 3.5M13.5 9.5 10 13" />
+        </Icon>
+      </ToolButton>
+    </>
+  )
+}

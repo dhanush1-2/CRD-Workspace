@@ -24,6 +24,20 @@ describe('the editor schema', () => {
     }
   })
 
+  it('lets paragraphs and headings be aligned, with no alignment as the default', () => {
+    const { nodes } = getEditorSchema()
+    for (const name of ['paragraph', 'heading']) {
+      const type = nodes[name]!
+      expect(type.create().attrs, name).toHaveProperty('textAlign', null)
+      const centred = JSON.stringify(type.spec.toDOM!(type.create({ textAlign: 'center' })))
+      expect(centred, name).toContain('text-align: center')
+      // An unaligned block must serialise with no style at all: a default of 'left' would
+      // write the attribute into every block of every document.
+      const plain = JSON.stringify(type.spec.toDOM!(type.create()))
+      expect(plain, name).not.toContain('text-align')
+    }
+  })
+
   it('is memoised, so repeated reads are the same object', () => {
     expect(getEditorSchema()).toBe(getEditorSchema())
   })

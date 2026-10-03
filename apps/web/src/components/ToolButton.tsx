@@ -15,14 +15,17 @@ export function keepEditorSelection(event: MouseEvent) {
 }
 
 interface ToolButtonProps
-  extends Omit<ButtonHTMLAttributes<HTMLButtonElement>, 'type' | 'title' | 'aria-label' | 'onMouseDown'> {
+  extends Omit<ButtonHTMLAttributes<HTMLButtonElement>, 'type' | 'title' | 'aria-label' | 'onMouseDown' | 'className'> {
   /** The accessible name. An icon-only button is otherwise unnamed. */
   label: string
   /** The tooltip, which carries the shortcut ("Bold (⌘B)"). Defaults to the label. */
   title?: string
   /** Set for toggles. Highlights the button and exposes aria-pressed. */
   active?: boolean
-  /** Visible text beside the icon, for the Insert tab's labelled buttons. */
+  /**
+   * Visible text beside the icon, for the Insert tab's labelled buttons. Pass the same
+   * string as `label`, so what is announced is what is read.
+   */
   text?: string
   children?: ReactNode
 }
@@ -44,4 +47,9 @@ export function ToolButton({ label, title, active, text, children, ...rest }: To
       {text}
     </button>
   )
+}
+
+/** The 1x20px rule between groups (handoff 12.1). Decorative, so hidden from assistive tech. */
+export function ToolSeparator() {
+  return <span className={styles.separator} aria-hidden="true" />
 }

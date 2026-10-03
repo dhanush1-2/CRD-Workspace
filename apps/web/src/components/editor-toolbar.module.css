@@ -150,8 +150,10 @@
   color: var(--accent);
 }
 
-.tool:hover {
-  /* The design's literal. */
+.tool:hover:not(.toolActive) {
+  /* The design's literal. Not applied to an active toggle: the pointer is on the button
+     the moment it is pressed, so a hover fill that beat the active one would hide the
+     toggle's new state until the mouse moved away. */
   background: rgba(255, 255, 255, 0.9);
 }
 
@@ -163,6 +165,59 @@
   stroke-width: 1.6;
   stroke-linecap: round;
   stroke-linejoin: round;
+}
+
+/* A rule between tool groups (handoff 12.1). */
+.separator {
+  flex: none;
+  width: 1px;
+  height: 20px;
+  margin: 0 6px;
+  background: var(--sep);
+}
+
+/* Text glyphs standing in for icons on the inline-mark buttons: 16px wide so they sit on
+   the same grid as the SVG icons (handoff 12.2). */
+.glyphBold,
+.glyphItalic,
+.glyphUnderline,
+.glyphStrike {
+  width: 16px;
+  text-align: center;
+  font-size: 15px;
+}
+
+.glyphBold {
+  font-weight: 700;
+}
+
+.glyphItalic {
+  font-family: Georgia, serif;
+  font-style: italic;
+  font-size: 16px;
+}
+
+.glyphUnderline {
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.glyphStrike {
+  text-decoration: line-through;
+}
+
+/* Parts of an icon that are filled rather than stroked. */
+.tool svg .iconFill {
+  fill: currentColor;
+  stroke: none;
+}
+
+.tool svg .iconNumeral {
+  fill: currentColor;
+  stroke: none;
+  font-family: system-ui, sans-serif;
+  font-size: 5.5px;
+  font-weight: 700;
 }
 
 @media (prefers-reduced-motion: no-preference) {

@@ -1,5 +1,6 @@
 import StarterKit from '@tiptap/starter-kit'
 import { FontFamily, FontSize, TextStyle } from '@tiptap/extension-text-style'
+import TextAlign from '@tiptap/extension-text-align'
 import { getSchema } from '@tiptap/core'
 import type { Schema } from '@tiptap/pm/model'
 
@@ -27,6 +28,10 @@ export const editorExtensions = [
   TextStyle,
   FontFamily,
   FontSize,
+  // A global attribute on these two block types. defaultAlignment stays null, so a
+  // paragraph nobody aligned carries no attribute at all, in the Y.Doc or in the HTML.
+  // The toolbar reads "no attribute" as left; see HomeTools.
+  TextAlign.configure({ types: ['heading', 'paragraph'] }),
 ]
 
 let schema: Schema | null = null

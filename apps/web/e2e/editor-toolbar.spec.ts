@@ -1,5 +1,12 @@
 import { test, expect, type Page } from '@playwright/test'
-import { addMember, cleanup, createDocument, seedWorkspace, signIn } from './fixtures.js'
+import {
+  addMember,
+  cleanup,
+  createDocument,
+  seedWorkspace,
+  sessionCookieFor,
+  signIn,
+} from './fixtures.js'
 
 const LABEL = 'e2e-toolbar'
 
@@ -161,11 +168,11 @@ test('a board has no toolbar at all', async ({ page }) => {
 test('the tabs are reachable and operable from the keyboard', async ({ page }) => {
   await openDocument(page, `${LABEL}-keys`)
 
-  // One Tab stop for the whole strip, landing on the open tab: shift-tab from the page
-  // reaches it.
-  await prose(page).click()
-  await page.keyboard.press('Shift+Tab')
-  await expect(page.getByTestId('tb-tab-home')).toBeFocused()
+  // One Tab stop for the whole strip, landing on the open tab. Focused directly: with the
+  // Home row's buttons now sitting between the strip and the page, shift-tab from the
+  // editor reaches them first, and walking back through each would pin this test to how
+  // many controls the row has.
+  await page.getByTestId('tb-tab-home').focus()
 
   await page.keyboard.press('ArrowRight')
   await expect(page.getByTestId('tb-tab-insert')).toBeFocused()
@@ -185,4 +192,284 @@ test('the tabs are reachable and operable from the keyboard', async ({ page }) =
   await expect(page.getByTestId('tb-tab-view')).toBeFocused()
   await page.keyboard.press('Home')
   await expect(page.getByTestId('tb-tab-home')).toBeFocused()
+})
+
+// ---------------------------------------------------------------------------
+// Home tab: the direct controls (handoff 12.2)
+// ---------------------------------------------------------------------------
+
+const tb = (page: Page, id: string) => page.getByTestId(`tb-${id}`)
+
+/** Types a line into the editor and selects all of it, as a person would. */
+async function typeAndSelect(page: Page, text: string) {
+  await prose(page).click()
+  await page.keyboard.type(text)
+  await page.keyboard.press('ControlOrMeta+a')
+}
+
+const MARKS = [
+  { id: 'bold', tag: 'strong' },
+  { id: 'italic', tag: 'em' },
+  { id: 'underline', tag: 'u' },
+  { id: 'strike', tag: 's' },
+] as const
+
+for (const { id, tag } of MARKS) {
+  test(`${id}: wraps the selection in <${tag}>, and a second click unwraps it`, async ({
+    page,
+  }) => {
+    await openDocument(page, `${LABEL}-mark-${id}`)
+    await typeAndSelect(page, 'some words')
+
+    await tb(page, id).click()
+    await expect(prose(page).locator(tag)).toHaveText('some words')
+
+    await tb(page, id).click()
+    await expect(prose(page).locator(tag)).toHaveCount(0)
+    await expect(prose(page)).toContainText('some words')
+  })
+
+  test(`${id}: the button follows the caret, pressed inside it and not outside`, async ({
+    page,
+  }) => {
+    await openDocument(page, `${LABEL}-pressed-${id}`)
+    await prose(page).click()
+    await page.keyboard.type('plain marked')
+    // Select just "marked" and apply the mark to it.
+    for (let i = 0; i < 'marked'.length; i += 1) await page.keyboard.press('Shift+ArrowLeft')
+    await tb(page, id).click()
+    await expect(prose(page).locator(tag)).toHaveText('marked')
+
+    // Caret at the end, inside the marked run.
+    await page.keyboard.press('End')
+    await expect(tb(page, id)).toHaveAttribute('aria-pressed', 'true')
+
+    // Caret inside "plain". Arrow keys, not Home: on macOS Home scrolls the page and
+    // leaves the caret where it is. The other three marks stay unpressed throughout, so
+    // a button that lit for the wrong mark would show up here.
+    for (let i = 0; i < 9; i += 1) await page.keyboard.press('ArrowLeft')
+    await expect(tb(page, id)).toHaveAttribute('aria-pressed', 'false')
+    for (const other of MARKS.filter((entry) => entry.id !== id)) {
+      await expect(tb(page, other.id)).toHaveAttribute('aria-pressed', 'false')
+    }
+  })
+}
+
+test('a toolbar click does not take focus or the selection from the editor', async ({ page }) => {
+  await openDocument(page, `${LABEL}-keep`)
+  await typeAndSelect(page, 'keep me')
+  const state = () =>
+    page.evaluate(() => ({
+      selected: window.getSelection()?.toString() ?? '',
+      inEditor: document.activeElement?.closest('.ProseMirror') !== null,
+    }))
+
+  // Press and hold. Focus moves on mousedown, so this is where the bug lives: by the time
+  // click fires it has already happened, and a check made after the click cannot tell a
+  // button that kept focus from one that took it and handed it back.
+  const box = (await tb(page, 'bold').boundingBox())!
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2)
+  await page.mouse.down()
+  expect(await state()).toEqual({ selected: 'keep me', inEditor: true })
+  await page.mouse.up()
+
+  await expect(prose(page).locator('strong')).toHaveText('keep me')
+  expect(await state()).toEqual({ selected: 'keep me', inEditor: true })
+})
+
+test('hovering an active toggle keeps its accent fill', async ({ page }) => {
+  await openDocument(page, `${LABEL}-hover`)
+  await typeAndSelect(page, 'hover')
+  await tb(page, 'bold').click()
+  await expect(tb(page, 'bold')).toHaveAttribute('aria-pressed', 'true')
+
+  // The pointer is on the button now, having just pressed it. An unpressed button turns
+  // white on hover; a pressed one must keep --accent-soft, or the press would be invisible.
+  const fill = (id: string) =>
+    tb(page, id).evaluate((el) => getComputedStyle(el).backgroundColor)
+  // The token as the browser resolves it, so the test does not copy its value.
+  const accentSoft = await page.evaluate(() => {
+    const probe = document.createElement('div')
+    probe.style.background = 'var(--accent-soft)'
+    document.body.append(probe)
+    const resolved = getComputedStyle(probe).backgroundColor
+    probe.remove()
+    return resolved
+  })
+  expect(accentSoft).not.toBe('rgba(0, 0, 0, 0)')
+  // Polled: the fill transitions in over a quarter of a second.
+  await expect.poll(() => fill('bold')).toBe(accentSoft)
+  await page.waitForTimeout(400)
+  expect(await fill('bold')).toBe(accentSoft)
+
+  await tb(page, 'italic').hover()
+  await expect.poll(() => fill('italic')).toBe('rgba(255, 255, 255, 0.9)')
+})
+
+test('bulleted and numbered lists wrap the line, and toggle off again', async ({ page }) => {
+  await openDocument(page, `${LABEL}-lists`)
+  await prose(page).click()
+  await page.keyboard.type('one')
+
+  await tb(page, 'bullet').click()
+  await expect(prose(page).locator('ul > li')).toHaveText('one')
+  await expect(tb(page, 'bullet')).toHaveAttribute('aria-pressed', 'true')
+  await expect(tb(page, 'ordered')).toHaveAttribute('aria-pressed', 'false')
+
+  await tb(page, 'bullet').click()
+  await expect(prose(page).locator('ul')).toHaveCount(0)
+  await expect(tb(page, 'bullet')).toHaveAttribute('aria-pressed', 'false')
+
+  await tb(page, 'ordered').click()
+  await expect(prose(page).locator('ol > li')).toHaveText('one')
+  await expect(tb(page, 'ordered')).toHaveAttribute('aria-pressed', 'true')
+  await expect(tb(page, 'bullet')).toHaveAttribute('aria-pressed', 'false')
+})
+
+test('each alignment sets the paragraph and marks itself, and only itself, active', async ({
+  page,
+}) => {
+  await openDocument(page, `${LABEL}-align`)
+  await prose(page).click()
+  await page.keyboard.type('aligned')
+  const ids = ['left', 'center', 'right', 'justify'] as const
+
+  // An untouched paragraph is left-aligned, and the bar says so.
+  await expect(tb(page, 'align-left')).toHaveAttribute('aria-pressed', 'true')
+
+  for (const id of [...ids].reverse()) {
+    await tb(page, `align-${id}`).click()
+    await expect(prose(page).locator('p').first()).toHaveCSS('text-align', id)
+    for (const other of ids) {
+      await expect(tb(page, `align-${other}`)).toHaveAttribute(
+        'aria-pressed',
+        other === id ? 'true' : 'false',
+      )
+    }
+  }
+})
+
+test('clear formatting removes the marks and returns the block to a paragraph', async ({
+  page,
+}) => {
+  await openDocument(page, `${LABEL}-clear`)
+  await prose(page).click()
+  // "# " is the editor's own input rule for a heading.
+  await page.keyboard.type('# Loud title')
+  await expect(prose(page).locator('h1')).toHaveText('Loud title')
+  await page.keyboard.press('ControlOrMeta+a')
+  await tb(page, 'bold').click()
+  await tb(page, 'italic').click()
+  await tb(page, 'align-center').click()
+  await expect(prose(page).locator('h1 strong em')).toHaveText('Loud title')
+
+  await tb(page, 'clear').click()
+
+  await expect(prose(page).locator('h1')).toHaveCount(0)
+  await expect(prose(page).locator('strong, em')).toHaveCount(0)
+  // A trailing empty paragraph follows a heading or list, so match the one with the text.
+  const paragraph = prose(page).locator('p', { hasText: 'Loud title' })
+  await expect(paragraph).toHaveCount(1)
+  await expect(paragraph).not.toHaveCSS('text-align', 'center')
+})
+
+test('clear formatting also lifts a line out of a list', async ({ page }) => {
+  await openDocument(page, `${LABEL}-clear-list`)
+  await prose(page).click()
+  await page.keyboard.type('item')
+  await tb(page, 'bullet').click()
+  await expect(prose(page).locator('ul')).toHaveCount(1)
+
+  await tb(page, 'clear').click()
+
+  await expect(prose(page).locator('ul')).toHaveCount(0)
+  await expect(prose(page).locator('p', { hasText: 'item' })).toHaveCount(1)
+})
+
+test('undo and redo walk the collaborative history', async ({ page }) => {
+  await openDocument(page, `${LABEL}-history`)
+  await prose(page).click()
+  await page.keyboard.type('history')
+  // The undo manager merges changes made within 500ms into one step. Wait, so typing and
+  // formatting are two steps and the test can tell them apart.
+  await page.waitForTimeout(700)
+  await page.keyboard.press('ControlOrMeta+a')
+  await tb(page, 'bold').click()
+  await expect(prose(page).locator('strong')).toHaveText('history')
+
+  await tb(page, 'undo').click()
+  await expect(prose(page).locator('strong')).toHaveCount(0)
+  await expect(prose(page)).toContainText('history')
+
+  await tb(page, 'redo').click()
+  await expect(prose(page).locator('strong')).toHaveText('history')
+
+  // Undo again, and once more: the second step is the typing itself.
+  await tb(page, 'undo').click()
+  await tb(page, 'undo').click()
+  await expect(prose(page)).not.toContainText('history')
+
+  await tb(page, 'redo').click()
+  await expect(prose(page)).toContainText('history')
+  await expect(prose(page).locator('strong')).toHaveCount(0)
+})
+
+test('formatting made in one browser appears in the other', async ({ browser }) => {
+  const label = `${LABEL}-sync`
+  const { owner, workspace } = await seedWorkspace(label)
+  const editor = await addMember(workspace.id, label, 'editor')
+  const document = await createDocument(workspace.id, 'doc')
+
+  async function openAs(userId: string): Promise<{ page: Page; close: () => Promise<void> }> {
+    const context = await browser.newContext()
+    await context.addCookies([await sessionCookieFor(userId)])
+    const page = await context.newPage()
+    // ?nobc=1 forces this tab to sync through the server rather than BroadcastChannel,
+    // so what B sees has been through the CRDT and the wire, not a local shortcut.
+    await page.goto(`/documents/${document.id}?nobc=1`)
+    await expect(page.getByTestId('status')).toHaveAttribute('data-status', 'connected')
+    await expect(prose(page)).toHaveAttribute('contenteditable', 'true')
+    return { page, close: () => context.close() }
+  }
+
+  const a = await openAs(owner.id)
+  const b = await openAs(editor.id)
+
+  await typeAndSelect(a.page, 'shared styling')
+  await tb(a.page, 'bold').click()
+  await tb(a.page, 'italic').click()
+  await tb(a.page, 'underline').click()
+  await tb(a.page, 'strike').click()
+  await tb(a.page, 'align-center').click()
+
+  const text = prose(b.page)
+  await expect(text.locator('strong')).toHaveText('shared styling')
+  await expect(text.locator('em')).toHaveText('shared styling')
+  await expect(text.locator('u')).toHaveText('shared styling')
+  await expect(text.locator('s')).toHaveText('shared styling')
+  await expect(text.locator('p').first()).toHaveCSS('text-align', 'center')
+
+  // And a block change travels as well as a mark: a list made in B arrives in A.
+  await b.page.locator('.editor .ProseMirror p').first().click()
+  await tb(b.page, 'bullet').click()
+  await expect(prose(a.page).locator('ul > li')).toContainText('shared styling')
+
+  // B's own bar reflects what arrived, not only what B did: the caret sits in A's bold.
+  await expect(tb(b.page, 'bold')).toHaveAttribute('aria-pressed', 'true')
+
+  await a.close()
+  await b.close()
+})
+
+test('a viewer gets none of the Home controls', async ({ page }) => {
+  const label = `${LABEL}-viewer-home`
+  const { workspace } = await seedWorkspace(label)
+  const viewer = await addMember(workspace.id, label, 'viewer')
+  const document = await createDocument(workspace.id, 'doc')
+  await signIn(page, viewer.id)
+  await page.goto(`/documents/${document.id}`)
+  await expect(page.getByTestId('status')).toHaveAttribute('data-status', 'connected')
+
+  await expect(page.getByTestId('tb-row-view')).toBeVisible()
+  await expect(page.locator('[data-testid^="tb-bold"], [data-testid^="tb-undo"]')).toHaveCount(0)
 })

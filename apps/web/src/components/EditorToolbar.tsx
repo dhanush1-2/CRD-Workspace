@@ -2,6 +2,7 @@
 
 import { useEffect, useId, useRef, useState, type KeyboardEvent } from 'react'
 import type { Editor } from '@tiptap/react'
+import { HomeTools } from './HomeTools'
 import { keepEditorSelection } from './ToolButton'
 import styles from './editor-toolbar.module.css'
 
@@ -65,7 +66,7 @@ interface EditorToolbarProps {
 /**
  * The Word-style ribbon (handoff 12.1): a floating glass panel above the page, not part
  * of it. Row 1 holds the tabs, a "View only" chip for viewers and the word count; row 2
- * holds the active tab's tools. The tools themselves are added group by group.
+ * holds the active tab's tools, added group by group.
  */
 export function EditorToolbar({ editor, readOnly }: EditorToolbarProps) {
   const ids = useId()
@@ -151,7 +152,10 @@ export function EditorToolbar({ editor, readOnly }: EditorToolbarProps) {
           id={`${ids}-row-${current}`}
           aria-labelledby={`${ids}-tab-${current}`}
           data-testid={`tb-row-${current}`}
-        />
+        >
+          {/* No editor yet means no controls: a button that cannot act is worse than none. */}
+          {current === 'home' && editor && <HomeTools editor={editor} />}
+        </div>
       </div>
     </section>
   )
