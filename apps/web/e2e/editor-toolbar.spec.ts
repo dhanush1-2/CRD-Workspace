@@ -1610,6 +1610,28 @@ test('Table inserts a 3x3 with an empty paragraph after it, caret in the first c
   await expect(prose(page).locator('table')).toHaveCount(0)
 })
 
+test('Table puts an empty paragraph after itself even where text already follows', async ({
+  page,
+}) => {
+  await openDocument(page, `${LABEL}-table-middle`)
+  await prose(page).click()
+  // An empty line above a line of text: the table replaces the first, and the text
+  // that follows must not butt up against it. At the end of a document Tiptap adds a
+  // trailing paragraph of its own, which is why the end-of-document test cannot tell.
+  await page.keyboard.press('Enter')
+  await page.keyboard.type('text below')
+  await page.keyboard.press('ArrowUp')
+  await openInsert(page)
+  await tb(page, 'insert-table').click()
+
+  const shape = await prose(page).evaluate((el) =>
+    Array.from(el.children)
+      .filter((child) => child.tagName === 'P' || child.querySelector(':scope > table'))
+      .map((child) => (child.tagName === 'P' ? `p:${child.textContent}` : 'table')),
+  )
+  expect(shape).toEqual(['table', 'p:', 'p:text below'])
+})
+
 test('a table made in one browser, and what is typed in it, appears in the other', async ({
   browser,
 }) => {
