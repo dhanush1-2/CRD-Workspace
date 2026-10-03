@@ -2,6 +2,7 @@ import StarterKit from '@tiptap/starter-kit'
 import { Color, FontFamily, FontSize, TextStyle } from '@tiptap/extension-text-style'
 import Highlight from '@tiptap/extension-highlight'
 import TextAlign from '@tiptap/extension-text-align'
+import { Table, TableCell, TableHeader, TableRow } from '@tiptap/extension-table'
 import { getSchema } from '@tiptap/core'
 import type { Schema } from '@tiptap/pm/model'
 
@@ -22,7 +23,14 @@ import type { Schema } from '@tiptap/pm/model'
  * error anywhere.
  */
 export const editorExtensions = [
-  StarterKit.configure({ undoRedo: false }),
+  StarterKit.configure({
+    undoRedo: false,
+    // Link ships in StarterKit. By default a click on a link in an editable document
+    // opens it in a new tab, which makes an existing link unreachable by mouse: the
+    // caret never lands in it, so the Insert tab's Link popover has nothing to edit or
+    // remove. Off, a click places the caret and the link opens from a reader's view.
+    link: { openOnClick: false },
+  }),
   // TextStyle is the mark; FontFamily and FontSize are global attributes written
   // onto it, so it has to come with them or both are silent no-ops. The values they
   // may take are curated — see editor-type.ts.
@@ -38,6 +46,14 @@ export const editorExtensions = [
   // paragraph nobody aligned carries no attribute at all, in the Y.Doc or in the HTML.
   // The toolbar reads "no attribute" as left; see HomeTools.
   TextAlign.configure({ types: ['heading', 'paragraph'] }),
+  // Table (Insert tab). Not resizable: the column-resize handles are a node view and a
+  // plugin of their own, and nothing in the toolbar drives them. Without them a cell is
+  // plain nodes (table > tableRow > tableCell > block+), which the Y.Doc carries like any
+  // other. The header node is part of the set so a document that has one reads back whole.
+  Table.configure({ resizable: false }),
+  TableRow,
+  TableHeader,
+  TableCell,
 ]
 
 let schema: Schema | null = null

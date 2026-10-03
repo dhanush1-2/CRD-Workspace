@@ -4,6 +4,7 @@ import { useEffect, useId, useRef, useState, type KeyboardEvent } from 'react'
 import type { Editor } from '@tiptap/react'
 import { MENU_SCOPE } from './EditorMenu'
 import { HomeTools } from './HomeTools'
+import { InsertTools } from './InsertTools'
 import { useLastColours } from './HomeMenus'
 import { keepEditorSelection } from './ToolButton'
 import { useRovingToolRow } from './useRovingToolRow'
@@ -171,6 +172,7 @@ export function EditorToolbar({ editor, readOnly }: EditorToolbarProps) {
         >
           {/* No editor yet means no controls: a button that cannot act is worse than none. */}
           {current === 'home' && editor && <HomeTools editor={editor} lastColours={lastColours} />}
+          {current === 'insert' && editor && <InsertTools editor={editor} />}
         </div>
       </div>
     </section>

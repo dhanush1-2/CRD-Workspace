@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest'
+import { prosemirrorJSONToYDoc, yDocToProsemirrorJSON } from '@tiptap/y-tiptap'
 import { editorExtensions, getEditorSchema } from '../src/components/editor-schema.js'
 
 describe('the editor schema', () => {
@@ -46,6 +47,33 @@ describe('the editor schema', () => {
       const plain = JSON.stringify(type.spec.toDOM!(type.create()))
       expect(plain, name).not.toContain('text-align')
     }
+  })
+
+  it('carries the table, and a table survives the trip into a Y.Doc and back', () => {
+    const schema = getEditorSchema()
+    for (const node of ['table', 'tableRow', 'tableCell', 'tableHeader']) {
+      expect(schema.nodes[node], node).toBeDefined()
+    }
+    const cell = (text: string) => ({
+      type: 'tableCell',
+      attrs: { colspan: 1, rowspan: 1, colwidth: null },
+      content: [{ type: 'paragraph', content: text ? [{ type: 'text', text }] : undefined }],
+    })
+    const row = (...texts: string[]) => ({ type: 'tableRow', content: texts.map(cell) })
+    const json = {
+      type: 'doc',
+      content: [
+        { type: 'table', content: [row('a', 'b', ''), row('', 'c', 'd'), row('e', '', 'f')] },
+        { type: 'paragraph' },
+      ],
+    }
+    // The CRDT is how a table reaches a second browser: if the schema cannot carry a node
+    // through the Y.Doc, it does not sync, and that is worse than having no table at all.
+    const ydoc = prosemirrorJSONToYDoc(schema, json, 'default')
+    const back = yDocToProsemirrorJSON(ydoc, 'default')
+    expect(schema.nodeFromJSON(back).eq(schema.nodeFromJSON(json))).toBe(true)
+    // Not a vacuous pass: the table is really there on the far side.
+    expect(JSON.stringify(back)).toContain('"tableRow"')
   })
 
   it('is memoised, so repeated reads are the same object', () => {

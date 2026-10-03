@@ -40,7 +40,7 @@ const ITEM_SELECTOR = '[data-menu-item]'
 /** Swatches are laid out four to a row (handoff 12.5), so Up/Down move by four. */
 const SWATCH_COLUMNS = 4
 
-export type MenuName = 'style' | 'color' | 'highlight'
+export type MenuName = 'style' | 'color' | 'highlight' | 'insert-link'
 
 /** What one menu is told by the group: whether it is open, and how to open and close it. */
 export interface MenuControl {
@@ -70,8 +70,12 @@ const MenuContext = createContext<{ afterChoose: () => void } | null>(null)
 interface EditorMenuProps {
   name: MenuName
   control: MenuControl
-  /** `list` is the Style menu (a listbox); `swatches` is a colour menu (a grid). */
-  variant: 'list' | 'swatches'
+  /**
+   * `list` is the Style menu (a listbox); `swatches` is a colour menu (a grid); `popover`
+   * is a small form (the Link popover, handoff 12.6), whose own controls are a text field
+   * and buttons rather than items moved between with arrows.
+   */
+  variant: 'list' | 'swatches' | 'popover'
   /** The trigger's accessible name. */
   label: string
   /** The trigger's tooltip. Defaults to the label. */
@@ -82,6 +86,16 @@ interface EditorMenuProps {
   trigger: ReactNode
   /** The 150px field look for the trigger (the Style dropdown). */
   field?: boolean
+  /** Visible text beside the trigger's icon (the Insert tab's labelled buttons). */
+  text?: string
+  /** Pressed state for the trigger, for a menu whose tool is also a toggle (Link). */
+  active?: boolean
+  /**
+   * Where focus goes when the menu is dismissed with Esc, or closed from its trigger,
+   * while focus is inside it. Defaults to the trigger. A popover that took focus from the
+   * editor hands it back to the editor here, selection restored.
+   */
+  restoreTo?: () => void
   children: ReactNode
 }
 
@@ -94,6 +108,9 @@ export function EditorMenu({
   menuLabel,
   trigger,
   field,
+  text,
+  active,
+  restoreTo,
   children,
 }: EditorMenuProps) {
   const { open, viaKeyboard, onOpen, onClose } = control
@@ -108,10 +125,17 @@ export function EditorMenu({
     closeRef.current = onClose
   })
 
-  /** Focus goes back to the trigger only if it was inside the menu; a mouse user's stays in the editor. */
+  const restoreToRef = useRef(restoreTo)
+  useEffect(() => {
+    restoreToRef.current = restoreTo
+  })
+
+  /** Focus goes back only if it was inside the menu; a mouse user's stays in the editor. */
   const restoreFocus = useCallback(() => {
-    const active = document.activeElement
-    if (active && menuRef.current?.contains(active)) triggerRef.current?.focus()
+    const focused = document.activeElement
+    if (!focused || !menuRef.current?.contains(focused)) return
+    if (restoreToRef.current) restoreToRef.current()
+    else triggerRef.current?.focus()
   }, [])
 
   useEffect(() => {
@@ -159,6 +183,9 @@ export function EditorMenu({
   }
 
   function onMenuKeyDown(event: KeyboardEvent) {
+    // A popover's controls are a text field and buttons: Tab walks them, and the arrows,
+    // Home and End belong to the field. Esc and click-away close it (above).
+    if (variant === 'popover') return
     if (event.altKey || event.ctrlKey || event.metaKey) return
     if (event.key === 'Tab') {
       // Leaving the menu closes it. Focus goes to the trigger first, so Tab then moves on
@@ -197,12 +224,23 @@ export function EditorMenu({
         title={title}
         field={field}
         data-testid={`tb-${name}`}
-        aria-haspopup={variant === 'list' ? 'listbox' : 'grid'}
+        text={text}
+        active={active}
+        aria-haspopup={variant === 'list' ? 'listbox' : variant === 'popover' ? 'dialog' : 'grid'}
         aria-expanded={open}
         aria-controls={open ? menuId : undefined}
         // click.detail is 0 for a keypress (Enter, Space), which is how a keyboard open is
         // told from a mouse open here.
-        onClick={(event) => (open ? onClose() : onOpen(event.detail === 0))}
+        onClick={(event) => {
+          if (!open) {
+            onOpen(event.detail === 0)
+            return
+          }
+          // Closing from the trigger with focus inside the panel (a popover's field) hands
+          // it back first; with focus elsewhere this does nothing.
+          restoreFocus()
+          onClose()
+        }}
         onKeyDown={onTriggerKeyDown}
       >
         {trigger}
@@ -219,23 +257,42 @@ export function EditorMenu({
           <div
             ref={menuRef}
             id={menuId}
-            className={`${styles.menu} ${variant === 'list' ? styles.menuList : styles.menuSwatches}`}
+            className={`${styles.menu} ${
+              variant === 'list'
+                ? styles.menuList
+                : variant === 'popover'
+                  ? styles.menuPopover
+                  : styles.menuSwatches
+            }`}
             data-testid={`tb-${name}-menu`}
+            role={variant === 'popover' ? 'dialog' : undefined}
+            aria-label={variant === 'popover' ? menuLabel : undefined}
             onKeyDown={onMenuKeyDown}
+            onBlur={(event) => {
+              // Tabbing out of a popover closes it. A null relatedTarget is not that (the
+              // window lost focus, or the press landed on nothing), so it is left to the
+              // click-away listener.
+              if (variant !== 'popover') return
+              const next = event.relatedTarget
+              if (next instanceof Node && !anchorRef.current?.contains(next)) onClose()
+            }}
           >
+            {variant === 'popover' && children}
             {variant === 'swatches' && (
               <div className={styles.menuTitle} id={titleId}>
                 {menuLabel}
               </div>
             )}
-            <div
-              role={variant === 'list' ? 'listbox' : 'grid'}
-              aria-label={variant === 'list' ? menuLabel : undefined}
-              aria-labelledby={variant === 'swatches' ? titleId : undefined}
-              className={variant === 'list' ? styles.menuListBody : styles.menuGrid}
-            >
-              {children}
-            </div>
+            {variant !== 'popover' && (
+              <div
+                role={variant === 'list' ? 'listbox' : 'grid'}
+                aria-label={variant === 'list' ? menuLabel : undefined}
+                aria-labelledby={variant === 'swatches' ? titleId : undefined}
+                className={variant === 'list' ? styles.menuListBody : styles.menuGrid}
+              >
+                {children}
+              </div>
+            )}
           </div>
         </MenuContext.Provider>
       )}

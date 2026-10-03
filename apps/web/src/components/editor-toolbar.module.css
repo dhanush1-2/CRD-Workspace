@@ -465,3 +465,98 @@
 .tool svg .highlightBar {
   stroke-width: 2.6;
 }
+
+/* The Link popover (handoff 12.6): 330px, padding 6, gap 6. */
+
+.menuPopover {
+  width: 330px;
+  padding: 6px;
+}
+
+.linkForm {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.linkInput {
+  flex: 1;
+  min-width: 0;
+  height: 34px;
+  padding: 0 14px;
+  border: 1px solid var(--field-border);
+  border-radius: var(--r-pill);
+  /* "White pill": opaque, against the translucent glass behind it. */
+  background: #fff;
+  color: var(--text);
+  font-size: 13.5px;
+}
+
+.linkInput::placeholder {
+  color: var(--text-faint);
+}
+
+.linkInput:focus {
+  /* Accent border and a ring, as the sign-in field does; the global outline is replaced. */
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 4px var(--accent-ring);
+}
+
+.linkInput[aria-invalid='true'] {
+  border-color: var(--danger);
+}
+
+.linkAdd,
+.linkRemove {
+  flex: none;
+  height: 34px;
+  padding: 0 14px;
+  border: none;
+  border-radius: var(--r-pill);
+  font-size: 13.5px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.linkAdd {
+  background: var(--accent);
+  color: #fff;
+}
+
+.linkAdd:hover {
+  background: var(--accent-hover);
+}
+
+.linkRemove {
+  /* The design's literal. */
+  background: rgba(40, 40, 60, 0.06);
+  color: var(--text-2);
+}
+
+.linkRemove:hover:not([aria-disabled='true']) {
+  background: rgba(40, 40, 60, 0.1);
+}
+
+.linkRemove[aria-disabled='true'] {
+  color: var(--text-faint);
+  cursor: default;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .linkInput {
+    transition:
+      border-color var(--dur-fast) var(--ease),
+      box-shadow var(--dur-fast) var(--ease);
+  }
+  .linkAdd,
+  .linkRemove {
+    transition:
+      background var(--dur-fast) var(--ease),
+      transform 0.3s var(--ease);
+  }
+  .linkAdd:active,
+  .linkRemove:active:not([aria-disabled='true']) {
+    transform: scale(0.96);
+  }
+}

@@ -1171,3 +1171,468 @@ test('a menu blurs the page behind it: no ancestor of its panel is a backdrop ro
     await page.keyboard.press('Escape')
   }
 })
+
+// ---------------------------------------------------------------------------
+// Insert tab (handoff 12.3 and 12.6)
+// ---------------------------------------------------------------------------
+
+async function openInsert(page: Page) {
+  await page.getByTestId('tb-tab-insert').click()
+  await expect(page.getByTestId('tb-row-insert')).toBeVisible()
+}
+
+/** Opens the Link popover with the mouse, the way a person does: focus moves to its field. */
+async function openLink(page: Page) {
+  await tb(page, 'insert-link').click()
+  await expect(tb(page, 'insert-link-menu')).toBeVisible()
+  await expect(tb(page, 'insert-link-input')).toBeFocused()
+}
+
+/** What the editor believes is selected, whether or not it has focus. */
+const pmSelection = (page: Page) =>
+  prose(page).evaluate((el) => {
+    const editor = (el as unknown as { editor: import('@tiptap/core').Editor }).editor
+    const { from, to } = editor.state.selection
+    return { from, to, text: editor.state.doc.textBetween(from, to, ' ') }
+  })
+
+/** Moves the editor's selection without giving it focus: a change made behind the popover. */
+const disturbSelection = (page: Page, position: number) =>
+  prose(page).evaluate((el, pos) => {
+    const editor = (el as unknown as { editor: import('@tiptap/core').Editor }).editor
+    editor.commands.setTextSelection(pos)
+  }, position)
+
+test('the Insert tab has its six tools, each a labelled button', async ({ page }) => {
+  await openDocument(page, `${LABEL}-insert-tools`)
+  await openInsert(page)
+
+  const row = page.getByTestId('tb-row-insert')
+  await expect(row.locator('button')).toHaveText(['Link', 'Table', 'Divider', 'Code block', 'Quote', 'Date'])
+  for (const id of ['link', 'table', 'divider', 'code', 'quote', 'date']) {
+    await expect(tb(page, `insert-${id}`)).toBeVisible()
+  }
+  // The labelled variant: padding 0 11 0 9, with the icon beside the text.
+  const link = tb(page, 'insert-link')
+  await expect(link).toHaveCSS('padding-left', '9px')
+  await expect(link).toHaveCSS('padding-right', '11px')
+  await expect(link.locator('svg')).toBeVisible()
+})
+
+test('Link opens its popover with the field focused, and Enter links the selection', async ({
+  page,
+}) => {
+  await openDocument(page, `${LABEL}-link-apply`)
+  await typeAndSelect(page, 'link me')
+  await openInsert(page)
+
+  await openLink(page)
+  await expect(tb(page, 'insert-link-input')).toHaveAttribute('placeholder', 'Paste a link')
+  await expect(tb(page, 'insert-link')).toHaveAttribute('aria-expanded', 'true')
+  // 330px wide, padding 6, 34px controls.
+  const box = (await tb(page, 'insert-link-menu').boundingBox())!
+  expect(box.width).toBeCloseTo(330, 0)
+  expect((await tb(page, 'insert-link-input').boundingBox())!.height).toBeCloseTo(34, 0)
+
+  await page.keyboard.type('https://example.com/docs')
+  await page.keyboard.press('Enter')
+
+  await expect(prose(page).locator('a')).toHaveAttribute('href', 'https://example.com/docs')
+  await expect(prose(page).locator('a')).toHaveText('link me')
+  await expect(tb(page, 'insert-link-menu')).toHaveCount(0)
+  // Focus and the selection are the editor's again (Tiptap hands focus back on the next
+  // frame, so this is polled).
+  await expect.poll(() => editorState(page)).toEqual({ selected: 'link me', inEditor: true })
+  await expect(tb(page, 'insert-link')).toHaveAttribute('aria-pressed', 'true')
+})
+
+test('Add links the selection too, and an address with no scheme gets https://', async ({ page }) => {
+  await openDocument(page, `${LABEL}-link-scheme`)
+  await typeAndSelect(page, 'bare address')
+  await openInsert(page)
+  await openLink(page)
+  await page.keyboard.type('example.com/path')
+  await tb(page, 'insert-link-apply').click()
+  await expect(prose(page).locator('a')).toHaveAttribute('href', 'https://example.com/path')
+  await expect(prose(page).locator('a')).toHaveText('bare address')
+
+  // A scheme that is already there is left alone.
+  await page.keyboard.press('ControlOrMeta+a')
+  await openLink(page)
+  await page.keyboard.type('http://plain.example')
+  await page.keyboard.press('Enter')
+  await expect(prose(page).locator('a')).toHaveAttribute('href', 'http://plain.example')
+})
+
+test('the selection is restored before the link is applied, not read from the page', async ({
+  page,
+}) => {
+  await openDocument(page, `${LABEL}-link-restore`)
+  await typeAndSelect(page, 'link me')
+  await openInsert(page)
+  await openLink(page)
+
+  // Focus is in the field, so the editor has lost the page selection. Something moves the
+  // editor's selection to a bare caret while the popover is open. A link applied to the
+  // selection as it is then would land on a collapsed cursor, and nothing would happen.
+  await disturbSelection(page, 2)
+  expect((await pmSelection(page)).text).toBe('')
+
+  await page.keyboard.type('example.com')
+  await page.keyboard.press('Enter')
+  // The words that were selected when the popover opened, whole.
+  await expect(prose(page).locator('a')).toHaveText('link me')
+  await expect(prose(page).locator('a')).toHaveAttribute('href', 'https://example.com')
+})
+
+test('the selection is mapped through a peer’s edit made while the popover is open', async ({
+  browser,
+}) => {
+  const label = `${LABEL}-link-peer`
+  const { owner, workspace } = await seedWorkspace(label)
+  const peer = await addMember(workspace.id, label, 'editor')
+  const document = await createDocument(workspace.id, 'doc')
+
+  async function openAs(userId: string) {
+    const context = await browser.newContext()
+    await context.addCookies([await sessionCookieFor(userId)])
+    const page = await context.newPage()
+    await page.goto(`/documents/${document.id}?nobc=1`)
+    await expect(page.getByTestId('status')).toHaveAttribute('data-status', 'connected')
+    await expect(prose(page)).toHaveAttribute('contenteditable', 'true')
+    return { page, close: () => context.close() }
+  }
+
+  const a = await openAs(owner.id)
+  const b = await openAs(peer.id)
+
+  // The words are selected with the keyboard from the middle of the line, so the peer's
+  // text lands before the selection, not at its edge or inside it.
+  await prose(a.page).click()
+  await a.page.keyboard.type('intro target words')
+  for (let i = 0; i < 'target words'.length; i += 1) await a.page.keyboard.press('Shift+ArrowLeft')
+  // The editor reads the page's selection on the browser's selectionchange, so it is polled.
+  await expect.poll(async () => (await pmSelection(a.page)).text).toBe('target words')
+  // (B's view draws A's caret label inside the text, hence the pattern.)
+  await expect(prose(b.page)).toContainText(/intro .*target words/)
+  await openInsert(a.page)
+  await openLink(a.page)
+
+  // B writes in front of A's selection while A's popover is open.
+  await prose(b.page).click()
+  // Start of the line: Cmd+Left on macOS, Home elsewhere.
+  await b.page.keyboard.press(process.platform === 'darwin' ? 'Meta+ArrowLeft' : 'Home')
+  await b.page.keyboard.type('PREFIX ')
+  // (A's view draws B's caret label between them, so the two are asserted apart.)
+  await expect(prose(a.page)).toContainText(/^PREFIX /)
+
+  await a.page.keyboard.type('example.com')
+  await a.page.keyboard.press('Enter')
+  // Still the words A selected, not the span that now sits at the old offsets.
+  await expect(prose(a.page).locator('a')).toHaveText('target words')
+  await expect(prose(b.page).locator('a')).toHaveText('target words')
+
+  await a.close()
+  await b.close()
+})
+
+test('Esc closes the popover and gives the editor its selection back', async ({ page }) => {
+  await openDocument(page, `${LABEL}-link-esc`)
+  await typeAndSelect(page, 'keep this selected')
+  await openInsert(page)
+  await openLink(page)
+  await page.keyboard.type('half typed')
+
+  await page.keyboard.press('Escape')
+  await expect(tb(page, 'insert-link-menu')).toHaveCount(0)
+  // Nothing was applied, and the selection and focus are the editor's. Tiptap gives focus
+  // back on the next frame, so this is polled rather than read once.
+  await expect(prose(page).locator('a')).toHaveCount(0)
+  await expect
+    .poll(() => editorState(page))
+    .toEqual({ selected: 'keep this selected', inEditor: true })
+
+  // Even if the selection moved while the popover was open.
+  await openLink(page)
+  await disturbSelection(page, 1)
+  await page.keyboard.press('Escape')
+  await expect.poll(() => pmSelection(page)).toMatchObject({ text: 'keep this selected' })
+  await expect
+    .poll(() => editorState(page))
+    .toEqual({ selected: 'keep this selected', inEditor: true })
+})
+
+test('Remove strips the link, whole, and the field shows the link being edited', async ({
+  page,
+}) => {
+  await openDocument(page, `${LABEL}-link-remove`)
+  await typeAndSelect(page, 'remove me')
+  await openInsert(page)
+  await openLink(page)
+  await page.keyboard.type('example.com')
+  await page.keyboard.press('Enter')
+  await expect(prose(page).locator('a')).toHaveCount(1)
+
+  // A caret in the middle of the link, not a selection of it.
+  await page.keyboard.press('End')
+  await page.keyboard.press('ArrowLeft')
+  await page.keyboard.press('ArrowLeft')
+  await openLink(page)
+  await expect(tb(page, 'insert-link-input')).toHaveValue('https://example.com')
+  await tb(page, 'insert-link-remove').click()
+
+  await expect(tb(page, 'insert-link-menu')).toHaveCount(0)
+  await expect(prose(page).locator('a')).toHaveCount(0)
+  await expect(prose(page)).toContainText('remove me')
+})
+
+test('Remove has nothing to do outside a link, and says so', async ({ page }) => {
+  await openDocument(page, `${LABEL}-link-remove-none`)
+  await typeAndSelect(page, 'plain text')
+  await openInsert(page)
+  await openLink(page)
+
+  await expect(tb(page, 'insert-link-remove')).toHaveAttribute('aria-disabled', 'true')
+  // aria-disabled, not disabled: still a control in the popover's Tab order.
+  await expect(tb(page, 'insert-link-remove')).not.toHaveAttribute('disabled', /.*/)
+  // force: Playwright treats aria-disabled as not actionable, and a person can click it.
+  await tb(page, 'insert-link-remove').click({ force: true })
+  await expect(tb(page, 'insert-link-menu')).toBeVisible()
+  await expect(prose(page)).toHaveText('plain text')
+})
+
+test('an address the link validation refuses keeps the popover open and flags the field', async ({
+  page,
+}) => {
+  await openDocument(page, `${LABEL}-link-refused`)
+  await typeAndSelect(page, 'not linked')
+  await openInsert(page)
+  await openLink(page)
+  await page.keyboard.type('foo://bar')
+  await page.keyboard.press('Enter')
+
+  await expect(tb(page, 'insert-link-input')).toHaveAttribute('aria-invalid', 'true')
+  await expect(tb(page, 'insert-link-menu')).toBeVisible()
+  await expect(tb(page, 'insert-link-input')).toBeFocused()
+  await expect(prose(page).locator('a')).toHaveCount(0)
+
+  // Correcting it clears the flag, and the same selection is still the one linked.
+  await tb(page, 'insert-link-input').fill('example.com')
+  await expect(tb(page, 'insert-link-input')).not.toHaveAttribute('aria-invalid', 'true')
+  await page.keyboard.press('Enter')
+  await expect(prose(page).locator('a')).toHaveText('not linked')
+})
+
+test('a caret on no text takes the address as the link’s text', async ({ page }) => {
+  await openDocument(page, `${LABEL}-link-caret`)
+  await prose(page).click()
+  await openInsert(page)
+  await openLink(page)
+  await page.keyboard.type('example.com')
+  await page.keyboard.press('Enter')
+  await expect(prose(page).locator('a')).toHaveText('https://example.com')
+  await expect(prose(page).locator('a')).toHaveAttribute('href', 'https://example.com')
+})
+
+test('the Link popover works from the keyboard and closes on Tab out', async ({ page }) => {
+  await openDocument(page, `${LABEL}-link-keys`)
+  await typeAndSelect(page, 'by keyboard')
+  await openInsert(page)
+
+  await tb(page, 'insert-link').focus()
+  await page.keyboard.press('Enter')
+  await expect(tb(page, 'insert-link-input')).toBeFocused()
+  await page.keyboard.press('Tab')
+  await expect(tb(page, 'insert-link-apply')).toBeFocused()
+  await page.keyboard.press('Tab')
+  await expect(tb(page, 'insert-link-remove')).toBeFocused()
+  await page.keyboard.press('Tab')
+  await expect(tb(page, 'insert-link-menu')).toHaveCount(0)
+
+  // The field's own keys stay the field's: Home and the arrows do not leave it.
+  await tb(page, 'insert-link').focus()
+  await page.keyboard.press('Enter')
+  await page.keyboard.type('abc')
+  await page.keyboard.press('Home')
+  await page.keyboard.press('ArrowRight')
+  await expect(tb(page, 'insert-link-input')).toBeFocused()
+})
+
+test('the Link popover’s controls are not stops of the tool row', async ({ page }) => {
+  await openDocument(page, `${LABEL}-link-roving`)
+  await prose(page).click()
+  await openInsert(page)
+  const stops = page.locator('[data-testid="tb-row-insert"] [data-roving]')
+  await expect(stops).toHaveCount(6)
+
+  await openLink(page)
+  await expect(stops).toHaveCount(6)
+  await expect(page.locator('[data-testid="tb-row-insert"] [data-roving][tabindex="0"]')).toHaveCount(1)
+  await expect(tb(page, 'insert-link-menu').locator('[data-roving]')).toHaveCount(0)
+
+  // Arrows in the field are the field's: the row does not take them.
+  await page.keyboard.type('x')
+  await page.keyboard.press('ArrowLeft')
+  await expect(tb(page, 'insert-link-input')).toBeFocused()
+})
+
+test('the Link popover blurs the page behind it: no ancestor is a backdrop root', async ({
+  page,
+}) => {
+  await openDocument(page, `${LABEL}-link-backdrop`)
+  await prose(page).click()
+  await openInsert(page)
+  await openLink(page)
+  const found = await tb(page, 'insert-link-menu').evaluate((menu) => {
+    const filter = (el: Element) => getComputedStyle(el).backdropFilter
+    const ancestors: string[] = []
+    for (let el = menu.parentElement; el; el = el.parentElement) {
+      if (filter(el) !== 'none') ancestors.push(el.className || el.tagName)
+    }
+    return { own: filter(menu), ancestors }
+  })
+  expect(found.ancestors).toEqual([])
+  expect(found.own).not.toBe('none')
+})
+
+test('Divider, Code block and Quote insert or toggle', async ({ page }) => {
+  await openDocument(page, `${LABEL}-blocks`)
+  await prose(page).click()
+  await page.keyboard.type('first line')
+  await openInsert(page)
+
+  // Divider: a horizontal rule.
+  await tb(page, 'insert-divider').click()
+  await expect(prose(page).locator('hr')).toHaveCount(1)
+
+  // Code block: toggles, and the button follows the caret.
+  await page.keyboard.type('const x = 1')
+  await tb(page, 'insert-code').click()
+  await expect(prose(page).locator('pre code')).toHaveText('const x = 1')
+  await expect(tb(page, 'insert-code')).toHaveAttribute('aria-pressed', 'true')
+  await tb(page, 'insert-code').click()
+  await expect(prose(page).locator('pre')).toHaveCount(0)
+  await expect(tb(page, 'insert-code')).toHaveAttribute('aria-pressed', 'false')
+  await expect(prose(page)).toContainText('const x = 1')
+
+  // Quote: toggles the same way.
+  await tb(page, 'insert-quote').click()
+  await expect(prose(page).locator('blockquote')).toContainText('const x = 1')
+  await expect(tb(page, 'insert-quote')).toHaveAttribute('aria-pressed', 'true')
+  await tb(page, 'insert-quote').click()
+  await expect(prose(page).locator('blockquote')).toHaveCount(0)
+  await expect(tb(page, 'insert-quote')).toHaveAttribute('aria-pressed', 'false')
+  // The editor never lost focus across any of it.
+  expect((await editorState(page)).inEditor).toBe(true)
+})
+
+test('Date inserts today’s date as text, in the design’s format', async ({ page }) => {
+  // The clock is fixed before the page loads, so the expectation does not restate the code.
+  await page.clock.setFixedTime(new Date(2026, 9, 3, 12, 0, 0))
+  await openDocument(page, `${LABEL}-date`)
+  await prose(page).click()
+  await page.keyboard.type('Due ')
+  await openInsert(page)
+  await tb(page, 'insert-date').click()
+  await expect(prose(page).locator('p')).toHaveText('Due Oct 3, 2026')
+  // Text, not a node or a mark: nothing wraps it.
+  await expect(prose(page).locator('p > *')).toHaveCount(0)
+})
+
+test('Table inserts a 3x3 with an empty paragraph after it, caret in the first cell', async ({
+  page,
+}) => {
+  await openDocument(page, `${LABEL}-table`)
+  await prose(page).click()
+  await openInsert(page)
+  await tb(page, 'insert-table').click()
+
+  const table = prose(page).locator('table')
+  await expect(table).toHaveCount(1)
+  await expect(table.locator('tr')).toHaveCount(3)
+  await expect(table.locator('tr').first().locator('td')).toHaveCount(3)
+  await expect(table.locator('td')).toHaveCount(9)
+  await expect(table.locator('th')).toHaveCount(0)
+  // An empty paragraph follows it: the document's last node is not the table.
+  const after = await prose(page).evaluate((el) => {
+    const last = el.lastElementChild
+    const previous = last?.previousElementSibling
+    // Tiptap wraps a table in a div, so the table is that div's child.
+    return {
+      tag: last?.tagName,
+      text: last?.textContent,
+      previousHoldsTable: previous?.querySelector(':scope > table') !== null,
+    }
+  })
+  expect(after).toEqual({ tag: 'P', text: '', previousHoldsTable: true })
+
+  // The caret is in the first cell, so typing fills it.
+  await page.keyboard.type('A1')
+  await expect(table.locator('td').first()).toHaveText('A1')
+  // Undo takes the table and its paragraph away together.
+  await page.keyboard.press('ControlOrMeta+z')
+  await page.keyboard.press('ControlOrMeta+z')
+  await expect(prose(page).locator('table')).toHaveCount(0)
+})
+
+test('a table made in one browser, and what is typed in it, appears in the other', async ({
+  browser,
+}) => {
+  const label = `${LABEL}-table-sync`
+  const { owner, workspace } = await seedWorkspace(label)
+  const peer = await addMember(workspace.id, label, 'editor')
+  const document = await createDocument(workspace.id, 'doc')
+
+  async function openAs(userId: string) {
+    const context = await browser.newContext()
+    await context.addCookies([await sessionCookieFor(userId)])
+    const page = await context.newPage()
+    // ?nobc=1: through the server and the wire, not a BroadcastChannel shortcut.
+    await page.goto(`/documents/${document.id}?nobc=1`)
+    await expect(page.getByTestId('status')).toHaveAttribute('data-status', 'connected')
+    await expect(prose(page)).toHaveAttribute('contenteditable', 'true')
+    return { page, close: () => context.close() }
+  }
+
+  const a = await openAs(owner.id)
+  const b = await openAs(peer.id)
+
+  await prose(a.page).click()
+  await openInsert(a.page)
+  await tb(a.page, 'insert-table').click()
+  await a.page.keyboard.type('from A')
+
+  const remote = prose(b.page).locator('table')
+  await expect(remote).toHaveCount(1)
+  await expect(remote.locator('tr')).toHaveCount(3)
+  await expect(remote.locator('td')).toHaveCount(9)
+  // toContainText: B's view draws A's caret label (the user's name) inside the cell.
+  await expect(remote.locator('td').first()).toContainText('from A')
+  await expect(prose(b.page).locator('div:has(> table) + p')).toHaveCount(1)
+
+  // And B's edit inside a cell travels back.
+  await remote.locator('td').nth(4).click()
+  await b.page.keyboard.type('from B')
+  await expect(prose(a.page).locator('table td').nth(4)).toContainText('from B')
+
+  // The node survives a reload from the server, not just the live stream.
+  await a.page.waitForTimeout(500)
+  await a.page.reload()
+  await expect(prose(a.page).locator('table td')).toHaveCount(9)
+  await expect(prose(a.page).locator('table td').nth(4)).toContainText('from B')
+
+  await a.close()
+  await b.close()
+})
+
+test('a viewer gets no Insert tab, so none of the Insert tools', async ({ page }) => {
+  const label = `${LABEL}-viewer-insert`
+  const { workspace } = await seedWorkspace(label)
+  const viewer = await addMember(workspace.id, label, 'viewer')
+  const document = await createDocument(workspace.id, 'doc')
+  await signIn(page, viewer.id)
+  await page.goto(`/documents/${document.id}`)
+  await expect(page.getByTestId('tb-tab-view')).toBeVisible()
+  await expect(page.getByTestId('tb-tab-insert')).toHaveCount(0)
+  await expect(page.locator('[data-testid^="tb-insert-"]')).toHaveCount(0)
+})
