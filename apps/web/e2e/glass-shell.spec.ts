@@ -90,10 +90,11 @@ test('the tiles and the People card sit on raised glass, not the shared token', 
   await expect(page.locator('[class*="people"]').first()).toHaveCSS('background-color', raised)
 
   // The other half: the nav, the sheets and the popovers were not asked to change,
-  // so --glass-bg itself must still be .55. Raising the token would satisfy every
+  // so the shared light-glass token must still be .55. Raising it would satisfy every
   // assertion above and quietly thicken every glass surface in the app.
+  // (Named --glass-bg until the 2026-10-03 token migration renamed it.)
   const token = await page.evaluate(() =>
-    getComputedStyle(document.documentElement).getPropertyValue('--glass-bg').trim(),
+    getComputedStyle(document.documentElement).getPropertyValue('--glass-light').trim(),
   )
   expect(token).toBe('rgba(255, 255, 255, 0.55)')
 

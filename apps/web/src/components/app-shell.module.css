@@ -31,9 +31,9 @@
   max-width: 100%;
   padding: 0 8px 0 10px;
   border-radius: var(--r-pill);
-  background: var(--glass-bg-strong);
-  backdrop-filter: var(--glass-blur);
-  -webkit-backdrop-filter: var(--glass-blur);
+  background: var(--glass-mid);
+  backdrop-filter: var(--blur-2);
+  -webkit-backdrop-filter: var(--blur-2);
   border: 1px solid rgba(40, 40, 60, 0.1);
   box-shadow:
     inset 0 1px 0 #fff,

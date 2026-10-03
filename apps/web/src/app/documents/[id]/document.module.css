@@ -8,9 +8,9 @@
   padding: 56px 56px 96px;
   background: rgba(255, 255, 255, 0.78);
   border: 1px solid var(--glass-border);
-  backdrop-filter: var(--glass-blur);
-  -webkit-backdrop-filter: var(--glass-blur);
-  box-shadow: var(--glass-highlight);
+  backdrop-filter: var(--blur-2);
+  -webkit-backdrop-filter: var(--blur-2);
+  box-shadow: var(--glass-hl);
 }
 
 /*

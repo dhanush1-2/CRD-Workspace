@@ -20,11 +20,11 @@
   width: 100%;
   border-radius: var(--r-sheet);
   padding: 26px 26px 22px;
-  background: var(--glass-bg-sheet);
-  backdrop-filter: var(--glass-blur);
-  -webkit-backdrop-filter: var(--glass-blur);
+  background: var(--glass-sheet);
+  backdrop-filter: var(--blur-2);
+  -webkit-backdrop-filter: var(--blur-2);
   border: 1px solid var(--glass-border);
-  box-shadow: var(--glass-highlight), 0 40px 90px rgba(30, 45, 40, 0.22);
+  box-shadow: var(--glass-hl), 0 40px 90px rgba(30, 45, 40, 0.22);
 }
 
 @media (prefers-reduced-motion: no-preference) {

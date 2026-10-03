@@ -681,6 +681,30 @@ neighbour. Open the HTML in a browser to use it. Both were committed on 2026-10-
 from `CRDT workspace design.zip`; the previous prototype in this folder was the older,
 smaller one and had no runtime at all, which is why earlier notes call it stale.
 
+**Token migration, 2026-10-03.** `globals.css` now carries section 2's names and
+values. Renames: `--glass-bg` → `--glass-light`, `--glass-bg-strong` → `--glass-mid`,
+`--glass-bg-sheet` → `--glass-sheet`, `--glass-blur` → `--blur-2`, `--glass-highlight`
+→ `--glass-hl`, `--r-column` → `--r-col` — 30 references across 16 stylesheets. Added:
+`--glass-col/-tool/-page/-menu`, `--blur-1/-3`, `--accent-soft`, `--toast-dot`,
+`--line`, `--sep`, `--dash`, `--track`, `--r-tool/-item/-menu/-pop`. Several are unused
+until the editor toolbar lands; they are defined because this block is the design
+system, not only the set of values currently referenced.
+
+Two values changed with the names: `--accent-text` from `oklch(0.38 0.1 285)` to
+`oklch(0.36 0.11 285)` and `--accent-ring` from `/ .1` to `/ .12`. The accent-text
+change lowers lightness at a fixed hue, so contrast against a light background can
+only improve — reasoned, not measured.
+
+Four tokens are ours and deliberately not in section 2: `--dur`, `--dur-fast` and
+`--dur-slow`, because section 2 writes durations as literals and three tokens beat
+scattering them through 16 stylesheets; `--font`, because section 2 gives the stack in
+prose while `editor-type.ts` stores `var(--font)` inside documents; and `--ok-text`,
+a contrast-safe variant of `--ok`, which is a dot colour that fails 4.5:1 as text.
+
+**One literal was deliberately not tokenised.** The "+ Add a card" ghost pill's inset
+border is `rgba(40,40,60,.08)`, the same value as `--track`, and a different thing. The
+`@supports not (backdrop-filter)` fallback now raises all seven glass levels to `.92`.
+
 **Two more disagreements, both still open:**
 
 - **Device pixel ratio.** §4.2 caps it at 2; the code caps at 1, in one named constant,

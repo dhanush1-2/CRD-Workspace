@@ -1,6 +1,18 @@
 :root {
-  /* surfaces */
-  --canvas-base: #f1f1ef;
+  /*
+    The design system of handoff section 2 (2026-10-03). Names and values are that
+    section's, so a value quoted in the handoff can be found here by the same name.
+
+    Four tokens are ours and are not in section 2, each for a reason:
+      --dur*  the handoff writes durations as literals (.25s, .3s, .4s, .55s, .6s);
+              three tokens are better than scattering those through 16 stylesheets
+      --font  section 2 gives the stack in prose; editor-type.ts stores `var(--font)`
+              in documents so they follow it if it ever changes
+      --ok-text  a contrast-safe variant of --ok, derived here; --ok itself is a dot
+              colour and does not meet 4.5:1 as text
+  */
+
+  /* text */
   --text: #1c1d1b;
   --text-2: #3d403b;
   --text-muted: #5f625d;
@@ -8,32 +20,49 @@
   --icon-faint: #a3a6a0;
   --danger: #c4372b;
 
-  /* accent: indigo-violet */
+  /* accent: indigo-violet, hue 285 */
   --accent: oklch(0.42 0.11 285);
   --accent-hover: oklch(0.37 0.11 285);
-  --accent-text: oklch(0.38 0.1 285);
+  --accent-text: oklch(0.36 0.11 285);
   --accent-tint: oklch(0.95 0.02 285);
+  --accent-soft: oklch(0.42 0.11 285 / 0.12);
+  --accent-ring: oklch(0.42 0.11 285 / 0.12);
   --accent-shadow: oklch(0.42 0.11 285 / 0.22);
-  --accent-ring: oklch(0.42 0.11 285 / 0.1);
 
   /* status */
   --ok: oklch(0.62 0.13 150);
-  /* Text-safe variant of --ok, derived for contrast on the canvas; mirrors --accent-text. */
+  /* Ours: text-safe variant of --ok. --ok is a dot colour and fails 4.5:1 as text. */
   --ok-text: oklch(0.5 0.13 150);
   --warn: oklch(0.72 0.15 65);
-  --sync: oklch(0.42 0.11 285);
+  --sync: var(--accent);
+  --toast-dot: oklch(0.78 0.12 300);
+
+  /* canvas */
+  --canvas-base: #f1f1ef;
 
   /* glass */
-  --glass-bg: rgba(255, 255, 255, 0.55);
-  --glass-bg-strong: rgba(255, 255, 255, 0.72);
-  --glass-bg-sheet: rgba(255, 255, 255, 0.82);
+  --glass-light: rgba(255, 255, 255, 0.55);
+  --glass-col: rgba(255, 255, 255, 0.42);
+  --glass-mid: rgba(255, 255, 255, 0.72);
+  --glass-tool: rgba(255, 255, 255, 0.76);
+  --glass-page: rgba(255, 255, 255, 0.78);
+  --glass-sheet: rgba(255, 255, 255, 0.82);
+  --glass-menu: rgba(255, 255, 255, 0.88);
   --glass-border: rgba(255, 255, 255, 0.85);
-  --glass-blur: blur(28px) saturate(190%);
-  --glass-highlight: inset 0 1px 0 rgba(255, 255, 255, 0.95);
+  --glass-hl: inset 0 1px 0 rgba(255, 255, 255, 0.95);
+  --blur-1: blur(20px) saturate(180%);
+  --blur-2: blur(28px) saturate(190%);
+  --blur-3: blur(30px) saturate(190%);
+
+  /* fields & lines */
   --field-bg: rgba(240, 240, 244, 0.9);
   --field-border: rgba(40, 40, 60, 0.12);
+  --line: rgba(40, 40, 60, 0.07);
+  --sep: rgba(40, 40, 60, 0.12);
+  --dash: rgba(40, 40, 60, 0.22);
+  --track: rgba(40, 40, 60, 0.08);
 
-  /* motion */
+  /* motion: --ease is section 2's; the durations are ours (see above) */
   --ease: cubic-bezier(0.32, 0.72, 0, 1);
   --dur-fast: 0.3s;
   --dur: 0.55s;
@@ -41,11 +70,15 @@
 
   /* radii */
   --r-pill: 999px;
+  --r-tool: 10px;
+  --r-item: 12px;
   --r-card: 18px;
+  --r-menu: 18px;
+  --r-pop: 22px;
   --r-tile: 24px;
-  --r-column: 26px;
-  --r-sheet: 30px;
+  --r-col: 26px;
   --r-panel: 28px;
+  --r-sheet: 30px;
 
   --font: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Segoe UI', system-ui, sans-serif;
 }
@@ -242,9 +275,13 @@ textarea {
 */
 @supports not (backdrop-filter: blur(1px)) {
   :root {
-    --glass-bg: rgba(255, 255, 255, 0.92);
-    --glass-bg-strong: rgba(255, 255, 255, 0.92);
-    --glass-bg-sheet: rgba(255, 255, 255, 0.92);
+    --glass-light: rgba(255, 255, 255, 0.92);
+    --glass-col: rgba(255, 255, 255, 0.92);
+    --glass-mid: rgba(255, 255, 255, 0.92);
+    --glass-tool: rgba(255, 255, 255, 0.92);
+    --glass-page: rgba(255, 255, 255, 0.92);
+    --glass-sheet: rgba(255, 255, 255, 0.92);
+    --glass-menu: rgba(255, 255, 255, 0.92);
   }
 }
 

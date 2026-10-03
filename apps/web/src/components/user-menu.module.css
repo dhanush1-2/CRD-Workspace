@@ -32,11 +32,11 @@
   width: 220px;
   padding: 6px;
   border-radius: 20px;
-  background: var(--glass-bg-strong);
-  backdrop-filter: var(--glass-blur);
-  -webkit-backdrop-filter: var(--glass-blur);
+  background: var(--glass-mid);
+  backdrop-filter: var(--blur-2);
+  -webkit-backdrop-filter: var(--blur-2);
   border: 1px solid var(--glass-border);
-  box-shadow: var(--glass-highlight), 0 18px 44px rgba(30, 45, 40, 0.14);
+  box-shadow: var(--glass-hl), 0 18px 44px rgba(30, 45, 40, 0.14);
   transform-origin: top right;
 }
 

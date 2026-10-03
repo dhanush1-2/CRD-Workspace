@@ -46,7 +46,7 @@
 
 /*
   The design owner raised these three surfaces from .55 to .7 because splatter behind
-  them tinted the content. A literal, not a token: --glass-bg is .55 and is also the
+  them tinted the content. A literal, not a token: --glass-light is .55 and is also the
   nav, the sign-in card, the sheets and the popovers, none of which were asked to
   change.
 
