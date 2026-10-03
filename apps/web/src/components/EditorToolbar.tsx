@@ -5,6 +5,8 @@ import type { Editor } from '@tiptap/react'
 import { MENU_SCOPE } from './EditorMenu'
 import { HomeTools } from './HomeTools'
 import { InsertTools } from './InsertTools'
+import { ViewTools } from './ViewTools'
+import type { ViewState } from './editor-view'
 import { useLastColours } from './HomeMenus'
 import { keepEditorSelection } from './ToolButton'
 import { useRovingToolRow } from './useRovingToolRow'
@@ -65,6 +67,8 @@ interface EditorToolbarProps {
   /** Null until Tiptap has mounted, which is after hydration. */
   editor: Editor | null
   readOnly: boolean
+  /** Zoom and page width. They act on the sheet, which DocumentEditor owns, not the editor. */
+  view: ViewState
 }
 
 /**
@@ -72,7 +76,7 @@ interface EditorToolbarProps {
  * of it. Row 1 holds the tabs, a "View only" chip for viewers and the word count; row 2
  * holds the active tab's tools, added group by group.
  */
-export function EditorToolbar({ editor, readOnly }: EditorToolbarProps) {
+export function EditorToolbar({ editor, readOnly, view }: EditorToolbarProps) {
   const ids = useId()
   // The tab is local state; nothing outside the toolbar needs to know which is open.
   const [tab, setTab] = useState<ToolbarTab>('home')
@@ -173,6 +177,8 @@ export function EditorToolbar({ editor, readOnly }: EditorToolbarProps) {
           {/* No editor yet means no controls: a button that cannot act is worse than none. */}
           {current === 'home' && editor && <HomeTools editor={editor} lastColours={lastColours} />}
           {current === 'insert' && editor && <InsertTools editor={editor} />}
+          {/* No editor needed: View is the viewer's whole toolbar, and it acts on the page. */}
+          {current === 'view' && <ViewTools {...view} />}
         </div>
       </div>
     </section>

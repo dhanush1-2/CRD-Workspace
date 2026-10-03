@@ -13,6 +13,19 @@
   box-shadow: var(--glass-hl);
 }
 
+/* The View tab's Wide (handoff 12.4 and 12.7). Narrow is the 780px above. */
+.page[data-width='wide'] {
+  max-width: 1040px;
+}
+
+/* The sheet widens and narrows over .55s rather than jumping (handoff 12.4). Reduced
+   motion gets the jump. */
+@media (prefers-reduced-motion: no-preference) {
+  .page {
+    transition: max-width var(--dur) var(--ease);
+  }
+}
+
 /*
   The document's own title. Size, weight and letter-spacing come from the global h1
   rule, which already carries the design's 32px / 600 / -0.025em, so they are not

@@ -1,6 +1,6 @@
 'use client'
 
-import type { ReactNode } from 'react'
+import { useState, type ReactNode } from 'react'
 import { EditorContent, useEditor } from '@tiptap/react'
 import Collaboration from '@tiptap/extension-collaboration'
 import CollaborationCaret from '@tiptap/extension-collaboration-caret'
@@ -9,6 +9,7 @@ import type { WebsocketProvider } from 'y-websocket'
 import { EditorToolbar } from './EditorToolbar'
 import { EDITOR_FRAGMENT } from './editor-fragment'
 import { editorExtensions } from './editor-schema'
+import { ZOOM_DEFAULT, type PageWidth } from './editor-view'
 import { LinkOpen } from './link-open'
 
 interface DocumentEditorProps {
@@ -43,6 +44,11 @@ export function DocumentEditor({
   heading,
 }: DocumentEditorProps) {
   const collaborative = doc !== null && provider !== null
+  // The View tab's two settings. They live here, not in the toolbar, because they change
+  // the sheet and the editor's container, which are siblings of it. Not persisted: a page
+  // opens at 100% and narrow, as the design's does.
+  const [zoom, setZoom] = useState(ZOOM_DEFAULT)
+  const [pageWidth, setPageWidth] = useState<PageWidth>('narrow')
 
   const editor = useEditor(
     {
@@ -70,10 +76,17 @@ export function DocumentEditor({
 
   return (
     <>
-      <EditorToolbar editor={editor} readOnly={readOnly} />
-      <div className={sheetClassName} data-testid="document-page">
+      <EditorToolbar
+        editor={editor}
+        readOnly={readOnly}
+        view={{ zoom, onZoom: setZoom, pageWidth, onPageWidth: setPageWidth }}
+      />
+      {/* data-width, not a second class: the sheet's stylesheet owns what each width is. */}
+      <div className={sheetClassName} data-testid="document-page" data-width={pageWidth}>
         {heading}
-        <EditorContent editor={editor} className="editor" />
+        {/* CSS zoom on the editor's container (handoff 12.4), so the title above it stays
+            at its own size. A percentage string: it is unambiguous as a CSS value. */}
+        <EditorContent editor={editor} className="editor" style={{ zoom: `${zoom}%` }} />
       </div>
     </>
   )

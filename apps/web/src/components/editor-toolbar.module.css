@@ -170,7 +170,7 @@
   color: var(--accent);
 }
 
-.tool:hover:not(.toolActive):not([aria-expanded='true']) {
+.tool:hover:not(.toolActive):not([aria-expanded='true']):not([aria-disabled='true']) {
   /* The design's literal. Not applied to an active toggle: the pointer is on the button
      the moment it is pressed, so a hover fill that beat the active one would hide the
      toggle's new state until the mouse moved away. */
@@ -568,5 +568,80 @@
   .linkAdd:active,
   .linkRemove:active:not([aria-disabled='true']) {
     transform: scale(0.96);
+  }
+}
+
+/* The View tab (handoff 12.4) */
+
+/* "Zoom" and "Page width": plain labels, not controls. */
+.viewLabel {
+  padding: 0 8px 0 6px;
+  color: var(--text-faint);
+  font-size: 12.5px;
+  white-space: nowrap;
+}
+
+/* The minus and plus signs, sized to the 16px icon grid. */
+.zoomGlyph {
+  width: 16px;
+  text-align: center;
+  font-size: 17px;
+  line-height: 1;
+}
+
+/* A limit reached: the button stays in the row (aria-disabled, not disabled) but reads as
+   spent and does not react to the pointer (the hover rule above excludes it). */
+.tool[aria-disabled='true'] {
+  color: var(--text-faint);
+  cursor: default;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .tool[aria-disabled='true']:active {
+    transform: none;
+  }
+}
+
+/* The current zoom, which resets it. Declared after .toolField, so its width and padding win. */
+.zoomValue {
+  width: auto;
+  min-width: 58px;
+  justify-content: center;
+  padding: 0 8px;
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Narrow | Wide: a pill track holding two options; the chosen one is a white chip. */
+.segmented {
+  display: flex;
+  padding: 3px;
+  border-radius: var(--r-pill);
+  background: var(--track);
+}
+
+.segment {
+  height: 26px;
+  padding: 0 12px;
+  border: none;
+  border-radius: var(--r-pill);
+  background: transparent;
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.segmentOn {
+  /* The design's literals: pure white, and a shade lighter than the tab chip's shadow. */
+  background: #fff;
+  box-shadow: 0 1px 3px rgba(30, 30, 50, 0.14);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .segment {
+    transition:
+      background 0.35s var(--ease),
+      box-shadow 0.35s var(--ease);
   }
 }

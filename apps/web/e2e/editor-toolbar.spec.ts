@@ -1851,3 +1851,377 @@ test('a viewer gets no Insert tab, so none of the Insert tools', async ({ page }
   await expect(page.getByTestId('tb-tab-insert')).toHaveCount(0)
   await expect(page.locator('[data-testid^="tb-insert-"]')).toHaveCount(0)
 })
+
+// ---------------------------------------------------------------------------
+// View tab: zoom and page width (handoff 12.4)
+// ---------------------------------------------------------------------------
+
+async function openView(page: Page) {
+  await tb(page, 'tab-view').click()
+  await expect(tb(page, 'row-view')).toBeVisible()
+}
+
+const zoomValue = (page: Page) => tb(page, 'view-zoom-value')
+const sheet = (page: Page) => page.getByTestId('document-page')
+/** The element the design puts `zoom` on: the editor's container, not the sheet. */
+const editorBox = (page: Page) => page.locator('.editor')
+
+/** The number CSS is zooming the editor by, as the browser computed it (1.1 for 110%). */
+const appliedZoom = (page: Page) =>
+  editorBox(page).evaluate((el) => Number.parseFloat(getComputedStyle(el).zoom))
+
+/** Presses a zoom button until the readout shows `target`. Only for targets on the 10% grid. */
+async function zoomTo(page: Page, target: number) {
+  await openView(page)
+  await zoomValue(page).click()
+  const steps = (target - 100) / 10
+  for (let i = 0; i < Math.abs(steps); i += 1) {
+    await tb(page, steps > 0 ? 'view-zoom-in' : 'view-zoom-out').click()
+  }
+  await expect(zoomValue(page)).toHaveText(`${target}%`)
+}
+
+test('zoom starts at 100%, steps by 10% either way, and the value resets it', async ({ page }) => {
+  await openDocument(page, `${LABEL}-zoom-steps`)
+  await prose(page).click()
+  await page.keyboard.type('zoom me')
+  await openView(page)
+
+  await expect(zoomValue(page)).toHaveText('100%')
+  expect(await appliedZoom(page)).toBe(1)
+  // A line of text is the proof that it is the document that scales, and not only a number
+  // in the readout: its box grows and shrinks with the percentage.
+  const lineHeight = async () => (await prose(page).locator('p').boundingBox())!.height
+
+  const base = await lineHeight()
+  await tb(page, 'view-zoom-in').click()
+  await expect(zoomValue(page)).toHaveText('110%')
+  expect(await appliedZoom(page)).toBeCloseTo(1.1, 5)
+  expect(await lineHeight()).toBeGreaterThan(base * 1.05)
+
+  await tb(page, 'view-zoom-in').click()
+  await expect(zoomValue(page)).toHaveText('120%')
+  await tb(page, 'view-zoom-out').click()
+  await tb(page, 'view-zoom-out').click()
+  await tb(page, 'view-zoom-out').click()
+  await expect(zoomValue(page)).toHaveText('90%')
+  expect(await appliedZoom(page)).toBeCloseTo(0.9, 5)
+  expect(await lineHeight()).toBeLessThan(base * 0.95)
+
+  // Clicking the value is the reset, from anywhere.
+  await zoomValue(page).click()
+  await expect(zoomValue(page)).toHaveText('100%')
+  expect(await appliedZoom(page)).toBe(1)
+  expect(await lineHeight()).toBeCloseTo(base, 0)
+})
+
+test('zoom stops at 70% and at 150%, and the button that cannot go further says so', async ({
+  page,
+}) => {
+  await openDocument(page, `${LABEL}-zoom-clamp`)
+  await openView(page)
+
+  // Down: three presses are 70%. Playwright will not click an aria-disabled button, so
+  // the presses past the limit are forced, as a keyboard's Enter on it would be.
+  for (let i = 0; i < 3; i += 1) await tb(page, 'view-zoom-out').click()
+  await expect(zoomValue(page)).toHaveText('70%')
+  for (let i = 0; i < 3; i += 1) await tb(page, 'view-zoom-out').click({ force: true })
+  await expect(zoomValue(page)).toHaveText('70%')
+  expect(await appliedZoom(page)).toBeCloseTo(0.7, 5)
+  await expect(tb(page, 'view-zoom-out')).toHaveAttribute('aria-disabled', 'true')
+  await expect(tb(page, 'view-zoom-in')).toHaveAttribute('aria-disabled', 'false')
+
+  // Up: all the way through 100% and on to the other end, then past it.
+  for (let i = 0; i < 8; i += 1) await tb(page, 'view-zoom-in').click()
+  await expect(zoomValue(page)).toHaveText('150%')
+  for (let i = 0; i < 3; i += 1) await tb(page, 'view-zoom-in').click({ force: true })
+  await expect(zoomValue(page)).toHaveText('150%')
+  expect(await appliedZoom(page)).toBeCloseTo(1.5, 5)
+  await expect(tb(page, 'view-zoom-in')).toHaveAttribute('aria-disabled', 'true')
+  await expect(tb(page, 'view-zoom-out')).toHaveAttribute('aria-disabled', 'false')
+
+  // And back one step: a limit is not a trap.
+  await tb(page, 'view-zoom-out').click()
+  await expect(zoomValue(page)).toHaveText('140%')
+})
+
+test('Narrow and Wide set the sheet to 780px and 1040px', async ({ page }) => {
+  // Wide enough that the viewport, not the sheet's max-width, is never what limits it.
+  await page.setViewportSize({ width: 1500, height: 800 })
+  await openDocument(page, `${LABEL}-width`)
+  await openView(page)
+
+  const width = async () => (await sheet(page).boundingBox())!.width
+  await expect(tb(page, 'view-width-narrow')).toHaveAttribute('aria-pressed', 'true')
+  await expect(tb(page, 'view-width-wide')).toHaveAttribute('aria-pressed', 'false')
+  await expect(sheet(page)).toHaveCSS('max-width', '780px')
+  expect(await width()).toBe(780)
+
+  await tb(page, 'view-width-wide').click()
+  await expect(tb(page, 'view-width-wide')).toHaveAttribute('aria-pressed', 'true')
+  await expect(tb(page, 'view-width-narrow')).toHaveAttribute('aria-pressed', 'false')
+  // toHaveCSS retries, so it waits out the .55s transition rather than racing it.
+  await expect(sheet(page)).toHaveCSS('max-width', '1040px')
+  await expect.poll(width).toBe(1040)
+
+  await tb(page, 'view-width-narrow').click()
+  await expect(sheet(page)).toHaveCSS('max-width', '780px')
+  await expect.poll(width).toBe(780)
+})
+
+/**
+ * Clicks the control from inside the page and samples the sheet's width on every frame
+ * for a second, so the answer is what the browser painted, not what a test happened to
+ * catch between two round trips.
+ */
+async function widthsWhileClicking(page: Page, testId: string) {
+  return page.evaluate(async (id) => {
+    const el = document.querySelector('[data-testid="document-page"]')!
+    const widths: number[] = []
+    const start = performance.now()
+    ;(document.querySelector(`[data-testid="${id}"]`) as HTMLElement).click()
+    await new Promise<void>((resolve) => {
+      const frame = () => {
+        widths.push(el.getBoundingClientRect().width)
+        if (performance.now() - start < 1000) requestAnimationFrame(frame)
+        else resolve()
+      }
+      requestAnimationFrame(frame)
+    })
+    return widths
+  }, testId)
+}
+
+test('the width change animates over .55s rather than jumping', async ({ page }) => {
+  await page.setViewportSize({ width: 1500, height: 800 })
+  await openDocument(page, `${LABEL}-width-anim`)
+  await openView(page)
+
+  const widths = await widthsWhileClicking(page, 'tb-view-width-wide')
+  const between = widths.filter((w) => w > 781 && w < 1039)
+  // Several painted frames part-way: a jump would have none.
+  expect(between.length).toBeGreaterThanOrEqual(3)
+  // And it is a widening throughout, ending on the target.
+  expect(widths[0]).toBeLessThan(1040)
+  expect(widths.at(-1)).toBe(1040)
+  for (let i = 1; i < widths.length; i += 1) expect(widths[i]).toBeGreaterThanOrEqual(widths[i - 1]! - 0.01)
+
+  // The browser's own record of it: a max-width transition of the specified length.
+  await tb(page, 'view-width-narrow').click()
+  const transition = await sheet(page).evaluate((el) =>
+    el
+      .getAnimations()
+      .filter((a): a is CSSTransition => a instanceof CSSTransition)
+      .map((a) => ({ property: a.transitionProperty, duration: a.effect?.getTiming().duration })),
+  )
+  expect(transition).toEqual([{ property: 'max-width', duration: 550 }])
+})
+
+test('with reduced motion the width change is immediate', async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: 'reduce' })
+  await page.setViewportSize({ width: 1500, height: 800 })
+  await openDocument(page, `${LABEL}-width-reduced`)
+  await openView(page)
+
+  const widths = await widthsWhileClicking(page, 'tb-view-width-wide')
+  expect(widths.filter((w) => w > 781 && w < 1039)).toEqual([])
+  expect(widths.at(-1)).toBe(1040)
+  expect(await sheet(page).evaluate((el) => el.getAnimations().length)).toBe(0)
+})
+
+test('a viewer gets the View tab, and zoom and page width work in it', async ({ page }) => {
+  const label = `${LABEL}-view-viewer`
+  const { workspace } = await seedWorkspace(label)
+  const viewer = await addMember(workspace.id, label, 'viewer')
+  const document = await createDocument(workspace.id, 'doc')
+  await signIn(page, viewer.id)
+  await page.setViewportSize({ width: 1500, height: 800 })
+  await page.goto(`/documents/${document.id}`)
+  await expect(prose(page)).toHaveAttribute('contenteditable', 'false')
+
+  // View is the only tab, and it is open: the viewer lands on it, not on an empty row.
+  await expect(page.getByRole('tab')).toHaveText(['View'])
+  await expect(tb(page, 'row-view')).toBeVisible()
+  await expect(zoomValue(page)).toHaveText('100%')
+
+  await tb(page, 'view-zoom-in').click()
+  await tb(page, 'view-zoom-in').click()
+  await expect(zoomValue(page)).toHaveText('120%')
+  expect(await appliedZoom(page)).toBeCloseTo(1.2, 5)
+  await zoomValue(page).click()
+  await expect(zoomValue(page)).toHaveText('100%')
+
+  await tb(page, 'view-width-wide').click()
+  await expect(sheet(page)).toHaveCSS('max-width', '1040px')
+  await expect.poll(async () => (await sheet(page).boundingBox())!.width).toBe(1040)
+  await tb(page, 'view-width-narrow').click()
+  await expect.poll(async () => (await sheet(page).boundingBox())!.width).toBe(780)
+})
+
+test('the View row is one Tab stop, and every control in it is reached by the arrows', async ({
+  page,
+}) => {
+  await openDocument(page, `${LABEL}-view-roving`)
+  await openView(page)
+
+  const row = tb(page, 'row-view')
+  // Zoom out, the value, zoom in, Narrow, Wide: five controls, one of them the stop.
+  await expect(row.locator('[data-roving]')).toHaveCount(5)
+  await expect(row.locator('[data-roving][tabindex="0"]')).toHaveCount(1)
+
+  await tb(page, 'view-zoom-out').focus()
+  const order = ['view-zoom-value', 'view-zoom-in', 'view-width-narrow', 'view-width-wide']
+  for (const id of order) {
+    await page.keyboard.press('ArrowRight')
+    await expect(tb(page, id)).toBeFocused()
+  }
+  // The keyboard reaches the page-width choice, and Enter makes it.
+  await page.keyboard.press('ArrowLeft')
+  await page.keyboard.press('Enter')
+  await expect(tb(page, 'view-width-narrow')).toHaveAttribute('aria-pressed', 'true')
+  await page.keyboard.press('ArrowRight')
+  await page.keyboard.press('Space')
+  await expect(tb(page, 'view-width-wide')).toHaveAttribute('aria-pressed', 'true')
+})
+
+test('using the View tab does not take the caret out of the document', async ({ page }) => {
+  await openDocument(page, `${LABEL}-view-focus`)
+  await prose(page).click()
+  await page.keyboard.type('keep going')
+  await openView(page)
+
+  await tb(page, 'view-zoom-in').click()
+  await tb(page, 'view-width-wide').click()
+  await expect(prose(page)).toBeFocused()
+  // And typing carries on where it was, at the new zoom.
+  await page.keyboard.type(' typing')
+  await expect(prose(page)).toContainText('keep going typing')
+})
+
+test('a peer’s caret and name label stay on their character at 70%, 100% and 150%', async ({
+  browser,
+}) => {
+  test.setTimeout(90_000)
+  const label = `${LABEL}-zoom-caret`
+  const { owner, workspace } = await seedWorkspace(label)
+  const peer = await addMember(workspace.id, label, 'editor')
+  const document = await createDocument(workspace.id, 'doc')
+
+  async function openAs(userId: string) {
+    const context = await browser.newContext({ viewport: { width: 1400, height: 900 } })
+    await context.addCookies([await sessionCookieFor(userId)])
+    const page = await context.newPage()
+    await page.goto(`/documents/${document.id}?nobc=1`)
+    await expect(page.getByTestId('status')).toHaveAttribute('data-status', 'connected')
+    await expect(prose(page)).toHaveAttribute('contenteditable', 'true')
+    return { page, close: () => context.close() }
+  }
+
+  const a = await openAs(owner.id)
+  const b = await openAs(peer.id)
+  const text = 'The quick brown fox jumps over the lazy dog and keeps running far away'
+  await prose(a.page).click()
+  await a.page.keyboard.type(text)
+  await expect(prose(b.page)).toContainText('running far away')
+
+  // The caret before the "b" of "brown": the document position is 1 (the paragraph's
+  // opening) + 10 characters.
+  const BROWN = 1 + text.indexOf('brown')
+
+  /** Where A would click to put the caret just before "brown", in A's own layout. */
+  const brownPoint = (page: Page) =>
+    page.evaluate(() => {
+      const node = document.querySelector('.editor .ProseMirror p')!.firstChild as Text
+      const at = node.data.indexOf('brown')
+      const range = document.createRange()
+      range.setStart(node, at)
+      range.setEnd(node, at + 1)
+      const box = range.getBoundingClientRect()
+      return { x: box.left + 1, y: box.top + box.height / 2 }
+    })
+
+  // What B draws, against what B's own layout says is there.
+  const measure = (page: Page, head: number) =>
+    page.evaluate((position) => {
+      const view = (document.querySelector('.editor .ProseMirror') as any).editor.view
+      const caret = document.querySelector('.collaboration-carets__caret')!.getBoundingClientRect()
+      const name = document.querySelector('.collaboration-carets__label')!.getBoundingClientRect()
+      const wanted = view.coordsAtPos(position)
+      // The "b" of "brown", wherever the caret widget has split the text node.
+      const walker = document.createTreeWalker(
+        document.querySelector('.editor .ProseMirror p')!,
+        NodeFilter.SHOW_TEXT,
+      )
+      let char: DOMRect | null = null
+      for (let node = walker.nextNode() as Text | null; node; node = walker.nextNode() as Text | null) {
+        const at = node.data.indexOf('brown')
+        if (at < 0) continue
+        const range = document.createRange()
+        range.setStart(node, at)
+        range.setEnd(node, at + 1)
+        char = range.getBoundingClientRect()
+      }
+      return {
+        caretLeft: caret.left,
+        caretTop: caret.top,
+        caretHeight: caret.height,
+        wantedLeft: wanted.left,
+        wantedTop: wanted.top,
+        charLeft: char!.left,
+        charTop: char!.top,
+        charHeight: char!.height,
+        labelLeft: name.left,
+        labelBottom: name.bottom,
+      }
+    }, head)
+
+  // Each side at each zoom, and the two zooms different, which is the case where one
+  // browser's click and the other's drawing could most easily disagree.
+  const cases = [
+    { viewer: 100, clicker: 100 },
+    { viewer: 70, clicker: 70 },
+    { viewer: 150, clicker: 150 },
+    { viewer: 150, clicker: 70 },
+    { viewer: 70, clicker: 150 },
+  ]
+  for (const { viewer, clicker } of cases) {
+    await zoomTo(b.page, viewer)
+    await zoomTo(a.page, clicker)
+    // A's click lands on the character it was aimed at, in A's zoomed layout.
+    const point = await brownPoint(a.page)
+    await a.page.mouse.click(point.x, point.y)
+    await expect
+      .poll(() =>
+        a.page.evaluate(
+          () => (document.querySelector('.editor .ProseMirror') as any).editor.state.selection.head,
+        ),
+      )
+      .toBe(BROWN)
+    await expect(b.page.locator('.collaboration-carets__caret')).toHaveCount(1)
+    await expect
+      .poll(async () => {
+        const m = await measure(b.page, BROWN)
+        return Math.abs(m.caretLeft - m.wantedLeft)
+      })
+      .toBeLessThan(0.5)
+
+    const m = await measure(b.page, BROWN)
+    const scale = viewer / 100
+    // The bar is on ProseMirror's own answer for that position, at that zoom.
+    expect(Math.abs(m.caretLeft - m.wantedLeft)).toBeLessThan(0.5)
+    expect(Math.abs(m.caretTop - m.wantedTop)).toBeLessThan(0.5)
+    // And on the character: the bar's box is the 1px border either side of it, scaled.
+    expect(Math.abs(m.caretLeft - m.charLeft)).toBeLessThan(2)
+    expect(Math.abs(m.caretTop - m.charTop)).toBeLessThan(1)
+    // It is as tall as the line, so it was scaled with the text and not left at 100%.
+    expect(Math.abs(m.caretHeight - m.charHeight)).toBeLessThan(1)
+    expect(m.charHeight).toBeGreaterThan(21 * scale - 1.5)
+    expect(m.charHeight).toBeLessThan(21 * scale + 1.5)
+    // The name pill hangs off the bar's left edge and rides on its top.
+    expect(Math.abs(m.labelLeft - m.caretLeft)).toBeLessThan(1)
+    expect(Math.abs(m.labelBottom - m.caretTop)).toBeLessThan(3)
+  }
+
+  await a.close()
+  await b.close()
+})
