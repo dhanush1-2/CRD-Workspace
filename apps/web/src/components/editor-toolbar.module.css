@@ -475,8 +475,18 @@
 
 .linkForm {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 6px;
+}
+
+/* A line under the controls, the width of the popover. */
+.linkNote {
+  flex-basis: 100%;
+  margin: 0;
+  padding: 2px 8px 4px;
+  color: var(--danger);
+  font-size: 12.5px;
 }
 
 .linkInput {

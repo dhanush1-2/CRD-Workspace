@@ -9,6 +9,7 @@ import type { WebsocketProvider } from 'y-websocket'
 import { EditorToolbar } from './EditorToolbar'
 import { EDITOR_FRAGMENT } from './editor-fragment'
 import { editorExtensions } from './editor-schema'
+import { LinkOpen } from './link-open'
 
 interface DocumentEditorProps {
   /** Null until the session exists, which is one effect after the first render. */
@@ -54,6 +55,8 @@ export function DocumentEditor({
         // The document's shape lives in one place; see editor-schema.ts, which also
         // explains why StarterKit's undo is off.
         ...editorExtensions,
+        // Cmd/Ctrl-click follows a link; a plain click edits it. See link-open.ts.
+        LinkOpen,
         ...(collaborative
           ? [
               Collaboration.configure({ document: doc, field: EDITOR_FRAGMENT }),

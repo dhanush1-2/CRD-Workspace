@@ -1458,6 +1458,164 @@ test('clicking a link places the caret in it instead of opening it', async ({ pa
   await expect(tb(page, 'insert-link')).toHaveAttribute('aria-pressed', 'true')
 })
 
+/** Answers requests to example.com locally, so a followed link needs no network. */
+async function stubExample(page: Page) {
+  await page.context().route('https://example.com/**', (route) =>
+    route.fulfill({ contentType: 'text/html', body: '<title>stub</title>' }),
+  )
+}
+
+test('an editor follows a link with Cmd/Ctrl-click, and a plain click only edits', async ({
+  page,
+}) => {
+  await openDocument(page, `${LABEL}-link-follow`)
+  await stubExample(page)
+  await typeAndSelect(page, 'follow me')
+  await openInsert(page)
+  await openLink(page)
+  await page.keyboard.type('example.com/target')
+  await page.keyboard.press('Enter')
+  await expect(prose(page).locator('a')).toHaveCount(1)
+
+  // With openOnClick off an editor has no other way to open a link.
+  const popup = page.waitForEvent('popup')
+  await prose(page).locator('a').click({ modifiers: ['ControlOrMeta'] })
+  const opened = await popup
+  await expect.poll(() => opened.url()).toBe('https://example.com/target')
+  // The opener is not handed to the page it opened.
+  expect(await opened.evaluate(() => window.opener)).toBeNull()
+  await opened.close()
+  // And the click that followed it did not take the caret out of the document.
+  await expect(prose(page)).toBeFocused()
+})
+
+test('a viewer clicking a link still opens it', async ({ browser }) => {
+  const label = `${LABEL}-link-viewer`
+  const { owner, workspace } = await seedWorkspace(label)
+  const viewerUser = await addMember(workspace.id, label, 'viewer')
+  const document = await createDocument(workspace.id, 'doc')
+
+  const ownerContext = await browser.newContext()
+  await ownerContext.addCookies([await sessionCookieFor(owner.id)])
+  const author = await ownerContext.newPage()
+  await author.goto(`/documents/${document.id}?nobc=1`)
+  await expect(author.getByTestId('status')).toHaveAttribute('data-status', 'connected')
+  await expect(prose(author)).toHaveAttribute('contenteditable', 'true')
+  await typeAndSelect(author, 'viewer link')
+  await openInsert(author)
+  await openLink(author)
+  await author.keyboard.type('example.com/viewer')
+  await author.keyboard.press('Enter')
+
+  const viewerContext = await browser.newContext()
+  await viewerContext.addCookies([await sessionCookieFor(viewerUser.id)])
+  await viewerContext.route('https://example.com/**', (route) =>
+    route.fulfill({ contentType: 'text/html', body: '<title>stub</title>' }),
+  )
+  const viewer = await viewerContext.newPage()
+  await viewer.goto(`/documents/${document.id}?nobc=1`)
+  await expect(prose(viewer)).toHaveAttribute('contenteditable', 'false')
+  const link = prose(viewer).locator('a')
+  await expect(link).toHaveText('viewer link')
+
+  // A plain click, nothing held: a viewer's document is not editable, so Tiptap's handler
+  // steps aside and the anchor's own target=_blank does the work.
+  const popup = viewer.waitForEvent('popup')
+  await link.click()
+  const opened = await popup
+  await expect.poll(() => opened.url()).toBe('https://example.com/viewer')
+
+  await viewerContext.close()
+  await ownerContext.close()
+})
+
+/** End of the line: Cmd+Right on macOS, End elsewhere (End there scrolls). */
+const LINE_END = process.platform === 'darwin' ? 'Meta+ArrowRight' : 'End'
+
+test('text a peer deleted while the popover was open is not linked, or replaced by the address', async ({
+  browser,
+}) => {
+  const label = `${LABEL}-link-gone`
+  const { owner, workspace } = await seedWorkspace(label)
+  const peer = await addMember(workspace.id, label, 'editor')
+  const document = await createDocument(workspace.id, 'doc')
+
+  async function openAs(userId: string) {
+    const context = await browser.newContext()
+    await context.addCookies([await sessionCookieFor(userId)])
+    const page = await context.newPage()
+    await page.goto(`/documents/${document.id}?nobc=1`)
+    await expect(page.getByTestId('status')).toHaveAttribute('data-status', 'connected')
+    await expect(prose(page)).toHaveAttribute('contenteditable', 'true')
+    return { page, close: () => context.close() }
+  }
+
+  const a = await openAs(owner.id)
+  const b = await openAs(peer.id)
+
+  // Two paragraphs, so both kinds of loss can be made: the words, then the whole block.
+  await prose(a.page).click()
+  await a.page.keyboard.type('keep intro target words')
+  await a.page.keyboard.press('Enter')
+  await a.page.keyboard.type('second block')
+  await expect(prose(b.page)).toContainText('second block')
+  await prose(a.page).locator('p').first().click()
+  await a.page.keyboard.press(LINE_END)
+  for (let i = 0; i < 'target words'.length; i += 1) await a.page.keyboard.press('Shift+ArrowLeft')
+  await expect.poll(async () => (await pmSelection(a.page)).text).toBe('target words')
+  await openInsert(a.page)
+  await openLink(a.page)
+
+  // B deletes the words A selected; the paragraph survives.
+  await prose(b.page).locator('p').first().click()
+  await b.page.keyboard.press(LINE_END)
+  await expect.poll(async () => (await pmSelection(b.page)).from).toBe('keep intro target words'.length + 1)
+  for (let i = 0; i < 'target words'.length; i += 1) await b.page.keyboard.press('Backspace')
+  await expect(prose(a.page).locator('p').first()).not.toContainText('target')
+
+  await a.page.keyboard.type('example.com')
+  await a.page.keyboard.press('Enter')
+  // Nothing was linked, nothing was typed in their place, and the popover says why.
+  await expect(tb(a.page, 'insert-link-gone')).toBeVisible()
+  await expect(tb(a.page, 'insert-link-menu')).toBeVisible()
+  await expect(prose(a.page).locator('a')).toHaveCount(0)
+  await expect(prose(a.page)).not.toContainText('https://example.com')
+  await expect(prose(b.page).locator('a')).toHaveCount(0)
+  // Typing a new address clears the note; Esc leaves without touching the document.
+  await tb(a.page, 'insert-link-input').fill('example.org')
+  await expect(tb(a.page, 'insert-link-gone')).toHaveCount(0)
+  await a.page.keyboard.press('Escape')
+  await expect(tb(a.page, 'insert-link-menu')).toHaveCount(0)
+
+  // Now the whole block: select a word in the second paragraph, and B deletes the block.
+  await prose(a.page).locator('p').nth(1).click()
+  await a.page.keyboard.press(LINE_END)
+  for (let i = 0; i < 'block'.length; i += 1) await a.page.keyboard.press('Shift+ArrowLeft')
+  await expect.poll(async () => (await pmSelection(a.page)).text).toBe('block')
+  await openLink(a.page)
+
+  await prose(b.page).locator('p').nth(1).click()
+  await b.page.keyboard.press(LINE_END)
+  // End of the second paragraph: the first now holds "keep intro " (11), three tokens for
+  // the block boundaries and the opening of the second, then its 12 characters.
+  await expect.poll(async () => (await pmSelection(b.page)).from).toBe(11 + 3 + 12)
+  for (let i = 0; i < 'second block'.length; i += 1) await b.page.keyboard.press('Backspace')
+  // The empty paragraph itself, merged away.
+  await b.page.keyboard.press('Backspace')
+  await expect(prose(a.page).locator('p')).toHaveCount(1)
+
+  const before = await prose(a.page).locator('p').first().textContent()
+  await a.page.keyboard.type('example.com')
+  await a.page.keyboard.press('Enter')
+  await expect(tb(a.page, 'insert-link-gone')).toBeVisible()
+  await expect(prose(a.page).locator('a')).toHaveCount(0)
+  // The stale offsets pointed into the surviving paragraph; it is untouched.
+  expect(await prose(a.page).locator('p').first().textContent()).toBe(before)
+
+  await a.close()
+  await b.close()
+})
+
 test('a caret on no text takes the address as the link’s text', async ({ page }) => {
   await openDocument(page, `${LABEL}-link-caret`)
   await prose(page).click()

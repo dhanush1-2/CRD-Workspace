@@ -57,16 +57,27 @@ function saveRange(editor: Editor): SavedRange {
   }
 }
 
-/** Where the saved selection is now, after whatever has happened to the document since. */
-function resolveRange(editor: Editor, saved: SavedRange): Range {
+/**
+ * Where the saved selection is now, after whatever has happened to the document since,
+ * or null when the text it covered is gone.
+ *
+ * Null is the honest answer, and the caller must not substitute the saved offsets for
+ * it: those are positions in a document that has changed, and linking them would land on
+ * whatever now sits there. It is returned when a point no longer resolves (the whole
+ * block was deleted), and when a range that had text collapses to a caret (the words were
+ * deleted and the paragraph survived), which would otherwise take the "caret on nothing"
+ * path and insert the address as text at the place the words were.
+ */
+function resolveRange(editor: Editor, saved: SavedRange): Range | null {
   const sync = ySyncPluginKey.getState(editor.state)
   if (!saved.anchored || !sync?.binding) return saved
   const { doc, type, binding } = sync
   const from = relativePositionToAbsolutePosition(doc, type, saved.anchored.from, binding.mapping)
   const to = relativePositionToAbsolutePosition(doc, type, saved.anchored.to, binding.mapping)
-  // A point whose text is gone resolves to nothing; the offsets are the best that is left.
-  if (from === null || to === null) return saved
-  return { from, to: Math.max(from, to) }
+  if (from === null || to === null) return null
+  const range = { from, to: Math.max(from, to) }
+  if (saved.from !== saved.to && range.from === range.to) return null
+  return range
 }
 
 /** Whether a link mark covers the range, or the caret when it is collapsed. */
@@ -94,10 +105,17 @@ export function LinkMenu({
   const saved = useRef<SavedRange>({ from: 0, to: 0 })
   const [opened, setOpened] = useState({ href: '', canRemove: false })
 
-  /** The saved selection put back, editor focused. Everything that applies or dismisses goes through this. */
-  function restore(): { chain: ChainedCommands; range: Range } {
+  /**
+   * The saved selection put back, editor focused; null when the selected text is gone, in
+   * which case nothing is restored (the editor is only focused, wherever it left off).
+   */
+  function restore(): ChainedCommands | null {
     const range = resolveRange(editor, saved.current)
-    return { chain: editor.chain().focus().setTextSelection(range), range }
+    if (!range) {
+      editor.commands.focus()
+      return null
+    }
+    return editor.chain().focus().setTextSelection(range)
   }
 
   function onOpen(viaKeyboard: boolean) {
@@ -110,13 +128,16 @@ export function LinkMenu({
   }
 
   /**
-   * True when applied. False leaves the popover open, so an address Tiptap's link
-   * validation refuses (a scheme it does not know, say) can be fixed.
+   * What happened. `refused` and `gone` leave the popover open: the first so an address
+   * Tiptap's link validation refuses (a scheme it does not know, say) can be fixed, the
+   * second so it can say why nothing was linked.
    */
-  function apply(raw: string): boolean {
+  function apply(raw: string): 'applied' | 'refused' | 'gone' | 'empty' {
     const href = normaliseLinkUrl(raw)
-    if (!href) return false
+    if (!href) return 'empty'
     const range = resolveRange(editor, saved.current)
+    // The words this link was for were deleted by someone else while the popover was open.
+    if (!range) return 'gone'
     const ranged = range.from !== range.to
     const inLink = !ranged && linkAt(editor, range)
 
@@ -136,15 +157,16 @@ export function LinkMenu({
 
     // A dry run first: restoring focus is not undone by a refusal, and the popover is
     // about to hand focus back to the editor.
-    if (!link(editor.can().chain().setTextSelection(range)).run()) return false
+    if (!link(editor.can().chain().setTextSelection(range)).run()) return 'refused'
     link(editor.chain().focus().setTextSelection(range)).run()
     control.onClose()
-    return true
+    return 'applied'
   }
 
   function remove() {
-    // The whole link wherever the selection touches it, not only the selected part.
-    restore().chain.extendMarkRange('link').unsetLink().run()
+    // The whole link wherever the selection touches it, not only the selected part. With
+    // the text gone there is nothing to strip.
+    restore()?.extendMarkRange('link').unsetLink().run()
     control.onClose()
   }
 
@@ -159,7 +181,7 @@ export function LinkMenu({
       text="Link"
       // Esc, or the trigger pressed again: back to the editor with the selection the
       // person had, not to the trigger.
-      restoreTo={() => void restore().chain.run()}
+      restoreTo={() => void restore()?.run()}
       trigger={
         <svg viewBox="0 0 16 16" aria-hidden="true">
           <path d="M6.5 9.5a2.5 2.5 0 0 0 3.5 0l2.5-2.5a2.5 2.5 0 0 0-3.5-3.5l-.7.7" />
@@ -181,12 +203,13 @@ function LinkForm({
 }: {
   initialHref: string
   canRemove: boolean
-  onApply: (value: string) => boolean
+  onApply: (value: string) => 'applied' | 'refused' | 'gone' | 'empty'
   onRemove: () => void
 }) {
   const inputRef = useRef<HTMLInputElement>(null)
   const [value, setValue] = useState(initialHref)
   const [refused, setRefused] = useState(false)
+  const [gone, setGone] = useState(false)
 
   // "Opens focused" (12.6), by mouse or keyboard. The selection was saved before this
   // mounted; taking focus is what loses it from the page.
@@ -197,7 +220,9 @@ function LinkForm({
 
   function onSubmit(event: FormEvent) {
     event.preventDefault()
-    setRefused(!onApply(value) && value.trim() !== '')
+    const result = onApply(value)
+    setRefused(result === 'refused')
+    setGone(result === 'gone')
   }
 
   return (
@@ -226,6 +251,7 @@ function LinkForm({
         onChange={(event) => {
           setValue(event.target.value)
           setRefused(false)
+          setGone(false)
         }}
       />
       <button type="submit" className={styles.linkAdd} data-testid="tb-insert-link-apply">
@@ -244,6 +270,12 @@ function LinkForm({
       >
         Remove
       </button>
+
+      {gone && (
+        <p role="alert" className={styles.linkNote} data-testid="tb-insert-link-gone">
+          The text you selected was deleted, so there is nothing to link.
+        </p>
+      )}
     </form>
   )
 }

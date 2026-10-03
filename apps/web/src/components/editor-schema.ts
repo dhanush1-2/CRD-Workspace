@@ -28,7 +28,8 @@ export const editorExtensions = [
     // Link ships in StarterKit. By default a click on a link in an editable document
     // opens it in a new tab, which makes an existing link unreachable by mouse: the
     // caret never lands in it, so the Insert tab's Link popover has nothing to edit or
-    // remove. Off, a click places the caret and the link opens from a reader's view.
+    // remove. Off, a click places the caret; Cmd/Ctrl-click follows it (link-open.ts).
+    // A viewer's click is never intercepted, so the browser follows the anchor itself.
     link: { openOnClick: false },
   }),
   // TextStyle is the mark; FontFamily and FontSize are global attributes written
