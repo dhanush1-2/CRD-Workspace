@@ -674,12 +674,12 @@ describes:
 | Document body | 17px (§12.7) | **18px** — the owner asked for reading text a size up; the 15px base went to 16px with it |
 | Document page margin | `16px auto 64px` (§12.7) | **`28px auto 64px`** — from the screenshot review, where the sheet was touching the nav |
 
-**The prototype it names as source of truth is not in this repository.** §0 says
-`Workspace D - Glass.dc.html` wins over this README. That file arrives in
-`CRDT workspace design.zip`, which is untracked, so a reader following that instruction
-has nothing to open. Until it is committed, **this document is the only authority
-anyone here can actually consult**, and a disagreement with the prototype cannot be
-discovered, let alone resolved.
+**The prototype it names as source of truth is in this repository**, as
+`docs/design/glass-prototype.html` with `docs/design/support.js` beside it — the
+runtime it loads by that exact name, which is why the file is not prefixed like its
+neighbour. Open the HTML in a browser to use it. Both were committed on 2026-10-03
+from `CRDT workspace design.zip`; the previous prototype in this folder was the older,
+smaller one and had no runtime at all, which is why earlier notes call it stale.
 
 **Two more disagreements, both still open:**
 
@@ -715,11 +715,10 @@ existing members route, which already upserts, so a role change needs no new
 backend. The document page and nav consolidation plan (below) likewise changed no
 schema, route or sync-server code.
 
-**Where this file and the prototype disagree, this file wins.**
-`docs/design/glass-prototype.html` is stale. It still uses the old `--text-faint`
-value `#7b7e78` throughout and predates the owner's other deltas below. Do not
-treat it as the visual authority where this handoff is silent without checking
-with the owner.
+**Superseded on 2026-10-03.** This paragraph described the previous prototype, which
+was stale — it used the old `--text-faint` value `#7b7e78` and predated the owner's
+deltas. Both the prototype and this document have since been replaced; see the
+Precedence section above for what now wins over what.
 
 ### Built
 
