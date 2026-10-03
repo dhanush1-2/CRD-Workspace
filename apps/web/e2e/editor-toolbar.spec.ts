@@ -168,11 +168,21 @@ test('a board has no toolbar at all', async ({ page }) => {
 test('the tabs are reachable and operable from the keyboard', async ({ page }) => {
   await openDocument(page, `${LABEL}-keys`)
 
-  // One Tab stop for the whole strip, landing on the open tab. Focused directly: with the
-  // Home row's buttons now sitting between the strip and the page, shift-tab from the
-  // editor reaches them first, and walking back through each would pin this test to how
-  // many controls the row has.
-  await page.getByTestId('tb-tab-home').focus()
+  // Reachable from the page by keyboard, as one Tab stop that lands on the open tab. Walk
+  // back from the editor until a tab holds focus. Bounded, and no count asserted: how
+  // many controls sit in between is not what this is about.
+  await prose(page).click()
+  const tabFocused = () =>
+    page.evaluate(() => document.activeElement?.getAttribute('role') === 'tab')
+  for (let presses = 0; presses < 40 && !(await tabFocused()); presses += 1) {
+    await page.keyboard.press('Shift+Tab')
+  }
+  await expect(page.getByTestId('tb-tab-home')).toBeFocused()
+  // The roving tabindex is what makes the strip one stop: only the open tab is in the
+  // Tab order, the other two are reached by arrow.
+  await expect(page.getByTestId('tb-tab-insert')).toHaveAttribute('tabindex', '-1')
+  await expect(page.getByTestId('tb-tab-view')).toHaveAttribute('tabindex', '-1')
+  await expect(page.getByTestId('tb-tab-home')).toHaveAttribute('tabindex', '0')
 
   await page.keyboard.press('ArrowRight')
   await expect(page.getByTestId('tb-tab-insert')).toBeFocused()
@@ -472,4 +482,61 @@ test('a viewer gets none of the Home controls', async ({ page }) => {
 
   await expect(page.getByTestId('tb-row-view')).toBeVisible()
   await expect(page.locator('[data-testid^="tb-bold"], [data-testid^="tb-undo"]')).toHaveCount(0)
+})
+
+test('the tool row is one Tab stop, and the arrow keys move within it', async ({ page }) => {
+  await openDocument(page, `${LABEL}-roving`)
+  await prose(page).click()
+
+  const inRow = () =>
+    page.evaluate(
+      () => document.activeElement?.closest('[data-testid="tb-row-home"]') !== null,
+    )
+  const tabFocused = () =>
+    page.evaluate(() => document.activeElement?.getAttribute('role') === 'tab')
+
+  // Walk back from the editor to the tab strip and count the presses that land in the row.
+  let stopsInRow = 0
+  for (let presses = 0; presses < 40 && !(await tabFocused()); presses += 1) {
+    await page.keyboard.press('Shift+Tab')
+    if (await inRow()) stopsInRow += 1
+  }
+  await expect(page.getByTestId('tb-tab-home')).toBeFocused()
+  expect(stopsInRow).toBe(1)
+
+  // Back into the row with Tab: it lands on the one stop, the first tool.
+  await page.keyboard.press('Tab')
+  await expect(tb(page, 'undo')).toBeFocused()
+  // Every other tool is out of the Tab order, and exactly one is in it.
+  await expect(page.locator('[data-testid="tb-row-home"] [data-roving][tabindex="0"]')).toHaveCount(1)
+  await expect(tb(page, 'redo')).toHaveAttribute('tabindex', '-1')
+  await expect(tb(page, 'clear')).toHaveAttribute('tabindex', '-1')
+
+  await page.keyboard.press('ArrowRight')
+  await expect(tb(page, 'redo')).toBeFocused()
+  await page.keyboard.press('ArrowLeft')
+  await expect(tb(page, 'undo')).toBeFocused()
+  // Wraps, as the tab strip does.
+  await page.keyboard.press('ArrowLeft')
+  await expect(tb(page, 'clear')).toBeFocused()
+  await page.keyboard.press('ArrowRight')
+  await expect(tb(page, 'undo')).toBeFocused()
+  await page.keyboard.press('End')
+  await expect(tb(page, 'clear')).toBeFocused()
+  await page.keyboard.press('Home')
+  await expect(tb(page, 'undo')).toBeFocused()
+
+  // The stop follows focus: leave from Clear and come back to Clear.
+  await page.keyboard.press('End')
+  await page.keyboard.press('Tab')
+  await expect(prose(page)).toBeFocused()
+  await page.keyboard.press('Shift+Tab')
+  await expect(tb(page, 'clear')).toBeFocused()
+  await expect(tb(page, 'undo')).toHaveAttribute('tabindex', '-1')
+
+  // And Enter on a focused tool presses it: the keyboard path works, not only the mouse.
+  await page.keyboard.press('ArrowLeft')
+  await expect(tb(page, 'align-justify')).toBeFocused()
+  await page.keyboard.press('Enter')
+  await expect(tb(page, 'align-justify')).toHaveAttribute('aria-pressed', 'true')
 })

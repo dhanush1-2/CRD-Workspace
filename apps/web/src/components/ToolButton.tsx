@@ -1,4 +1,5 @@
 import type { ButtonHTMLAttributes, MouseEvent, ReactNode } from 'react'
+import { ROVING_ITEM } from './useRovingToolRow'
 import styles from './editor-toolbar.module.css'
 
 /**
@@ -41,6 +42,8 @@ export function ToolButton({ label, title, active, text, children, ...rest }: To
       aria-label={label}
       title={title ?? label}
       aria-pressed={active}
+      // Joins the row's roving tabindex (useRovingToolRow).
+      {...ROVING_ITEM}
       onMouseDown={keepEditorSelection}
     >
       {children}

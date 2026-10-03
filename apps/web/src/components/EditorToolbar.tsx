@@ -4,6 +4,7 @@ import { useEffect, useId, useRef, useState, type KeyboardEvent } from 'react'
 import type { Editor } from '@tiptap/react'
 import { HomeTools } from './HomeTools'
 import { keepEditorSelection } from './ToolButton'
+import { useRovingToolRow } from './useRovingToolRow'
 import styles from './editor-toolbar.module.css'
 
 export type ToolbarTab = 'home' | 'insert' | 'view'
@@ -74,6 +75,7 @@ export function EditorToolbar({ editor, readOnly }: EditorToolbarProps) {
   const [tab, setTab] = useState<ToolbarTab>('home')
   const tabRefs = useRef(new Map<ToolbarTab, HTMLButtonElement>())
   const words = useWordCount(editor)
+  const roving = useRovingToolRow()
 
   // A viewer cannot edit, so Home and Insert are not disabled, they are absent. Derived
   // rather than stored so a role change cannot leave the open tab pointing at one.
@@ -152,6 +154,9 @@ export function EditorToolbar({ editor, readOnly }: EditorToolbarProps) {
           id={`${ids}-row-${current}`}
           aria-labelledby={`${ids}-tab-${current}`}
           data-testid={`tb-row-${current}`}
+          // One Tab stop for the row, arrows within it.
+          ref={roving.ref}
+          onKeyDown={roving.onKeyDown}
         >
           {/* No editor yet means no controls: a button that cannot act is worse than none. */}
           {current === 'home' && editor && <HomeTools editor={editor} />}
