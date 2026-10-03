@@ -64,6 +64,26 @@ describe('splat geometry', () => {
     }
   })
 
+  it('specks stay clear of an exclusion zone, half-side included', () => {
+    const minY = 90
+    const specks = makeSpecks(createRandom(5), 800, 600, PALETTES.purple, 320, minY)
+    for (const speck of specks) {
+      // The top edge, not the centre: a speck is a square centred on (x, y), so a
+      // centre exactly on the line would still paint above it.
+      expect(speck.y - speck.r).toBeGreaterThanOrEqual(minY)
+      expect(speck.y).toBeLessThanOrEqual(600)
+    }
+  })
+
+  it('specks are spread through the allowed band, not piled on its edge', () => {
+    // The other half of the test above: clamping y into the band would satisfy it
+    // while putting every speck on the boundary.
+    const minY = 300
+    const specks = makeSpecks(createRandom(5), 800, 600, PALETTES.purple, 320, minY)
+    const onEdge = specks.filter((speck) => speck.y < minY + 10).length
+    expect(onEdge).toBeLessThan(60)
+  })
+
   it('droplets get smaller down the list', () => {
     const { droplets } = makeSplat(createRandom(11), '#7b3fe4', 1)
     // "40-90 scattered at decreasing size" — assert the trend, not every step.

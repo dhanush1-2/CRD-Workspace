@@ -30,6 +30,11 @@ const MAX_DPR = 1
 // a 650ms landing (about 20 frames at 30 fps). 32 rather than 33.3 so that two 60 Hz
 // frames (33.4ms) always qualify despite timer jitter.
 const MIN_FRAME_MS = 32
+// Nothing is painted in the top 90px of the viewport. The nav is a sticky glass bar
+// there, and splat colour read straight through its backdrop-filter as coloured
+// streaks inside the bar. Viewport space, not document space: the canvas is absolute
+// inside a fixed, full-viewport parent, so canvas y is viewport y.
+const NAV_EXCLUSION_PX = 90
 
 // Everything the loop needs per splat. `canvas` is painted once, at build time,
 // and reused for the splat's whole life and every re-placement after it.
@@ -115,7 +120,7 @@ export function PaintSplatter({ strength = 'subtle', palette = 'purple', motion 
         if (age >= p.splat.life) {
           // Finished: re-place it and reuse its canvas. Nothing is re-rasterised.
           p.x = random.range(0, width)
-          p.y = random.range(0, height)
+          p.y = placeY(p.splat.radius)
           p.start = now
           age = 0
         }
@@ -146,6 +151,22 @@ export function PaintSplatter({ strength = 'subtle', palette = 'purple', motion 
     const stop = () => {
       if (frame) cancelAnimationFrame(frame)
       frame = 0
+    }
+
+    // A y for a splat of this radius, never overlapping the exclusion zone.
+    //
+    // Uniform over the band that is left, rather than rejection sampling with a retry
+    // cap: the two give the same distribution, but this draws exactly one PRNG value
+    // (as the unconstrained placement did, so the stream stays aligned) and cannot
+    // loop. Clamping was the other option and is the wrong one -- it would pile
+    // splats along the boundary in a visible line.
+    const placeY = (radius: number): number => {
+      const lo = NAV_EXCLUSION_PX + radius
+      // A viewport shorter than the exclusion zone plus one splat has nowhere legal
+      // to put it. Place it past the bottom edge: off-screen is correct, and better
+      // than either clamping it into the nav or looping looking for a gap.
+      if (lo >= height) return lo
+      return random.range(lo, height)
     }
 
     const release = () => {
@@ -179,12 +200,12 @@ export function PaintSplatter({ strength = 'subtle', palette = 'purple', motion 
           splat,
           canvas: paintSplat(splat, dpr),
           x: random.range(0, w),
-          y: random.range(0, h),
+          y: placeY(splat.radius),
           // Start somewhere inside its own life so they do not all land at once.
           start: now - random.range(0, splat.life),
         })
       }
-      specks = makeSpecks(random, w, h, colors)
+      specks = makeSpecks(random, w, h, colors, undefined, NAV_EXCLUSION_PX)
 
       if (still) drawStill()
       else if (!document.hidden) start()

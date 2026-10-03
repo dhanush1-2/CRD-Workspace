@@ -63,6 +63,40 @@ async function waitUntilDrawn(page: Page) {
   await expect.poll(async () => (await splatterFrame(page)).drawn).toBe(true)
 }
 
+test('no splatter is painted behind the nav', async ({ page }) => {
+  await page.goto('/login')
+  await waitUntilDrawn(page)
+
+  const paint = await page.getByTestId('paint-splatter').evaluate((el) => {
+    const canvas = el as HTMLCanvasElement
+    const ctx = canvas.getContext('2d')!
+    // The canvas is its own, same-origin and never tainted, so getImageData works
+    // on it directly -- no scratch copy needed. toDataURL only says "something was
+    // drawn"; this has to know *where*.
+    const scale = canvas.width / canvas.clientWidth
+    const rows = Math.ceil(90 * scale)
+
+    const countOpaque = (y: number, h: number) => {
+      if (h <= 0) return 0
+      const { data } = ctx.getImageData(0, y, canvas.width, h)
+      let n = 0
+      for (let i = 3; i < data.length; i += 4) if (data[i] !== 0) n += 1
+      return n
+    }
+
+    return {
+      top: countOpaque(0, rows),
+      below: countOpaque(rows, canvas.height - rows),
+    }
+  })
+
+  // The exclusion zone is empty...
+  expect(paint.top).toBe(0)
+  // ...and the rest is not. Without this half, a canvas that failed to draw at all
+  // would satisfy the assertion above.
+  expect(paint.below).toBeGreaterThan(0)
+})
+
 // These two are a pair: the reduced-motion half only means something because
 // the other half shows the same canvas does change when motion is allowed.
 test.describe('paint splatter motion', () => {

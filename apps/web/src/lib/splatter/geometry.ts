@@ -154,19 +154,34 @@ export function splatCount(width: number, height: number): number {
   return 10 + Math.round((8 * Math.sqrt(width * height)) / 1100)
 }
 
+/** Largest speck half-side. Also the margin the exclusion zone needs below it. */
+const SPECK_MAX_R = 1.8
+
 export function makeSpecks(
   random: Random,
   width: number,
   height: number,
   palette: readonly string[],
   count = 320,
+  /**
+   * Keep every speck below this line. Used for the nav exclusion zone; see
+   * NAV_EXCLUSION_PX in PaintSplatter.
+   */
+  minY = 0,
 ): Speck[] {
+  // A speck is drawn as a square centred on (x, y), so its top edge is one
+  // half-side above y. The band therefore starts a full half-side below the line.
+  //
+  // Drawn uniformly over what is left rather than clamped into it: clamping would
+  // put a line of specks along the boundary, which reads as a seam.
+  const top = Math.min(minY + SPECK_MAX_R, height)
+
   const specks: Speck[] = []
   for (let i = 0; i < count; i += 1) {
     specks.push({
       x: random.range(0, width),
-      y: random.range(0, height),
-      r: random.range(0.6, 1.8),
+      y: random.range(top, height),
+      r: random.range(0.6, SPECK_MAX_R),
       color: random.pick(palette),
       phase: random.range(0, TAU),
     })
