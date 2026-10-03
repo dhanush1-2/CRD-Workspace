@@ -379,6 +379,35 @@ and the board's column row is centred at 44px below the nav.
   scroller is otherwise full width. `justify-content: center` is the obvious
   alternative and is wrong: with overflow it leaves the first column unreachable.
 
+**Motion continuity across a navigation** (2026-10-03). Both the sliding pill and the
+bar's width used to start from nothing on every navigation, because every page renders
+its own `AppShell` and the nav is therefore a new node. Each now remembers its previous
+value in module scope and animates from it: `lastMetrics` in `NavTabs`, `lastNavWidth`
+in `AppShell`. This is the owner's interim fix and the shared-layout restructure
+removes the need for it.
+
+- **Set-the-start-then-force-a-reflow does not work on a freshly inserted node.** A
+  property's first resolved value on a new element is its initial value, not something
+  to transition from, so the transition was swallowed and the width jumped — measured,
+  not assumed. The start width is pinned with `transition: none`, painted for one
+  frame, and changed inside a `requestAnimationFrame`.
+- **The width effect needs its `animating` guard.** It has no dependency array, so it
+  runs after every render; clearing the inline width to measure would snap the bar to
+  its destination, and `scrollWidth` reports the inline width rather than the natural
+  one while shrinking.
+- **`AppShell` subscribes to the doc store for the re-render, not the values.** The
+  green dot, the status label and the presence avatars all change the bar's width
+  without changing a prop of `AppShell`.
+- **Module scope is safe here**: both values are written only from layout effects,
+  which do not run during SSR, so they are null on the server and every render agrees.
+  `lastMetrics` can be stale across workspaces, in which case the pill slides from a
+  slightly wrong place — still better than materialising from nothing.
+- **Both tests had to be rewritten to discriminate.** The first version measured the
+  pill's viewport x, which drifts as the centred bar resizes whether or not the pill is
+  animating; the second asserted the first sample, which is the *old* page's pill. The
+  property that actually distinguishes the fix is that the pill never leaves the span
+  between the two tabs.
+
 **Green dot, offline.** The dot now requires `status === 'connected'`, because it
 asserts that other people are in this document right now and a disconnected tab cannot
 know that — awareness goes stale rather than empty. **Not covered by a test, and the
