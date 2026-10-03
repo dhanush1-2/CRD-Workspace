@@ -4,7 +4,7 @@ import { useEffect } from 'react'
 import { useCollaborativeDoc } from '@/hooks/use-doc'
 import { useAnnouncePresence, usePresence } from '@/hooks/use-presence'
 import { Board } from '@/components/Board'
-import { Editor } from '@/components/Editor'
+import { DocumentEditor } from '@/components/DocumentEditor'
 import { clearDocState, publishDocState } from '@/lib/doc-state'
 import styles from './document.module.css'
 import ui from '@/components/ui/ui.module.css'
@@ -46,29 +46,43 @@ export function DocumentClient({
 
   useEffect(() => () => clearDocState(documentId), [documentId])
 
-  return (
-    // The sheet is for the document only: the board is a horizontal scroller with its
-    // own gutters and would be crushed into a 780px column.
-    <div
-      className={type === 'doc' ? styles.page : undefined}
-      data-testid={type === 'doc' ? 'document-page' : undefined}
+  /*
+    The page's only heading, and the only one there has ever been -- it used to be
+    screen-reader-only in page.tsx. Visible on a document, where the design shows a
+    title; still clipped on a board, where the design has no title slot but the
+    page still needs an accessible name.
+  */
+  const heading = (
+    <h1
+      className={type === 'doc' ? styles.heading : ui.labelHidden}
+      data-testid="document-heading"
     >
-      {/*
-        The page's only heading, and the only one there has ever been -- it used to be
-        screen-reader-only in page.tsx. Visible on a document, where the design shows a
-        title; still clipped on a board, where the design has no title slot but the
-        page still needs an accessible name.
-      */}
-      <h1
-        className={type === 'doc' ? styles.heading : ui.labelHidden}
-        data-testid="document-heading"
-      >
-        {title}
-      </h1>
-      {doc && provider && type === 'doc' && (
-        <Editor doc={doc} provider={provider} user={user} readOnly={readOnly} />
-      )}
-      {doc && type === 'board' && <Board doc={doc} provider={provider} readOnly={readOnly} />}
+      {title}
+    </h1>
+  )
+
+  // The toolbar floats above the sheet as its own panel, so the editor can no longer
+  // sit inside a wrapper rendered here: DocumentEditor renders both, and takes the
+  // sheet's class and the heading so the sheet is still styled and titled from here.
+  if (type === 'doc') {
+    return (
+      <DocumentEditor
+        doc={doc}
+        provider={provider}
+        user={user}
+        readOnly={readOnly}
+        sheetClassName={styles.page}
+        heading={heading}
+      />
+    )
+  }
+
+  // The board is a horizontal scroller with its own gutters and would be crushed into
+  // a 780px column, so it gets no sheet and no toolbar.
+  return (
+    <div>
+      {heading}
+      {doc && <Board doc={doc} provider={provider} readOnly={readOnly} />}
     </div>
   )
 }
