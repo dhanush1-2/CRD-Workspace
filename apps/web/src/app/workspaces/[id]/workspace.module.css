@@ -44,6 +44,23 @@
   color: var(--text);
 }
 
+/*
+  The design owner raised these three surfaces from .55 to .7 because splatter behind
+  them tinted the content. A literal, not a token: --glass-bg is .55 and is also the
+  nav, the sign-in card, the sheets and the popovers, none of which were asked to
+  change.
+
+  Two class selectors on purpose. ui.glass sets a background too, and a single class
+  here would tie with it on specificity, leaving the winner to be whichever stylesheet
+  the bundler emits last. Measured: a single class does win today. The doubling is so
+  that it does not have to -- the import graph decides that order, and moving a route
+  file is enough to change it. A silent revert to .55 is the failure mode this guards.
+*/
+.docTile.docTile,
+.people.people {
+  background: rgba(255, 255, 255, 0.7);
+}
+
 /* Titles run to 200 characters. overflow-wrap is inherited, so this covers title and time. */
 .docText {
   display: grid;

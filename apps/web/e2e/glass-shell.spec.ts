@@ -63,6 +63,43 @@ async function waitUntilDrawn(page: Page) {
   await expect.poll(async () => (await splatterFrame(page)).drawn).toBe(true)
 }
 
+test('the tiles and the People card sit on raised glass, not the shared token', async ({
+  page,
+}) => {
+  const label = `${LABEL}-glassfill`
+  const { owner, workspace } = await seedWorkspace(label)
+  const document = await createDocument(workspace.id, 'doc')
+  await signIn(page, owner.id)
+
+  // Both this rule and ui.glass are single-class, so whichever stylesheet the
+  // bundler emits last would win on equal specificity. This is the check that the
+  // intended one does.
+  const raised = 'rgba(255, 255, 255, 0.7)'
+
+  await page.goto('/')
+  await expect(page.getByTestId(`workspace-${workspace.id}`)).toHaveCSS(
+    'background-color',
+    raised,
+  )
+
+  await page.goto(`/workspaces/${workspace.id}`)
+  await expect(page.getByTestId(`document-${document.id}`)).toHaveCSS(
+    'background-color',
+    raised,
+  )
+  await expect(page.locator('[class*="people"]').first()).toHaveCSS('background-color', raised)
+
+  // The other half: the nav, the sheets and the popovers were not asked to change,
+  // so --glass-bg itself must still be .55. Raising the token would satisfy every
+  // assertion above and quietly thicken every glass surface in the app.
+  const token = await page.evaluate(() =>
+    getComputedStyle(document.documentElement).getPropertyValue('--glass-bg').trim(),
+  )
+  expect(token).toBe('rgba(255, 255, 255, 0.55)')
+
+  await cleanup(label)
+})
+
 test('no splatter is painted behind the nav', async ({ page }) => {
   await page.goto('/login')
   await waitUntilDrawn(page)
