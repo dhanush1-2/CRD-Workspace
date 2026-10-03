@@ -218,25 +218,43 @@ test('the board starts 44px below the nav and its columns are centred', async ({
  */
 async function sampleEachFrame(
   page: Page,
-  target: { selector: string; axis: 'x' | 'width' },
+  mode: 'pill-in-strip' | 'nav-width',
   act: () => Promise<void>,
 ): Promise<number[]> {
-  const sampling = page.evaluate(async ({ selector, axis }) => {
+  const sampling = page.evaluate(async (what) => {
     const out: number[] = []
     const start = performance.now()
     while (performance.now() - start < 1400) {
-      const el = document.querySelector(selector)
-      if (el) out.push(el.getBoundingClientRect()[axis])
+      if (what === 'nav-width') {
+        const nav = document.querySelector('nav[aria-label="Primary"]')
+        if (nav) out.push(nav.getBoundingClientRect().width)
+      } else {
+        // The pill's offset INSIDE the strip, not its position in the viewport.
+        // The bar is centred and resizes at the same time, which moves every tab
+        // sideways -- so a viewport-relative x drifts smoothly whether or not the
+        // pill itself is animating, and an earlier version of this test passed with
+        // the fix removed.
+        const pill = document.querySelector('[class*="indicator"]')
+        const strip = document.querySelector('[class*="strip"]')
+        if (pill && strip) {
+          out.push(pill.getBoundingClientRect().x - strip.getBoundingClientRect().x)
+        }
+      }
       await new Promise((resolve) => requestAnimationFrame(resolve))
     }
     return out
-  }, target)
+  }, mode)
   await act()
   return sampling
 }
 
-const PILL = { selector: '[class*="indicator"]', axis: 'x' } as const
-const NAV = { selector: 'nav[aria-label="Primary"]', axis: 'width' } as const
+/** A tab's offset inside the strip, measured the same way the pill is. */
+async function tabOffset(page: Page, testId: string): Promise<number> {
+  return page.getByTestId(testId).evaluate((el) => {
+    const strip = el.closest('[class*="strip"]')!
+    return el.getBoundingClientRect().x - strip.getBoundingClientRect().x
+  })
+}
 
 test('the pill slides to the new tab across a navigation instead of appearing there', async ({
   page,
@@ -252,17 +270,25 @@ test('the pill slides to the new tab across a navigation instead of appearing th
   await page.goto(`/documents/${first.id}`)
   await expect(page.getByTestId(`tab-${first.id}`)).toHaveAttribute('data-active', 'true')
 
-  const from = (await page.getByTestId(`tab-${first.id}`).boundingBox())!.x
-  const samples = await sampleEachFrame(page, PILL, async () => {
+  const from = await tabOffset(page, `tab-${first.id}`)
+  const samples = await sampleEachFrame(page, 'pill-in-strip', async () => {
     await page.getByTestId(`tab-${second.id}`).click()
     await expect(page.getByTestId(`tab-${second.id}`)).toHaveAttribute('data-active', 'true')
   })
-  const to = (await page.getByTestId(`tab-${second.id}`).boundingBox())!.x
+  const to = await tabOffset(page, `tab-${second.id}`)
 
   expect(Math.abs(to - from)).toBeGreaterThan(20)
-  // At least a few frames caught the pill between the two tabs. Without the
-  // remembered position the new nav's pill starts at x=0 with width 0 and the first
-  // sample is already at the destination.
+
+  // The property the remembered position actually buys: the pill never leaves the
+  // span between the two tabs. Without it the new nav's pill starts at the strip's
+  // left edge with width 0, so some frame reads close to zero -- and because that
+  // still *moves* towards the destination, it still satisfies the travel assertion
+  // below. This is the assertion that fails. (The first samples cannot be used for
+  // this: they are the old page's pill, sitting at `from` by definition.)
+  expect(samples.length).toBeGreaterThan(0)
+  expect(Math.min(...samples)).toBeGreaterThan(Math.min(from, to) - 10)
+
+  // And it travels rather than jumping.
   const low = Math.min(from, to) + 2
   const high = Math.max(from, to) - 2
   expect(samples.filter((x) => x > low && x < high).length).toBeGreaterThan(2)
@@ -283,7 +309,7 @@ test('the nav animates to its new width across a navigation', async ({ page }) =
   await expect(page.getByTestId('tab-overview')).toHaveAttribute('data-active', 'true')
   const before = (await page.getByRole('navigation', { name: 'Primary' }).boundingBox())!.width
 
-  const samples = await sampleEachFrame(page, NAV, async () => {
+  const samples = await sampleEachFrame(page, 'nav-width', async () => {
     await page.getByTestId(`tab-${document.id}`).click()
     await expect(page.getByTestId('status')).toBeVisible()
   })
