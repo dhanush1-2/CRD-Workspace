@@ -56,6 +56,18 @@
   box-sizing: border-box;
 }
 
+/*
+  Lets `width` transition to and from intrinsic keywords such as fit-content, which
+  is what the nav needs: it sizes itself to its contents and animates between widths
+  as items appear and go. Inherited, so declaring it here covers the whole document.
+
+  Chrome 129+ and Edge honour it. Everywhere else the nav jumps straight to its new
+  width, which is still correct and still usable -- only the animation is lost.
+*/
+:root {
+  interpolate-size: allow-keywords;
+}
+
 html {
   /* The page itself scrolls; there is no inner scroll container and no sidebar. */
   height: 100%;

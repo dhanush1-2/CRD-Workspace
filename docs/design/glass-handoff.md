@@ -104,15 +104,21 @@ Use it for the nav, workspace / doc tiles, board columns, the document page, the
 
 ## Layout
 - The page itself scrolls (`height:100vh; overflow:auto`). There is **no sidebar**.
-- **Sticky nav wrapper:** `position:sticky; top:0; z-index:30; padding:12px 16px 0`.
-- **Nav bar:** 56px high, pill radius, padding `0 8px 0 10px`, 10px gap.
+- **Sticky nav wrapper:** `position:sticky; top:0; z-index:30; padding:12px 16px 0`,
+  plus `display:flex; flex-direction:column; align-items:center` so the bar and the
+  floating pills beneath it are all centred.
+- **Nav bar:** 56px high, pill radius, padding `0 8px 0 10px`, 10px gap, and
+  `width:fit-content; max-width:100%` so it is a pill in the middle of the page rather
+  than an edge-to-edge strip. Its width animates (`transition: width .55s var(--ease)`)
+  and needs `interpolate-size: allow-keywords` on `:root` to interpolate against
+  `fit-content`.
   - Background `rgba(255,255,255,.72)` + glass blur, border `1px solid rgba(40,40,60,.1)`.
   - Shadow `inset 0 1px 0 #fff, 0 12px 32px rgba(30,30,50,.12), 0 2px 6px rgba(30,30,50,.08)`.
   - Entrance animation: `g-pop .6s var(--ease)`.
 - **Nav contents, left to right:**
   1. **Logo button:** a 36px accent circle (`aria-label="All workspaces"`). It goes to the dashboard. Hover: `rotate(-8deg) scale(1.05)`. Active: `scale(.92)`.
   2. **Workspace name button** (600 weight), which goes to the workspace overview, then a 1×22px divider.
-  3. **Tabs strip:** Overview plus one tab per document. `flex:1 1 auto; min-width:120px; overflow-x:auto; scrollbar-width:none; padding:3px`. When it overflows, add a right-edge fade mask: `mask-image: linear-gradient(90deg,#000 82%,transparent)`.
+  3. **Tabs strip:** Overview plus one tab per document. `flex:0 1 auto; min-width:120px; overflow-x:auto; scrollbar-width:none; padding:3px`. When it overflows, add a right-edge fade mask: `mask-image: linear-gradient(90deg,#000 82%,transparent)`.
      - Each tab is 32px high with `0 14px` padding and pill shape, 14px text. Active tab: 600 weight, `oklch(0.36 0.11 285)`. Inactive: 500 weight, `--text-muted`. A green 6px dot shows when others are in that document.
   4. **Search field:** 36px high, min-width 170px (no min-width below 1100px, where the label hides and only ⌘K shows).
      - Fill `--field-bg`, border `--field-border`, `inset 0 1px 2px rgba(30,30,50,.06)`, text `#55585f`.
@@ -163,7 +169,9 @@ Every screen root enters with `g-in .7s var(--ease)` (fade + 14px rise + 6px blu
   - Enter submits.
 - **People:** a glass list (radius 22) with rows of a 34px avatar, name, email and role ("Owner / Can edit / Can view"). The header link "Manage" (owner) or "See who has access" opens Share.
 
-**Board.** A horizontal scroller with 28px top padding and 16px gutters.
+**Board.** A horizontal scroller with **44px** top padding and 16px gutters, centred
+with `width:fit-content; max-width:100%; margin:0 auto` so the columns sit in the
+middle when they fit and still scroll when they do not.
 - **Column:** 290px wide, radius 26, glass `rgba(255,255,255,.42)`; drag-over bg `rgba(255,255,255,.75)` + `inset 0 0 0 2px var(--accent)`. Header: title 15/600 and a count chip (22px pill, `rgba(0,0,0,.05)`).
 - **Card:**
   - Base: `rgba(255,255,255,.92)`, radius 18, padding 14/16, title 14.5px. Shadow `0 0 0 1px #fff, 0 2px 8px rgba(30,45,40,.06)`.
@@ -343,6 +351,42 @@ screenshot review:
   code changed. It is now covered by a test, which it never was — `dragTo()` completes
   atomically and never exposes the state, which is why the report could stand
   unanswered.
+
+**Centred nav and board** (owner's 2026-10-04 nav spec, items 1–5). The wrapper is a
+centred flex column; the bar is `fit-content` with `max-width:100%`; its width
+transitions over `--dur` with `interpolate-size: allow-keywords` on `:root`; the tabs
+strip and the dashboard's label slot both dropped from `flex:1 1 auto` to `0 1 auto`;
+and the board's column row is centred at 44px below the nav.
+
+- **`flex: 0 1 auto` on the strip and the slot is load-bearing, not tidying.** The bar
+  sizes itself to that row, so a child that grows to fill the bar makes the bar grow to
+  fill the window — each waiting on the other — and the centring is lost. A test
+  asserts the bar is under 1200px wide at a 1600px viewport, which is what catches a
+  revert to `1 1 auto`.
+- **The dashboard's slot now carries a "Workspaces" label.** With a content-sized bar
+  an unlabelled 120px spacer is a visible hole rather than slack, so this had to land
+  with the pill rather than later.
+- **`interpolate-size` is Chrome 129+ and Edge.** Elsewhere the width jumps to its new
+  value, which is still correct and usable; only the animation is lost. Not verified in
+  a browser that lacks it.
+- **The width animation only plays for changes within a page** — the green dot
+  appearing, the View only pill, the status label hiding below 1100px. It does not play
+  across a navigation, because every page renders its own `AppShell` and the bar is a
+  new node each time. The shared-layout restructure
+  (`2026-10-03-shell-routing-and-nav.md`) is what fixes that, for the same reason it
+  fixes the sliding indicator.
+- **The board's `margin: 0 auto` needs `width: fit-content` to do anything**, since the
+  scroller is otherwise full width. `justify-content: center` is the obvious
+  alternative and is wrong: with overflow it leaves the first column unreachable.
+
+**Green dot, offline.** The dot now requires `status === 'connected'`, because it
+asserts that other people are in this document right now and a disconnected tab cannot
+know that — awareness goes stale rather than empty. **Not covered by a test, and the
+reason matters:** y-websocket has no active close-on-offline behaviour, so `status` only
+becomes `disconnected` when its dead-peer timer fires about thirty seconds later. A
+test would have to wait that long and would be racing the retry. The prompt signal is
+`navigator.onLine`, which arrives with
+`2026-10-04-connection-states-and-telemetry.md`; the dot becomes promptly correct then.
 
 ### Paint splatter
 

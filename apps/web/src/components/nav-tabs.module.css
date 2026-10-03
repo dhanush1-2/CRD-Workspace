@@ -3,7 +3,11 @@
   display: flex;
   align-items: center;
   gap: 2px;
-  flex: 1 1 auto;
+  /* Not `1 1 auto`. The nav sizes itself to this row, so a strip that grows to fill
+     the nav makes the nav grow to fill the window: each would be waiting for the
+     other, and the bar would stop being a centred pill. It takes the space it needs,
+     can still shrink to 120px, and scrolls sideways with the edge fade beyond that. */
+  flex: 0 1 auto;
   min-width: 120px;
   padding: 3px;
   border-radius: var(--r-pill);

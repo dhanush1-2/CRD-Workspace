@@ -2,8 +2,18 @@
   display: flex;
   gap: 16px;
   align-items: flex-start;
-  padding: 28px 16px 16px;
+  /* 44px below the nav, raised from 28 on 2026-10-04 to match the centred bar. */
+  padding: 44px 16px 16px;
   overflow-x: auto;
+  /*
+    Centred when the columns fit, full width and scrolling when they do not.
+    fit-content resolves to min(max-content, available), so these three lines give
+    both behaviours. `justify-content: center` is the obvious alternative and is
+    wrong: with overflow it makes the first column unreachable.
+  */
+  width: fit-content;
+  max-width: 100%;
+  margin: 0 auto;
 }
 
 /* Column: 290px, radius 26, glass rgba(255,255,255,.42) — handoff literals. */

@@ -151,6 +151,63 @@ test('a board keeps the title for screen readers without showing it', async ({ p
   await cleanup(label)
 })
 
+test('the nav is a pill sized to its contents and centred', async ({ page }) => {
+  const label = `${LABEL}-navpill`
+  const { owner, workspace } = await seedWorkspace(label)
+  const document = await createDocument(workspace.id, 'doc')
+  await signIn(page, owner.id)
+  await page.setViewportSize({ width: 1600, height: 900 })
+  await page.goto(`/documents/${document.id}`)
+
+  const nav = page.getByRole('navigation', { name: 'Primary' })
+  const box = (await nav.boundingBox())!
+
+  // Comfortably narrower than the viewport. Edge to edge would be 1568 here, which
+  // is what it was before the strip stopped growing.
+  expect(box.width).toBeLessThan(1200)
+  // Equal space either side, within a pixel of rounding.
+  expect(Math.abs(box.x - (1600 - (box.x + box.width)))).toBeLessThanOrEqual(1)
+
+  await cleanup(label)
+})
+
+test('the dashboard nav labels the slot where tabs would be', async ({ page }) => {
+  const label = `${LABEL}-navcontext`
+  const { owner } = await seedWorkspace(label)
+  await signIn(page, owner.id)
+  await page.goto('/')
+
+  // With a content-sized bar an unlabelled slot is a visible hole rather than
+  // slack, which is why this arrives with the pill and not later.
+  await expect(page.getByTestId('nav-context')).toHaveText('Workspaces')
+  await expect(page.getByTestId('tab-overview')).toHaveCount(0)
+
+  await cleanup(label)
+})
+
+test('the board starts 44px below the nav and its columns are centred', async ({ page }) => {
+  const label = `${LABEL}-boardcentre`
+  const { owner, workspace } = await seedWorkspace(label)
+  const board = await createDocument(workspace.id, 'board')
+  await signIn(page, owner.id)
+  await page.setViewportSize({ width: 1600, height: 900 })
+  await page.goto(`/documents/${board.id}`)
+  await expect(page.getByTestId('status')).toHaveAttribute('data-status', 'connected')
+
+  await page.getByTestId('add-column').click()
+  await expect(page.locator('[data-testid^="column-"]')).toHaveCount(1)
+
+  const scroller = page.locator('[class*="scroller"]').first()
+  await expect(scroller).toHaveCSS('padding-top', '44px')
+
+  // One column, so the row is far narrower than the window and must be centred.
+  const box = (await scroller.boundingBox())!
+  expect(box.width).toBeLessThan(600)
+  expect(Math.abs(box.x - (1600 - (box.x + box.width)))).toBeLessThanOrEqual(1)
+
+  await cleanup(label)
+})
+
 test('no splatter is painted behind the nav', async ({ page }) => {
   await page.goto('/login')
   await waitUntilDrawn(page)

@@ -29,8 +29,12 @@ export function NavTabs({
   // The store holds the open document only, so a dot can only ever appear on the active
   // tab. Presence on other documents needs per-document awareness the client does not
   // subscribe to.
-  const { documentId, peers } = useDocState()
-  const othersHere = peers.length > 0
+  const { documentId, status, peers } = useDocState()
+  // Only while connected. The dot claims other people are in this document right
+  // now, and a disconnected tab cannot know that -- awareness goes stale rather
+  // than empty, so without this the dot would keep asserting it after the socket
+  // dropped.
+  const othersHere = status === 'connected' && peers.length > 0
   const strip = useRef<HTMLDivElement>(null)
   const [metrics, setMetrics] = useState<Metrics | null>(null)
   const [overflowing, setOverflowing] = useState(false)

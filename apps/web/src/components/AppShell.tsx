@@ -101,7 +101,13 @@ export function AppShell({
                 activeDocumentId={activeDocumentId}
               />
             ) : (
-              <div className={styles.tabsSlot} />
+              /* No workspace in context, so there are no tabs. The bar is now sized to
+                 its contents, so an unlabelled slot here would be a visible hole. */
+              <div className={styles.tabsSlot}>
+                <span className={styles.navContext} data-testid="nav-context">
+                  Workspaces
+                </span>
+              </div>
             )}
 
             {role === 'viewer' && (
