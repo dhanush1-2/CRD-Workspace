@@ -182,3 +182,40 @@ test('a remote peer on a card gets the ring and a named chip', async ({ browser 
   await contextB.close()
   await cleanup(label)
 })
+
+test('the column under the pointer shows the accent outline while a card is dragged', async ({
+  page,
+}) => {
+  const label = `${LABEL}-dragover`
+  const [from, to] = await openBoard(page, label, 2)
+  await addCard(page, from!)
+  const card = page.getByTestId(`column-${from}`).locator('[data-testid^="card-"]').first()
+  const target = page.getByTestId(`column-${to}`)
+
+  const shadow = () => target.evaluate((el) => getComputedStyle(el).boxShadow)
+  // The accent as the browser serialises it in a computed box-shadow.
+  const ACCENT_INSET = 'oklch(0.42 0.11 285) 0px 0px 0px 2px inset'
+
+  // Resting: no outline. Without this the assertion below could pass on a column
+  // that always had one.
+  expect(await shadow()).not.toContain(ACCENT_INSET)
+
+  // Held mid-drag. dragTo() completes atomically and never exposes this state,
+  // which is why nothing in this suite covered it: the design owner reported the
+  // outline as missing and it was only ever untriggered.
+  const source = (await card.boundingBox())!
+  const box = (await target.boundingBox())!
+  await page.mouse.move(source.x + source.width / 2, source.y + source.height / 2)
+  await page.mouse.down()
+  await page.mouse.move(box.x + box.width / 2, box.y + 40, { steps: 15 })
+  await page.mouse.move(box.x + box.width / 2, box.y + 45, { steps: 5 })
+
+  expect(await shadow()).toContain(ACCENT_INSET)
+
+  await page.mouse.up()
+
+  // And it goes again, so the outline tracks the drag rather than latching on.
+  await expect.poll(shadow).not.toContain(ACCENT_INSET)
+
+  await cleanup(label)
+})
