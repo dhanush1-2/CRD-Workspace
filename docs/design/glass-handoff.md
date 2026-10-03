@@ -674,6 +674,18 @@ describes:
 | Document body | 17px (§12.7) | **18px** — the owner asked for reading text a size up; the 15px base went to 16px with it |
 | Document page margin | `16px auto 64px` (§12.7) | **`28px auto 64px`** — from the screenshot review, where the sheet was touching the nav |
 
+**Zoom and the document title (decided 2026-10-03, while closing the toolbar).** §12.4's
+prose says zoom is "applied as `zoom` on the editor container". Built to the letter, that
+leaves the document title outside the zoomed element, so at 70% a 32px title sits over
+12.6px body text and at 150% the title is smaller than a body line. The prototype zooms a
+`div` that *contains* the editor, and the document's `h1` is the first block inside it
+(`glass-prototype.html` line 276 is the zoomed wrapper, line 456 builds the `h1` as part of
+the editor's own content), so there the title scales with the body. §0 says the prototype wins where it and the prose disagree, and it
+is also the coherent reading, so the title scales: `DocumentEditor` puts `zoom` on a
+wrapper (`data-testid="document-zoom"`) around the heading and the editor, and not on
+`.editor` alone. The sheet's padding is outside the wrapper and does not scale, as in the
+prototype.
+
 **The prototype it names as source of truth is in this repository**, as
 `docs/design/glass-prototype.html` with `docs/design/support.js` beside it — the
 runtime it loads by that exact name, which is why the file is not prefixed like its
@@ -730,6 +742,8 @@ Six plans are complete:
 `2026-10-02-command-palette-and-share-sheet.md`,
 `2026-10-02-document-page-and-nav-consolidation.md` and
 `2026-10-02-glass-visual-corrections.md` (all under `docs/superpowers/plans/`).
+A seventh, `2026-10-03-document-formatting-toolbar.md`, is recorded in its own
+section below; it also changed no schema, sync-server code or API route.
 
 **None of them changed the schema, the sync server, or any API route.** The first
 three were visual only. The palette and share sheet plan added real behaviour —
@@ -1236,6 +1250,103 @@ so a non-null box that is also that narrow can only be clipped.
   that (the strip does not change size, one tab inside it does). A layout effect in
   `NavTabs` therefore re-measures the sliding indicator when the dot appears or
   goes. Anyone touching the indicator must keep it, or the pill drifts off its tab.
+
+### Document formatting toolbar
+
+`2026-10-03-document-formatting-toolbar.md`, built against §12 on the branch
+`document-formatting-toolbar`. **No Prisma schema change, no sync-server change, no new API
+route.** The toolbar's only server-visible effect is that documents can now carry more
+marks and nodes, all of which the Y.Doc already represents as ordinary XML.
+
+**Built**
+
+- **One definition of the document's shape** (Tasks 1-2). `editor-schema.ts` holds
+  `editorExtensions` and `getEditorSchema()`; the editor and anything that reads a
+  stored document use the same list. Curated font families and the design's size
+  steps (14/16/18/21/26/32) in `editor-type.ts`; System is stored as `var(--font)`.
+- **Shell** (Task 3, §12.1). `EditorToolbar`, in its own glass panel above the sheet, sticky
+  at `top: 80px`. Home / Insert / View as an ARIA tablist, a "View only" chip and a live
+  word count. `useEditor` now lives in `DocumentEditor.tsx`, which renders the toolbar and
+  the sheet; `Editor.tsx` was absorbed into it and deleted. Viewers get View only.
+  Every tool keeps the editor's selection by calling `preventDefault` on mousedown
+  (`ToolButton`).
+- **Home** (Tasks 4-5, §12.2 and §12.5). Undo/redo, the Style menu (Title, Heading,
+  Subheading, Normal, Quote, Code), bold/italic/underline/strike, text colour and
+  highlight menus with a last-used bar, bulleted and numbered lists, four alignments, Clear
+  formatting. The three menus share one shell (`EditorMenu`); opening one closes the other.
+- **Insert** (Task 6, §12.3 and §12.6). Link with its popover, Table (3x3 plus a paragraph
+  after it), Divider, Code block, Quote, Date.
+- **View** (Task 7, §12.4). Zoom 70-150% in steps of 10, the value resets to 100%; page
+  width Narrow (780) and Wide (1040), animating `max-width` over .55s. Per page load, not
+  persisted, as in the design.
+- **Element styles** (Task 8, §12.7's table). In `globals.css` under `.editor .ProseMirror`:
+  h1, h2, h3, p, blockquote, pre, ul/ol/li, hr, table, td/th and a, with colour and
+  highlight left as inline marks that none of those rules override. Pinned by four
+  computed-style tests in `e2e/editor-toolbar.spec.ts` that read every value in the table
+  back from the browser, plus a test that the title's painted size follows zoom.
+- **Schema additions**, each carried through the Y.Doc by a two-browser test: underline,
+  strike, `textStyle` (colour, family, size), highlight (multicolor), `textAlign` on
+  headings and paragraphs, table / row / cell / header, code block, horizontal rule.
+
+**Deviations from §12, and why**
+
+| Where | §12 says | Built | Why |
+|---|---|---|---|
+| Document body (§12.7) | 17px | 18px | Later owner decision, see Precedence. Kept. |
+| Page margin (§12.7) | `16px auto 64px` | `28px auto 64px` | Later owner decision, see Precedence. Kept. |
+| Zoom target (§12.4) | on the editor container | on a wrapper that includes the title | The prototype wins, see Precedence. |
+| h3 in the document | 17/600/1.35 | same, but it is **smaller than the 18px body** | §12.7's h3 predates the 18px body. A subheading is told from body text by weight alone. Left as specified; the owner may want 19-20px. |
+| Link colour (§12.7) | `--accent` | `--accent`, in the editor only | The global `a` rule uses `--accent-text`; the editor's rule is scoped, so the rest of the app is unchanged. |
+| Text in a list item, quote, cell | not specified (the spec's items are bare text) | paragraphs inside them are reset (no 14px tail, and a cell's text is the table's 15px, not 18px) | ProseMirror wraps all of them in `<p>`; the spec's margins describe the block, not a paragraph inside it. |
+| `th` | not in the table | same as `td`, weight 600, left | The schema carries a header node, so a document that has one reads back whole. The toolbar cannot make one. |
+| Word count (§12.7) | tokens of `doc.textContent` | `textBetween` joined with spaces, 150ms debounce, "1 word" singular | `textContent` fuses paragraphs ("three" + "four" counts once). Counts the body, not the title. |
+| Tabs (§12.1) | "every tool" keeps the selection | tabs do too | Clicking Insert would otherwise drop the selection before an Insert tool was reached. |
+| Tool row keyboard | silent | one Tab stop, arrows move within the row (`useRovingToolRow`) | The ARIA toolbar pattern; fourteen tab stops in front of the page was worse. Tools use `aria-disabled`, never `disabled`. |
+| Selected swatch (§12.5) | silent | follows the selection, not the last choice | What Word does and what clicking into red text expects. The bar still shows the last colour used. |
+| Default / None swatch | silent | removes the mark | Rather than writing `#1c1d1b`, which would hold the colour fixed if `--text` changes. |
+| Highlight ring | silent | `rgba(40,40,60,.35)`, the prototype's | A pale yellow ring does not show on white. |
+| Menu row height | 38px | `min-height: 38px` | The prototype's; the 22px Title row grows to about 40px. |
+| Menu glass | blur on the panel | blur on a `::before` layer of the panel | A `backdrop-filter` ancestor stops a descendant blurring the page (it blurs the panel instead). The page's overlay rule applies here too. |
+| Link popover | "Add" and "Remove" | also prefills an existing link and disables Remove when there is none; saves the selection as Yjs **relative positions**; refuses with a visible message if a peer deleted the text | Offsets linked the wrong span when a peer typed with the popover open (found by a two-browser test). |
+| Opening a link | silent | `openOnClick: false`, and **Cmd/Ctrl-click** follows a link in an editable document | A plain click has to place the caret or an existing link cannot be edited. A viewer's click is untouched. |
+| Table | "a table plugin" | `@tiptap/extension-table`, `resizable: false` | No column-resize handles; nothing in the toolbar drives them. |
+| Sticky offset (§12.1) | "12px under the nav" | `top: 80px`, as written | The nav in this repo does not condense on scroll, so there is no smaller offset to follow. |
+
+**Asked for by §12 and not built**
+
+- **The history preview's "toolbar hidden" state.** There is no preview in this repository
+  yet; it belongs to `2026-10-04-history-panel-and-preview.md`, whose note on the editor
+  component has been corrected (see that plan).
+- **A way for keyboard-only and touch editors to follow a link.** Not a regression, since
+  nobody could before; §12.6 lists no Open control, so Cmd/Ctrl-click is the only route.
+  A rendered-only `title` on anchors in editable mode is the cheap partial fix.
+- **Pinned tests for the ⌘⌥0-3 shortcuts.** The Style menu shows them and Tiptap's own
+  heading and paragraph bindings supply them. No test presses them, so the §12.7 note to
+  match on `event.code` is **unverified on macOS**.
+- **Per-document `zoom` / width persistence.** The design does not ask for it.
+
+**CSS `zoom`: verified in Chromium 153 only.** Remote carets were measured against
+`view.coordsAtPos` at 70, 100 and 150%, and in mixed pairs (one browser at 150%, the other
+at 70%): no drift. That is not the exposure. Carets here are inline widget spans in the
+text flow, so they scale with the text in any browser. The exposure is **ProseMirror's own
+`posAtCoords` and `coordsAtPos`**, which drive local clicks, drag selection and
+scroll-into-view, and which Chrome older than 128, and possibly Safari, report unzoomed
+under `zoom`. Not tested in Safari, Firefox or old Chrome, and no `transform: scale()`
+fallback was built. The same caveat sits as a comment on the `zoom` style in
+`DocumentEditor.tsx`. Cost, not drift: the caret's name label lives inside the zoomed
+wrapper, so its 11px type is 7.7px at 70%.
+
+**Known gaps found while looking at the finished page** (Task 8; none changes the design):
+
+- **The inline `code` mark is unstyled.** §12.7 lists "pre / code block" only, so a
+  backtick span renders in the browser's monospace with no background.
+- **A table's right and bottom edges are about 2px**: the outer 1px border plus the last
+  column's and row's 1px cell borders. That is §12.7's table taken literally (and the
+  prototype's).
+- **At a 760px window the sheet is edge to edge**, with no side gutter: `.page` is the sheet
+  and the 16px container padding §12.7 puts around it does not exist.
+- **Home's last control wraps alone at 760px**: Clear formatting drops to a second row
+  with its separator in front of it.
 
 ### Deferred, each needing its own plan
 

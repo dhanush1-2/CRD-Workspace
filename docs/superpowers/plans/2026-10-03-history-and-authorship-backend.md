@@ -13,6 +13,7 @@
 ## Global Constraints
 
 - **Decision 2's substance is binding; its mechanism in the capability table is not.** The table lists `POST /api/documents/[id]/history/[snapshotId]/restore`. This plan does not build that route, and Task 6 amends the spec to say why: a server-side restore would have to reimplement the ProseMirror schema on the server, would bypass the per-frame role enforcement the sync protocol already applies, and would have to invent an authorship story for an update with no connection behind it. Everything Decision 2 actually decided — restore is applied as another update, the merge is accepted, no locking, viewers cannot restore, the UI must not promise an exact revert — is preserved exactly.
+- **A document can only be restored by a schema that includes every mark and node it carries.** A mark present in a document but absent from the schema used to read it is dropped silently, with no error anywhere, and a restore writes that loss back into the live document as ordinary edits. The document formatting toolbar (`2026-10-03-document-formatting-toolbar.md`, built) added to what a document can hold: the marks `textStyle` (carrying colour, font family and font size), `highlight`, `underline` and `strike`, the `textAlign` attribute on headings and paragraphs, and the nodes `table`, `tableRow`, `tableCell`, `tableHeader`, `codeBlock` and `horizontalRule`. All of them are in `editorExtensions`, and `restoreEditor` reads `getEditorSchema()`, which is built from that same list. **The editor, `getEditorSchema()` and `restoreEditor` must never drift apart**: a new mark or node is added to `editorExtensions` and nowhere else, and this plan's `restore-editor.test.ts` must carry a document using every one of the above through a restore (Task 5, Step 7).
 - **No UI in this plan.** The history panel, the version preview bar and the status popover are a separate plan; this one ends at the API and the primitives. Build no components.
 - **The database on port 5433 is shared across checkouts.** Never start, stop or restart it. The migration here is additive and the new column is nullable, so other checkouts running older code are unaffected — but say so in the task report, because applying a migration to a shared database is a side effect beyond this worktree.
 - Never touch `.env`, `docker-compose.yml` or `docker-compose.override.yml`. Never run any `fly` command. Never use bare `git stash` / `git stash pop` — the stash stack is shared with other worktrees.
@@ -907,8 +908,6 @@ Restore applies a past state to the live document as ordinary edits. The spec's 
 **Files:**
 - Modify: `packages/shared/src/board.ts`
 - Create: `packages/shared/test/restore-board.test.ts` (or wherever this package's tests live — check first)
-- Create: `apps/web/src/components/editor-schema.ts`
-- Modify: `apps/web/src/components/Editor.tsx`
 - Create: `apps/web/src/lib/restore-editor.ts`
 - Test: `apps/web/test/restore-editor.test.ts`
 
@@ -917,7 +916,7 @@ Restore applies a past state to the live document as ordinary edits. The spec's 
 - Produces:
   - `restoreBoard(live: Y.Doc, from: Y.Doc): void` from `@crdt/shared/board`
   - `restoreEditor(live: Y.Doc, from: Y.Doc): void` from `@/lib/restore-editor`
-  - `editorExtensions` and `getEditorSchema()` from `@/components/editor-schema`
+- Consumes, already built by the toolbar plan: `editorExtensions` and `getEditorSchema()` from `@/components/editor-schema`, and `EDITOR_FRAGMENT` from `@/components/editor-fragment`. This task creates neither.
 
 - [ ] **Step 1: Write the failing board test**
 
@@ -1081,37 +1080,16 @@ Expected: PASS, 4 tests.
 
 Commit first. Then replace the field-level branch with `target.set(id, fresh)` unconditionally — the obvious implementation — and re-run. Expected: the concurrent-edit test fails, the rename gone. Restore. Note in the report that this is the test the whole design of the function exists for.
 
-- [ ] **Step 6: Extract the editor's schema**
+- [ ] **Step 6: Consume the editor's schema**
 
-The editor restore needs the same ProseMirror schema the editor uses. Two copies of an extension list drift, so there is one.
+The editor restore needs the same ProseMirror schema the editor renders with. That module already exists: `apps/web/src/components/editor-schema.ts` was extracted by the toolbar plan (Task 1) and extended by its Tasks 2 to 6. `DocumentEditor.tsx` already spreads `editorExtensions` in front of the Collaboration extensions. **Do not create, copy or edit the extension list here**, and there is no `Editor.tsx` to modify: that component was absorbed into `DocumentEditor.tsx` and deleted.
 
-Create `apps/web/src/components/editor-schema.ts`:
+Read `editor-schema.ts` first and confirm two things, so the restore is written against what is there and not against what this plan remembers:
 
-```ts
-import StarterKit from '@tiptap/starter-kit'
-import { getSchema } from '@tiptap/core'
-import type { Schema } from '@tiptap/pm/model'
+1. `editorExtensions` carries every mark and node listed in the constraint above. If one is missing, that is a drift to report, not to patch around in `restore-editor.ts`.
+2. `getEditorSchema()` is built from `editorExtensions` and nothing else, so it is by construction the editor's own schema.
 
-/**
- * The extensions that define the document's shape.
- *
- * Collaboration and CollaborationCaret are deliberately absent: they add behaviour,
- * not nodes or marks, and they need a live Y.Doc and provider. The schema is what
- * restore needs, and it must be the same one the editor renders with — hence one
- * list, imported by both.
- */
-export const editorExtensions = [StarterKit.configure({ undoRedo: false })]
-
-let schema: Schema | null = null
-
-/** Memoised: building a schema is not free and it never changes at runtime. */
-export function getEditorSchema(): Schema {
-  schema ??= getSchema(editorExtensions)
-  return schema
-}
-```
-
-In `apps/web/src/components/Editor.tsx`, replace the inline `StarterKit.configure({ undoRedo: false })` with a spread of `editorExtensions`, keeping the Collaboration extensions after it, and move the `undoRedo: false` comment to `editor-schema.ts` where the configuration now lives.
+`restore-editor.ts` imports `getEditorSchema` from it, exactly as Step 9 shows. Nothing is added to the module in this task, so this step has no commit of its own.
 
 - [ ] **Step 7: Write the failing editor-restore test**
 
@@ -1193,6 +1171,8 @@ describe('restoreEditor', () => {
   })
 })
 ```
+
+A fourth test carries the constraint at the top of this plan: build a past document with `prosemirrorJSONToYXmlFragment` that uses every toolbar mark and node (a `textStyle` mark with `color`, `fontFamily` and `fontSize`; `highlight` with a colour; `underline`; `strike`; a paragraph and a heading with `textAlign: 'center'`; a `table` with a header row and cells; a `codeBlock`; a `horizontalRule`), restore it into an empty live document, and assert `yXmlFragmentToProsemirrorJSON` of the live fragment equals the past one's. Prove it discriminates by deleting one extension from `editorExtensions` locally and watching the test fail with that mark or node missing, then put it back.
 
 The third test is the one that proves `updateYFragment` is really diffing rather than replacing. If it fails, do not relax it before establishing why: a restore that always writes is a restore that always creates a new version, and the history panel would grow an entry every time someone looked at it.
 
@@ -1339,7 +1319,7 @@ git commit -m "docs: record the history backend, and why restore is not a route"
 
 **3. Type consistency.** `onPersist` is three arguments in `RoomOptions` and four in `SyncServerOptions` throughout — the document id is the server's to add. `PendingUpdate.userId` is `string | null`, matching `DocumentUpdate.userId`'s nullability, and never `undefined`. `DocumentVersion.id` is a `string` in Task 3 and consumed as a string in Task 4. `stateAtVersion` takes a `bigint` and the route converts; `listVersions` returns strings and the route does not. `restoreBoard(live, from)` and `restoreEditor(live, from)` share an argument order on purpose — live first, in both.
 
-**4. Greenness between tasks.** Every task ends on a green full gate. Task 2 widens three callback signatures in one commit, which is why its files list includes all five modules: a partial change does not typecheck. Task 5's Step 6 edits `Editor.tsx` in the same commit as the module it extracts.
+**4. Greenness between tasks.** Every task ends on a green full gate. Task 2 widens three callback signatures in one commit, which is why its files list includes all five modules: a partial change does not typecheck. Task 5's Step 6 consumes the schema module the toolbar plan already built and edits nothing, so Task 5 adds only `restore-editor.ts`, its test and the board primitive.
 
 ## Execution Handoff
 

@@ -35,7 +35,7 @@ Mine, where the owner's answers did not reach.
 
 - **Family values are three fixed CSS stacks**, and System is stored as `var(--font)` rather than the expanded stack, so a document written today follows the design's font if that token ever changes. Serif and Mono are literal stacks, because there is no token for them.
 - **Sizes are 14 / 16 / 18 / 21 / 26 / 32px** — the design's own type steps, with 18 as the document body default. No arbitrary value.
-- **The toolbar lives inside `Editor.tsx`**, which owns the editor instance. Lifting `useEditor` into `DocumentClient` to put the bar elsewhere would spread the editor's lifecycle across two components for a layout gain.
+- **The toolbar lives in `DocumentEditor.tsx`, which owns `useEditor`.** This plan first said it would live inside `Editor.tsx` and that lifting the editor out was not worth it. Task 3 reversed that: the owner's design puts the toolbar in its own panel above the sheet, so it can no longer sit inside a wrapper `DocumentClient` renders, and `Editor.tsx` was absorbed into `DocumentEditor.tsx` and deleted. `DocumentEditor` renders the toolbar, the sheet and the editor, and `DocumentClient` hands it the sheet's class and the title. It also accepts a null `doc` and `provider`, so the toolbar renders from the server before the editor is bound. (Superseded decision, kept for the record.)
 - **Native `<select>` for the three dropdowns**, matching the share sheet's role select. A custom listbox is more design-controllable and is three more keyboard implementations to get right.
 - **No colour, highlight or alignment**, because the owner did not pick them. They are a later addition to the same bar.
 
