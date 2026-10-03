@@ -195,7 +195,7 @@ export function PaintSplatter({ strength = 'subtle', palette = 'purple', motion 
       const colors = PALETTES[palette]
       const now = performance.now()
       for (let i = 0, n = splatCount(w, h); i < n; i += 1) {
-        const splat = makeSplat(random, random.pick(colors), random.range(0.6, 1.2))
+        const splat = makeSplat(random, random.pick(colors), random.range(0.7, 1.4))
         placed.push({
           splat,
           canvas: paintSplat(splat, dpr),

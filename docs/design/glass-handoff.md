@@ -68,11 +68,13 @@ High fidelity. Match the colors, radii, blur values and easing exactly.
 ```
 User colors (unchanged, from `lib/color.ts`): `#e11d48 #0ea5e9 #16a34a #f59e0b #8b5cf6 #14b8a6`.
 
-Font: `-apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", system-ui, sans-serif`. Base size 15px, line-height 1.47, letter-spacing −0.01em, antialiased.
+Font: `-apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", system-ui, sans-serif`. Base size **16px** (raised from 15 by the owner on 2026-10-04), line-height 1.47,
+letter-spacing −0.01em, antialiased. Only text without a size of its own inherits it:
+the nav, tabs, meta lines and chips all set their own and were deliberately left.
 - Page H1: 32px / 600 / −0.025em
 - Section H2: 21px / 600 / −0.02em
 - Card title: 18px / 600
-- Body: 15px; small text 13–13.5px
+- Body: 16px; small text 13–13.5px
 
 ## Painted canvas background
 A fixed, full-viewport layer (`pointer-events:none; z-index:0`) behind everything, with bg `var(--canvas-base)`:
@@ -185,7 +187,9 @@ Every screen root enters with `g-in .7s var(--ease)` (fade + 14px rise + 6px blu
 
 **Document.** Max-width 780, centered.
 - The page is a glass sheet: radius 30, padding 56/56/96, `rgba(255,255,255,.78)`.
-- Text: H1 32/600; H2 21/600; paragraphs 17px, line-height 1.65, color `--text-2`; caret color accent.
+- Text: H1 32/600; H2 21/600; paragraphs **18px** (raised from 17 with the base),
+  line-height 1.65, color `--text-2`; caret color accent. At the 668px measure that is
+  about 71–75 characters a line, down from 75–80.
 - Remote cursor: a 2px bar in the peer color, with the label in a pill above it (11px / 500, `0 4px 10px` shadow). It moves with `left/top .7s var(--ease)`.
 
 **History.** A fixed panel at `top:84px; right:16px; bottom:16px`, 330px wide, radius 28, glass, entrance `g-side .6s` (slides in from 28px right).
@@ -391,7 +395,7 @@ on every screen. A code comment in `geometry.ts` did claim violet appeared twice
 was false of the array; it now describes what is actually there and points here.
 
 **Per splat** (drawn once onto its own offscreen canvas, in splat-local coordinates,
-origin at the centre, scale 0.6 to 1.2). **These magnitudes are the 2026-10-02
+origin at the centre, scale 0.7 to 1.4). **These magnitudes are the 2026-10-02
 review's; the structure is unchanged from the original spec.**
 
 - **Core:** 9 overlapping circles, radius 0.55 to 1.0 of an 11px base (times scale),
@@ -482,9 +486,11 @@ an arc is path construction.
    faint antialiased pixels touched the border on 7 of 200 splats at DPR 1 (1 of 200
    at DPR 2). Nothing visible was clipped, but a hard cut on a paint edge reads as a
    rendering bug and this sits behind every screen. Costs about 1.5% more memory.
-4. **Splat scale is 0.6 to 1.2**, set by the owner in the 2026-10-02 review (it was
-   0.7 to 1.4, chosen here when the spec gave no value). It sets the memory figure
-   below: the bounding radius now runs from 39 to 84px, against 77 to 194px before.
+4. **Splat scale is 0.7 to 1.4.** The 2026-10-02 review cut it to 0.6–1.2; the owner
+   then asked on 2026-10-04 for the splats to be "a little" bigger and chose +17% from
+   measured options, which returns the range to 0.7–1.4 — now sitting on the review's
+   11px core rather than the original 30px one. It sets the memory figure below: the
+   bounding radius runs from 45 to 91px, against 39–84 at 0.6–1.2 and 77–194 originally.
 5. **Re-placed splat positions after the first cycle are not reproducible across
    loads.** The first placement is a pure function of the seed, which is what the spec
    asks for. After a splat's first life it is re-placed from a random stream that has
@@ -553,30 +559,32 @@ Re-measured after the 2026-10-02 resize, by the same method:
 
 | Viewport | Splats | Splat canvases | Visible canvas | Layer total | At cap 1.5 | At cap 2 |
 |---|---|---|---|---|---|---|
-| 1440×900 | 18 | 1.0 MiB | 4.9 MiB | **5.9 MiB** | 13.3 MiB | 23.6 MiB |
-| 1920×1080 | 20 | 1.0 | 7.9 | 9.0 | 20.1 | 35.8 |
-| 2560×1440 | 24 | 1.2 | 14.1 | 15.3 | 34.4 | 61.2 |
-| 3440×1440 | 26 | 1.3 | 18.9 | 20.2 | 45.5 | 80.8 |
-| 3840×2160 | 31 | 1.6 | 31.6 | **33.2 MiB** | 74.7 | 132.9 |
+| 1440×900 | 18 | 1.3 MiB | 4.9 MiB | **6.3 MiB** | 14.1 MiB | 25.0 MiB |
+| 1920×1080 | 20 | 1.4 | 7.9 | 9.3 | 21.0 | 37.3 |
+| 2560×1440 | 24 | 1.7 | 14.1 | 15.7 | 35.4 | 62.9 |
+| 3440×1440 | 26 | 1.8 | 18.9 | 20.7 | 46.5 | 82.7 |
+| 3840×2160 | 31 | 2.1 | 31.6 | **33.8 MiB** | 76.0 | 135.1 |
 
-Before the resize these were 11.4 MiB at 1440×900 and 43.0 MiB at 4K, with the splat
-canvases alone at 6.4 and 11.4 MiB.
+Three figures for the same viewport, for scale: 1440×900 was 11.4 MiB originally, 5.9
+after the 2026-10-02 resize, and 6.3 after the 2026-10-04 +17%. The splat canvases
+alone went 6.4 → 1.0 → 1.3 MiB.
 
-Canvas sides at cap 1, min / median / max: 78 / 116 / 158 CSS px at 1440×900 and
-74 / 110 / 168 at 4K (they were 178 / 236 / 348 and 156 / 240 / 388). The median span
-of 116px is what the owner's "at most about 120px across" asked for; the largest is
-158px, so the tail runs about 30% over that sentence while the typical splat matches
-it. Budget was about 40 MB and **every size is now inside it, including 4K**, where it
-was 43.0 MiB before. The splat canvases themselves never exceed 2 MiB, so the layer is
-now dominated entirely by the **visible canvas**, which is unavoidable for any
+Canvas sides at cap 1, min / median / max: 90 / 134 / 182 CSS px at 1440×900 and
+86 / 128 / 194 at 4K. **The median span is 134px**, which is above the "at most about
+120px across" of the first review — that sentence described the 0.6–1.2 scale, and the
+owner has since chosen +17% from measured options with these numbers in front of them,
+so 134 is the figure that now stands. Budget was about 40 MB and **every size is still
+inside it, including 4K** at 33.8 MiB. The splat canvases never exceed 2.1 MiB, so the
+layer is dominated entirely by the **visible canvas**, which is unavoidable for any
 viewport-sized layer. Anyone adding splats, widening the scale range or lifting the cap
 is spending from this.
 
 **Raster cost is projected, not measured, and the projection is now two steps old.**
 Raster scales with pixel count, so the 12.3 ms per draw measured at cap 1.5 was
 projected to roughly 5.5 ms at cap 1 — taking a no-GPU machine from about 37% of a
-core to about 16%. The 2026-10-02 resize then cut the splat canvas area by about 85%
-and the splat count by a third, so the real figure should be well below that again.
+core to about 16%. The 2026-10-02 resize then cut the splat canvas area by about 80%
+and the splat count by a third, and the 2026-10-04 +17% gave back a fifth of the area,
+so the real figure should still be well below that.
 **None of this has been verified in a browser**; the memory figures above have. Treat
 the 5.5 ms as an upper bound at best and re-measure before relying on any of it.
 

@@ -67,7 +67,10 @@ body {
   background: var(--canvas-base);
   color: var(--text);
   font-family: var(--font);
-  font-size: 15px;
+  /* 16px, raised from 15 at the owner's request. This is the base that text without
+     a size of its own inherits; the nav, tabs, meta lines and chips all set their
+     own and are deliberately unchanged, so this moves reading text only. */
+  font-size: 16px;
   line-height: 1.47;
   letter-spacing: -0.01em;
   -webkit-font-smoothing: antialiased;
@@ -254,7 +257,9 @@ textarea {
 }
 
 .editor .ProseMirror p {
-  font-size: 17px;
+  /* 18px, raised from 17 with the base above. At the 668px measure this is about
+     71-75 characters a line, down from 75-80 -- still inside a comfortable measure. */
+  font-size: 18px;
   line-height: 1.65;
   color: var(--text-2);
   margin: 0 0 12px;
