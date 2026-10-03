@@ -1423,6 +1423,41 @@ test('an address the link validation refuses keeps the popover open and flags th
   await expect(prose(page).locator('a')).toHaveText('not linked')
 })
 
+test('pressing Link again closes the popover, and the editor has its selection', async ({
+  page,
+}) => {
+  await openDocument(page, `${LABEL}-link-toggle`)
+  await typeAndSelect(page, 'toggle me')
+  await openInsert(page)
+  await openLink(page)
+  await disturbSelection(page, 1)
+
+  await tb(page, 'insert-link').click()
+  await expect(tb(page, 'insert-link-menu')).toHaveCount(0)
+  await expect
+    .poll(() => editorState(page))
+    .toEqual({ selected: 'toggle me', inEditor: true })
+})
+
+test('clicking a link places the caret in it instead of opening it', async ({ page }) => {
+  await openDocument(page, `${LABEL}-link-click`)
+  await typeAndSelect(page, 'click me')
+  await openInsert(page)
+  await openLink(page)
+  await page.keyboard.type('example.com')
+  await page.keyboard.press('Enter')
+  await expect(prose(page).locator('a')).toHaveCount(1)
+
+  // By default a click on a link in an editable document opens it in a new tab, which would
+  // make an existing link impossible to reach with the mouse, and so to edit or remove.
+  const opened: string[] = []
+  page.context().on('page', (popup) => opened.push(popup.url()))
+  await prose(page).locator('a').click()
+  await page.waitForTimeout(500)
+  expect(opened).toEqual([])
+  await expect(tb(page, 'insert-link')).toHaveAttribute('aria-pressed', 'true')
+})
+
 test('a caret on no text takes the address as the link’s text', async ({ page }) => {
   await openDocument(page, `${LABEL}-link-caret`)
   await prose(page).click()
